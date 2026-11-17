@@ -4,7 +4,7 @@ const THEMES = [
   ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
-  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'แต่ละวิชา'], ['calendar', '📅', 'ปฏิทิน'],
+  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'วิชา'], ['calendar', '📅', 'ปฏิทิน'],
   ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🐃', 'อู๊ดเอไอ'],
 ];
 const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
@@ -140,7 +140,7 @@ function planItemHTML(p, showDate = false) {
   return `<div class="item ${p.done ? 'done' : ''}">
     <input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''}>
     ${tag(p.subjectId)}
-    <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
+    <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${p.time ? ` <small class="muted">⏰ ${esc(p.time)}${p.remind !== false ? ' 🔔' : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
     <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข">✎</button>
     <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ">✕</button></span>
   </div>`;
@@ -223,9 +223,7 @@ function normalizeLink(raw) {
   } catch { return { error: 'ลิงก์ไม่ถูกต้อง ใส่เช่น https://drive.google.com/...' }; }
 }
 function demoButtonHTML() {
-  return hasDemo()
-    ? `<button class="btn danger" data-act="clear-demo">ลบข้อมูลทดลอง</button>`
-    : `<button class="btn ghost" data-act="load-demo">ใส่ข้อมูลทดลอง</button>`;
+  return hasDemo() ? `<button class="btn danger" data-act="clear-demo">ลบข้อมูลทดลอง</button>` : '';
 }
 
 /* ===== Views ===== */
@@ -711,6 +709,7 @@ function taskForm(x = {}) {
       <label class="field">เวลา<input type="time" name="time" value="${esc(x.time || '')}"></label>
     </div>
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
+    <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" ${x.remind !== false ? 'checked' : ''}> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -720,7 +719,11 @@ function planForm(p = {}) {
     <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
     <label class="field">บท (เลือก หรือพิมพ์เองด้านล่าง)<select name="chapterId" id="planCh">${planChapterOptions(sid, p.chapterId)}</select></label>
     <label class="field">รายละเอียด<input name="title" value="${esc(p.chapterId ? '' : (p.title || ''))}" placeholder="เช่น ทำแบบฝึกหัดบท 3"></label>
-    ${dateField('วันที่', 'date', p.date || todayStr(), true)}
+    <div class="row wrap">
+      ${dateField('วันที่', 'date', p.date || todayStr(), true)}
+      <label class="field">เวลา <small class="muted">(ไม่บังคับ)</small><input type="time" name="time" value="${esc(p.time || '')}"></label>
+    </div>
+    <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" ${p.remind !== false ? 'checked' : ''}> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -1151,13 +1154,78 @@ function interpretCalls(calls) {
       if (s && !fresh.length) { asks.push('บทพวกนี้อยู่ในวิชานี้แล้ว'); return; }
       items.push({ kind: 'chapters', subjectId: s ? s.id : '', subjectName: s ? s.name : name, titles: fresh.length ? fresh : titles });
       lines.push(`เพิ่ม ${(fresh.length ? fresh : titles).length} บทใน ${s ? s.name : name}: ${(fresh.length ? fresh : titles).join(', ')}`);
+      return;
+    }
+    if (call.name === 'delete_subject') {
+      if (a.all) {
+        if (!DB.subjects.length) { asks.push('ยังไม่มีวิชาให้ลบ'); return; }
+        items.push({ kind: 'del-subject', all: true });
+        lines.push(`ลบวิชาทั้งหมด (${DB.subjects.length} วิชา)`);
+        return;
+      }
+      const real = matchSubjects(name);
+      if (real.length !== 1) { asks.push(real.length ? `ลบวิชาไหน: ${real.map(s => s.name).join(', ')}` : `ไม่เจอวิชา "${name}"`); return; }
+      items.push({ kind: 'del-subject', subjectId: real[0].id });
+      lines.push(`ลบวิชา ${real[0].name}`);
+      return;
+    }
+    if (call.name === 'delete_chapters') {
+      const isAllSub = a.all && (!name || /^all|ทั้งหมด|ทุกวิชา$/i.test(name));
+      const targets = isAllSub ? DB.subjects : matchSubjects(name);
+      if (!isAllSub && targets.length !== 1) { asks.push(targets.length ? `ลบบทในวิชาไหน: ${targets.map(s => s.name).join(', ')}` : `ไม่เจอวิชา "${name}"`); return; }
+      const titles = Array.isArray(a.titles) ? a.titles.map(t => String(t).trim()).filter(Boolean) : [];
+      if (!a.all && !titles.length) { asks.push('ระบุชื่อบทที่จะลบ หรือบอกว่าลบทั้งหมด'); return; }
+      items.push({ kind: 'del-chapters', subjectIds: targets.map(s => s.id), titles, all: !!a.all });
+      lines.push(a.all ? `ลบทุกบทใน ${isAllSub ? 'ทุกวิชา' : targets[0].name}` : `ลบ ${titles.length} บทใน ${targets[0].name}`);
+      return;
+    }
+    if (call.name === 'delete_files') {
+      const isAllSub = a.all && (!name || /^all|ทั้งหมด|ทุกวิชา$/i.test(name));
+      const targets = isAllSub ? DB.subjects : matchSubjects(name);
+      if (!isAllSub && targets.length !== 1) { asks.push(targets.length ? `ลบไฟล์ในวิชาไหน: ${targets.map(s => s.name).join(', ')}` : `ไม่เจอวิชา "${name}"`); return; }
+      const fileNames = Array.isArray(a.fileNames) ? a.fileNames.map(t => String(t).trim()).filter(Boolean) : [];
+      items.push({ kind: 'del-files', subjectIds: targets.map(s => s.id), fileNames, all: !!a.all || !fileNames.length });
+      lines.push(fileNames.length ? `ลบไฟล์ ${fileNames.join(', ')} ใน ${isAllSub ? 'ทุกวิชา' : targets[0].name}` : `ลบทุกไฟล์และลิงก์ใน ${isAllSub ? 'ทุกวิชา' : targets[0].name}`);
+      return;
+    }
+    if (call.name === 'delete_task') {
+      const title = String(a.title || '').trim();
+      items.push({ kind: 'del-task', title, all: !!a.all });
+      lines.push(a.all ? 'ลบการบ้าน/กิจกรรมทั้งหมด' : `ลบงาน "${title}"`);
+      return;
+    }
+    if (call.name === 'add_plan') {
+      const title = String(a.title || '').trim().slice(0, 200);
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') && examYearOk(a.date) ? a.date : '';
+      if (!title || !date) { asks.push('แผนอ่านยังขาดชื่อหรือวันที่'); return; }
+      const hits = name ? matchSubjects(name) : [];
+      items.push({ kind: 'plan', title, date, time: normClock(a.time), subjectId: hits[0] ? hits[0].id : (DB.subjects[0]?.id || '') });
+      lines.push(`เพิ่มตารางอ่าน "${title}" วันที่ ${fmtDateLong(date)}${a.time ? ' เวลา ' + normClock(a.time) : ''}`);
+      return;
+    }
+    if (call.name === 'delete_plan') {
+      items.push({ kind: 'del-plan', title: String(a.title || '').trim(), date: a.date || '', all: !!a.all });
+      lines.push(a.all ? 'ลบตารางอ่านทั้งหมด' : `ลบรายการในตารางอ่าน`);
+      return;
+    }
+    if (call.name === 'toggle_done') {
+      const title = String(a.title || '').trim();
+      if (!title) return;
+      const hits = name ? matchSubjects(name) : [];
+      items.push({ kind: 'toggle', target: a.target || 'chapter', title, subjectId: hits[0]?.id || '', done: !!a.done });
+      lines.push(`${a.done ? 'ติ๊กเสร็จ' : 'เอาติ๊กออก'}: ${title}`);
+      return;
+    }
+    if (call.name === 'auto_schedule') {
+      items.push({ kind: 'auto-schedule' });
+      lines.push('จัดตารางอ่านอัตโนมัติ');
     }
   });
   return { items, lines, asks };
 }
 function applyChatProposal(p) {
   const undo = [];
-  const order = { subject: 0, exam: 1, 'clear-exam': 1, task: 1, chapters: 2 };
+  const order = { subject: 0, exam: 1, 'clear-exam': 1, task: 1, plan: 1, chapters: 2, 'del-chapters': 2, 'del-files': 2, 'del-task': 2, 'del-plan': 2, 'del-subject': 3, toggle: 3, 'auto-schedule': 4 };
   p.items.slice().sort((a, b) => (order[a.kind] || 1) - (order[b.kind] || 1)).forEach(it => {
     if (it.kind === 'subject') {
       const id = uid();
@@ -1166,6 +1234,63 @@ function applyChatProposal(p) {
         color: SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length], chapters: [],
       });
       undo.push(() => { DB.subjects = DB.subjects.filter(s => s.id !== id); });
+    } else if (it.kind === 'del-subject') {
+      const prevSub = JSON.parse(JSON.stringify(DB.subjects)), prevPlan = JSON.parse(JSON.stringify(DB.plan)), prevFc = JSON.parse(JSON.stringify(DB.flashcards));
+      const ids = it.all ? DB.subjects.map(s => s.id) : [it.subjectId];
+      ids.forEach(sid => { FileStore.delSubject(sid).catch(() => { }); });
+      DB.subjects = DB.subjects.filter(s => !ids.includes(s.id));
+      DB.plan = DB.plan.filter(x => !ids.includes(x.subjectId));
+      DB.flashcards = DB.flashcards.filter(x => !ids.includes(x.subjectId));
+      undo.push(() => { DB.subjects = prevSub; DB.plan = prevPlan; DB.flashcards = prevFc; });
+    } else if (it.kind === 'del-chapters') {
+      const prevSub = JSON.parse(JSON.stringify(DB.subjects)), prevPlan = JSON.parse(JSON.stringify(DB.plan));
+      it.subjectIds.forEach(sid => {
+        const s = subjectById(sid); if (!s) return;
+        const rmIds = new Set(s.chapters.filter(c => it.all || it.titles.some(t => c.title.toLowerCase().includes(t.toLowerCase()))).map(c => c.id));
+        s.chapters = s.chapters.filter(c => !rmIds.has(c.id));
+        DB.plan = DB.plan.filter(x => !rmIds.has(x.chapterId));
+      });
+      undo.push(() => { DB.subjects = prevSub; DB.plan = prevPlan; });
+    } else if (it.kind === 'del-files') {
+      const prevSub = JSON.parse(JSON.stringify(DB.subjects)), prevDrv = JSON.parse(JSON.stringify(DB.driveFiles || []));
+      it.subjectIds.forEach(sid => {
+        const s = subjectById(sid); if (!s) return;
+        if (it.all) {
+          s.links = [];
+          DB.driveFiles = (DB.driveFiles || []).filter(f => f.subjectId !== sid);
+          FileStore.delSubject(sid).then(() => App.render()).catch(() => { });
+        } else {
+          const match = n => it.fileNames.some(q => String(n || '').toLowerCase().includes(q.toLowerCase()));
+          s.links = (s.links || []).filter(l => !match(l.title) && !match(l.url));
+          DB.driveFiles = (DB.driveFiles || []).filter(f => f.subjectId !== sid || !match(f.name));
+          FileStore.list(sid).then(async list => {
+            for (const f of list) if (match(f.name)) await FileStore.del(f.id, sid);
+            App.render();
+          }).catch(() => { });
+        }
+      });
+      undo.push(() => { DB.subjects = prevSub; DB.driveFiles = prevDrv; });
+    } else if (it.kind === 'del-task') {
+      const prev = JSON.parse(JSON.stringify(DB.tasks));
+      DB.tasks = it.all ? [] : DB.tasks.filter(t => !t.title.toLowerCase().includes(it.title.toLowerCase()));
+      undo.push(() => { DB.tasks = prev; });
+    } else if (it.kind === 'plan') {
+      const id = uid();
+      DB.plan.push({ id, subjectId: it.subjectId, chapterId: null, title: it.title, date: it.date, time: it.time || '', remind: true, kind: 'custom', done: false, auto: false });
+      undo.push(() => { DB.plan = DB.plan.filter(x => x.id !== id); });
+    } else if (it.kind === 'del-plan') {
+      const prev = JSON.parse(JSON.stringify(DB.plan));
+      DB.plan = it.all ? [] : DB.plan.filter(x => !( (!it.date || x.date === it.date) && (!it.title || x.title.toLowerCase().includes(it.title.toLowerCase())) ));
+      undo.push(() => { DB.plan = prev; });
+    } else if (it.kind === 'toggle') {
+      const q = it.title.toLowerCase();
+      if (it.target === 'task') DB.tasks.forEach(x => { if (x.title.toLowerCase().includes(q)) x.done = it.done; });
+      else if (it.target === 'plan') DB.plan.forEach(x => { if (x.title.toLowerCase().includes(q)) x.done = it.done; });
+      else DB.subjects.forEach(s => { if (!it.subjectId || s.id === it.subjectId) s.chapters.forEach(c => { if (c.title.toLowerCase().includes(q)) setChapterDone(s.id, c.id, it.done); }); });
+    } else if (it.kind === 'auto-schedule') {
+      const prev = JSON.parse(JSON.stringify(DB.plan));
+      autoSchedule();
+      undo.push(() => { DB.plan = prev; });
     } else if (it.kind === 'exam') {
       const s = subjectById(it.subjectId); if (!s) return;
       const prev = { examDate: s.examDate || '', examTime: s.examTime || '', room: s.room || '' };
@@ -1613,7 +1738,8 @@ const Forms = {
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
-    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId });
+    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind });
+    if (d.remind && d.time) Notifier.ask();
     closeModal(); save();
   },
   plan(d, f) {
@@ -1623,7 +1749,8 @@ const Forms = {
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let p = DB.plan.find(x => x.id === f.dataset.id);
     if (!p) { p = { id: uid(), done: false }; DB.plan.push(p); }
-    Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, kind: c ? 'read' : 'custom', auto: false });
+    Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, time: d.time || '', remind: !!d.remind, kind: c ? 'read' : 'custom', auto: false });
+    if (d.remind && d.time) Notifier.ask();
     closeModal(); save();
   },
   note(d, f) {

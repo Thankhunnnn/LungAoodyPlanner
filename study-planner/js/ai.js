@@ -11,11 +11,14 @@ const AI = {
     const lines = [`วันนี้คือ ${t} (${fmtDateLong(t)})`, `ชื่อผู้ใช้: ${DB.name || '-'}`, 'วิชาและความคืบหน้า:'];
     DB.subjects.forEach(s => {
       const p = subjectProgress(s);
-      lines.push(`- [id:${s.id}] ${s.name} | สอบ ${s.examDate || 'ยังไม่กำหนด'} ${s.examTime || ''} ${s.room ? 'ห้อง ' + s.room : ''} | อ่านแล้ว ${p.done}/${p.total}`);
+      const fc = (typeof FileStore !== 'undefined' ? (FileStore._counts[s.id] || 0) : 0) + (s.links || []).length + (DB.driveFiles || []).filter(f => f.subjectId === s.id).length;
+      lines.push(`- [id:${s.id}] ${s.name} | สอบ ${s.examDate || 'ยังไม่กำหนด'} ${s.examTime || ''} ${s.room ? 'ห้อง ' + s.room : ''} | อ่านแล้ว ${p.done}/${p.total} | ไฟล์/ลิงก์ ${fc}`);
       s.chapters.forEach(c => lines.push(`    • [id:${c.id}] ${c.title} ${c.done ? '(อ่านแล้ว)' : '(ยังไม่อ่าน)'}`));
     });
     const tp = planForDate(t);
     if (tp.length) lines.push('แผนวันนี้: ' + tp.map(p => `${subjectName(p.subjectId)}: ${p.title}${p.done ? ' ✓' : ''}`).join(', '));
+    const ts = DB.tasks.filter(x => !x.done);
+    if (ts.length) lines.push('การบ้าน/กิจกรรมที่ค้าง: ' + ts.map(x => `${x.title} (${x.date}${x.time ? ' ' + x.time : ''})`).join(', '));
     return lines.join('\n');
   },
 
@@ -32,14 +35,16 @@ ${this.context()}`;
     return `คุณคือ "อออ" เพื่อนที่ช่วยติวหนังสือ พูดภาษาไทยกันเอง สั้นๆ แบบแชทกับเพื่อน
 ไม่ลงท้าย ค่ะ/ครับ และไม่ใช้ดอกซากุระ ตอบเป็นข้อความสั้น ถ้าอยากส่งหลายข้อความให้คั่นด้วยบรรทัดที่มีแค่ ---
 อธิบายง่าย ยกตัวอย่างสั้นๆ ได้
-ถ้าผู้ใช้ขอให้แก้ข้อมูลในแอป (วันสอบ การบ้าน เพิ่มวิชา เพิ่มบทจากไฟล์) ให้เรียกฟังก์ชัน อย่าบอกว่าทำให้เสร็จแล้ว เพราะผู้ใช้ต้องกดยืนยันเอง
-ถ้าไม่แน่ใจว่าหมายถึงวิชาไหน ให้ถามชื่อวิชา อย่าเรียกฟังก์ชัน
+คุณมีเครื่องมือจัดการข้อมูลในแอปได้ทุกอย่าง (เพิ่ม/ลบวิชา, ตั้ง/ลบวันสอบ, เพิ่ม/ลบบท, ลบไฟล์/ลิงก์, เพิ่ม/ลบการบ้าน, เพิ่ม/ลบตารางอ่าน, ติ๊กเสร็จ, จัดตารางอัตโนมัติ)
+ถ้าผู้ใช้ขอให้แก้หรือลบข้อมูลในแอป ให้เรียกฟังก์ชันที่เกี่ยวข้องทันที อย่าบอกว่าทำไม่ได้ และอย่าบอกว่าทำให้เสร็จแล้ว เพราะผู้ใช้ต้องกดยืนยันก่อน
+ถ้าไม่แน่ใจว่าหมายถึงวิชาไหน (ยกเว้นสั่งลบทั้งหมด) ให้ถามชื่อวิชา อย่าเรียกฟังก์ชัน
 วันที่ใช้ YYYY-MM-DD เวลาใช้ HH:MM ถ้าไม่บอกปี ให้ใช้ปีของวันนี้ หรือปีถัดไปถ้าวันนั้นผ่านไปแล้ว
 วันนี้: ${this.context()}`;
   },
 
   tutorTools() {
     const str = (desc) => ({ type: 'STRING', description: desc });
+    const bool = (desc) => ({ type: 'BOOLEAN', description: desc });
     return [{ functionDeclarations: [
       { name: 'set_exam', description: 'ตั้งหรือลบวันสอบ ถ้ายังไม่มีวิชานี้ให้ใส่ชื่อไว้ ระบบจะเสนอเพิ่มวิชา', parameters: { type: 'OBJECT', properties: {
         action: str('set หรือ clear'), subjectName: str('ชื่อหรือรหัสวิชา'), examDate: str('YYYY-MM-DD'), examTime: str('HH:MM'), room: str('ห้องสอบ ถ้าว่างไม่ต้องใส่'),
@@ -47,12 +52,34 @@ ${this.context()}`;
       { name: 'add_task', description: 'เพิ่มการบ้านหรือกิจกรรม', parameters: { type: 'OBJECT', properties: {
         title: str('ชื่องาน'), date: str('YYYY-MM-DD'), time: str('HH:MM'), subjectName: str('วิชา ถ้ามี'), type: str('homework หรือ event'),
       }, required: ['title', 'date'] } },
+      { name: 'delete_task', description: 'ลบการบ้านหรือกิจกรรม', parameters: { type: 'OBJECT', properties: {
+        title: str('ชื่องานที่จะลบ'), all: bool('true ถ้าต้องการลบการบ้าน/กิจกรรมทั้งหมด'),
+      } } },
       { name: 'add_subject', description: 'เพิ่มวิชาใหม่', parameters: { type: 'OBJECT', properties: {
         name: str('ชื่อวิชา'), examDate: str('YYYY-MM-DD'), examTime: str('HH:MM'), room: str('ห้อง'),
       }, required: ['name'] } },
+      { name: 'delete_subject', description: 'ลบวิชา (ลบหนึ่งวิชาหรือทั้งหมด)', parameters: { type: 'OBJECT', properties: {
+        subjectName: str('ชื่อวิชาที่จะลบ'), all: bool('true ถ้าต้องการลบทุกวิชา'),
+      } } },
       { name: 'add_chapters', description: 'เพิ่มบทหรือหัวข้อใต้หนึ่งวิชา จากไฟล์หรือที่ผู้ใช้บอก ถ้าไม่ชัวร์วิชา อย่าเรียก', parameters: { type: 'OBJECT', properties: {
         subjectName: str('ชื่อวิชาที่มีอยู่หรือกำลังจะเพิ่ม'), titles: { type: 'ARRAY', items: { type: 'STRING' }, description: 'ชื่อบท' },
       }, required: ['subjectName', 'titles'] } },
+      { name: 'delete_chapters', description: 'ลบบทหรือหัวข้อในวิชา (ลบเฉพาะบท หรือลบทุกบทในวิชา/ทุกวิชา)', parameters: { type: 'OBJECT', properties: {
+        subjectName: str('ชื่อวิชา (หรือ ALL ถ้าลบทุกวิชา)'), titles: { type: 'ARRAY', items: { type: 'STRING' }, description: 'ชื่อบทที่จะลบ (ถ้าไม่ใส่และ all=true จะลบทุกบท)' }, all: bool('true ถ้าลบทุกบท'),
+      } } },
+      { name: 'delete_files', description: 'ลบไฟล์และลิงก์ในวิชา (ลบเฉพาะไฟล์ หรือลบทุกไฟล์ในวิชา/ทุกวิชา)', parameters: { type: 'OBJECT', properties: {
+        subjectName: str('ชื่อวิชา (หรือ ALL ถ้าลบทุกวิชา)'), fileNames: { type: 'ARRAY', items: { type: 'STRING' }, description: 'ชื่อไฟล์ที่จะลบ' }, all: bool('true ถ้าลบทุกไฟล์และลิงก์'),
+      } } },
+      { name: 'add_plan', description: 'เพิ่มรายการอ่านในตารางอ่าน', parameters: { type: 'OBJECT', properties: {
+        title: str('รายละเอียด/ชื่อบท'), date: str('YYYY-MM-DD'), time: str('HH:MM'), subjectName: str('ชื่อวิชา'),
+      }, required: ['title', 'date'] } },
+      { name: 'delete_plan', description: 'ลบรายการในตารางอ่าน', parameters: { type: 'OBJECT', properties: {
+        title: str('ชื่อรายการที่จะลบ'), date: str('YYYY-MM-DD'), all: bool('true ถ้าลบตารางอ่านทั้งหมด'),
+      } } },
+      { name: 'toggle_done', description: 'ติ๊กเสร็จ/ยังไม่เสร็จ สำหรับบท ตารางอ่าน หรือการบ้าน', parameters: { type: 'OBJECT', properties: {
+        target: str('chapter, plan หรือ task'), title: str('ชื่อบทหรืองาน'), subjectName: str('ชื่อวิชา (ถ้ามี)'), done: bool('true=เสร็จ, false=ยังไม่เสร็จ'),
+      }, required: ['target', 'title', 'done'] } },
+      { name: 'auto_schedule', description: 'จัดตารางอ่านหนังสืออัตโนมัติจากวันสอบและบทที่เหลือ', parameters: { type: 'OBJECT', properties: {} } },
     ] }];
   },
 

@@ -25,13 +25,24 @@ const Notifier = {
     return parts.join('\n');
   },
   check() {
-    if (!DB.prefs.notify) return;
     const t = todayStr(), now = new Date();
     const hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    if (hm >= (DB.prefs.notifyTime || '08:00') && LOCAL.lastNotify.daily !== t) {
+    if (DB.prefs.notify && hm >= (DB.prefs.notifyTime || '08:00') && LOCAL.lastNotify.daily !== t) {
       LOCAL.lastNotify.daily = t; saveLocal();
       this.show('วันนี้ต้องอ่านอะไรบ้าง 📖', this.dailyText());
     }
+    DB.plan.filter(p => !p.done && p.date === t && p.time && p.remind !== false && hm >= p.time).forEach(p => {
+      const k = 'plan_' + p.id;
+      if (LOCAL.lastNotify[k] === t) return;
+      LOCAL.lastNotify[k] = t; saveLocal();
+      this.show(`⏰ ถึงเวลาอ่าน ${subjectName(p.subjectId)}`, `${p.title} (${p.time})`);
+    });
+    DB.tasks.filter(x => !x.done && x.date === t && x.time && x.remind !== false && hm >= x.time).forEach(x => {
+      const k = 'task_' + x.id;
+      if (LOCAL.lastNotify[k] === t) return;
+      LOCAL.lastNotify[k] = t; saveLocal();
+      this.show(`⏰ ถึงเวลางาน: ${x.title}`, `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${x.time}`);
+    });
   },
   start() { this.check(); setInterval(() => this.check(), 30000); },
 };
