@@ -126,110 +126,121 @@ function switchTerm(targetName) {
   App.toast(`สลับไป ${nextName} แล้ว 🎓`);
 }
 
+function toMin(s) {
+  const [h, m] = String(s || '08:00').split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 function smartActionData() {
-  const t = todayStr();
-  if (Timer.running || Timer.remaining != null) {
-    const sec = Timer.left(), txt = `${pad(Math.floor(sec / 60))}:${pad(sec % 60)}`;
-    const sub = Timer.subjectId ? subjectName(Timer.subjectId) : 'โฟกัสอิสระ';
-    if (Timer.running) {
+  try {
+    const t = todayStr();
+    if (Timer.running || Timer.remaining != null) {
+      const sec = Timer.left(), txt = `${pad(Math.floor(sec / 60))}:${pad(sec % 60)}`;
+      const sub = Timer.subjectId ? subjectName(Timer.subjectId) : 'โฟกัสอิสระ';
+      if (Timer.running) {
+        return {
+          badge: Timer.mode === 'work' ? 'กำลังโฟกัส' : 'พักเบรก',
+          kind: 'focus',
+          text: `${esc(sub)} · <strong id="smartTimerTxt" class="stat-num">${txt}</strong>`,
+          btn: `${ico('pause', 13)} พัก`,
+          attrs: 'data-act="timer-pause"'
+        };
+      }
       return {
-        badge: Timer.mode === 'work' ? 'กำลังโฟกัส' : 'พักเบรก',
-        kind: 'focus',
+        badge: 'หยุดชั่วคราว',
+        kind: 'paused',
         text: `${esc(sub)} · <strong id="smartTimerTxt" class="stat-num">${txt}</strong>`,
-        btn: `${ico('pause', 13)} พัก`,
-        attrs: 'data-act="timer-pause"'
+        btn: `${ico('play', 12)} ทำต่อ`,
+        attrs: 'data-act="timer-start"',
+        extraBtn: `<button type="button" class="btn small ghost smart-reset" data-act="timer-reset" title="รีเซ็ตเวลา">${ico('reset', 13)}</button>`
+      };
+    }
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const nearCls = classesOnDate(t).find(c => {
+      if (!c || !c.start) return false;
+      const sm = toMin(c.start);
+      const em = Math.max(sm + 30, toMin(c.end) || sm + 60);
+      return em > nowMin && (sm - nowMin) <= 180;
+    });
+    if (nearCls) {
+      const sm = toMin(nearCls.start);
+      const diff = sm - nowMin;
+      const roomTxt = nearCls.room ? ` · ห้อง ${esc(nearCls.room)}` : '';
+      const whenTxt = diff <= 0 ? `กำลังเรียน (${esc(nearCls.start)}${roomTxt})` : `อีก ${fmtMin(diff)} มีเรียน (${esc(nearCls.start)}${roomTxt})`;
+      return {
+        badge: diff <= 0 ? 'กำลังเรียน' : 'คาบถัดไป',
+        kind: 'class',
+        text: `<strong>${esc(className(nearCls))}</strong> · ${whenTxt}`,
+        btn: 'ดูตาราง',
+        attrs: 'data-act="go-timetable"'
+      };
+    }
+    const nextPlan = planForDate(t).find(p => !p.done);
+    if (nextPlan) {
+      return {
+        badge: 'แนะนำตอนนี้',
+        kind: 'study',
+        text: `อ่าน <strong>${esc(subjectName(nextPlan.subjectId))}</strong> · ${esc(nextPlan.title)}`,
+        btn: `${ico('play', 12)} เริ่มอ่านเลย`,
+        attrs: `data-act="smart-focus" data-sid="${esc(nextPlan.subjectId)}"`
+      };
+    }
+    const exams = upcomingExams();
+    const targetSub = exams.find(s => (s.chapters || []).some(ch => !ch.done)) || DB.subjects.find(s => (s.chapters || []).some(ch => !ch.done));
+    if (targetSub) {
+      const nextCh = (targetSub.chapters || []).find(ch => !ch.done);
+      return {
+        badge: 'แนะนำตอนนี้',
+        kind: 'study',
+        text: `อ่าน <strong>${esc(targetSub.name)}</strong> · ${esc(nextCh.title)}`,
+        btn: `${ico('play', 12)} เริ่มอ่านเลย`,
+        attrs: `data-act="smart-focus" data-sid="${esc(targetSub.id)}"`
+      };
+    }
+    const nextTask = (DB.tasks || []).filter(x => !x.done).sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99') || (a.time || '').localeCompare(b.time || ''))[0];
+    if (nextTask) {
+      const subTxt = nextTask.subjectId ? ` (${esc(subjectName(nextTask.subjectId))})` : '';
+      return {
+        badge: 'งานถัดไป',
+        kind: 'task',
+        text: `<strong>${esc(nextTask.title)}</strong>${subTxt}`,
+        btn: 'ดูงานค้าง',
+        attrs: 'data-act="open-pending"'
+      };
+    }
+    if (!DB.subjects.length) {
+      return {
+        badge: 'เริ่มต้น',
+        kind: 'idle',
+        text: 'เพิ่มวิชาและวันสอบเพื่อเริ่มวางแผนกันเลย',
+        btn: '+ เพิ่มวิชา',
+        attrs: 'data-act="add-subject"'
+      };
+    }
+    const ex = exams[0];
+    const totCh = DB.subjects.reduce((a, s) => a + (s.chapters?.length || 0), 0);
+    if (totCh === 0 && ex) {
+      const n = daysBetween(t, ex.examDate);
+      return {
+        badge: 'เตรียมสอบ',
+        kind: 'study',
+        text: n === 0 ? `วันนี้สอบ <strong>${esc(ex.name)}</strong> สู้ๆ!` : `โฟกัส <strong>${esc(ex.name)}</strong> · อีก ${n} วันสอบ`,
+        btn: `${ico('play', 12)} เริ่มอ่านเลย`,
+        attrs: `data-act="smart-focus" data-sid="${esc(ex.id)}"`
       };
     }
     return {
-      badge: 'หยุดชั่วคราว',
-      kind: 'paused',
-      text: `${esc(sub)} · <strong id="smartTimerTxt" class="stat-num">${txt}</strong>`,
-      btn: `${ico('play', 12)} ทำต่อ`,
-      attrs: 'data-act="timer-start"',
-      extraBtn: `<button type="button" class="btn small ghost smart-reset" data-act="timer-reset" title="รีเซ็ตเวลา">${ico('reset', 13)}</button>`
-    };
-  }
-  const now = new Date();
-  const nowMin = now.getHours() * 60 + now.getMinutes();
-  const nearCls = classesOnDate(t).find(c => {
-    const sm = toMin(c.start);
-    const em = Math.max(sm + 30, toMin(c.end) || sm + 60);
-    return em > nowMin && (sm - nowMin) <= 180;
-  });
-  if (nearCls) {
-    const sm = toMin(nearCls.start);
-    const diff = sm - nowMin;
-    const roomTxt = nearCls.room ? ` · ห้อง ${esc(nearCls.room)}` : '';
-    const whenTxt = diff <= 0 ? `กำลังเรียน (${esc(nearCls.start)}${roomTxt})` : `อีก ${fmtMin(diff)} มีเรียน (${esc(nearCls.start)}${roomTxt})`;
-    return {
-      badge: diff <= 0 ? 'กำลังเรียน' : 'คาบถัดไป',
-      kind: 'class',
-      text: `<strong>${esc(className(nearCls))}</strong> · ${whenTxt}`,
-      btn: 'ดูตาราง',
-      attrs: 'data-act="go-timetable"'
-    };
-  }
-  const nextPlan = planForDate(t).find(p => !p.done);
-  if (nextPlan) {
-    return {
-      badge: 'แนะนำตอนนี้',
+      badge: 'ทบทวน',
       kind: 'study',
-      text: `อ่าน <strong>${esc(subjectName(nextPlan.subjectId))}</strong> · ${esc(nextPlan.title)}`,
-      btn: `${ico('play', 12)} เริ่มอ่านเลย`,
-      attrs: `data-act="smart-focus" data-sid="${esc(nextPlan.subjectId)}"`
+      text: ex ? `อ่านครบทุกบทแล้ว! ทบทวน <strong>${esc(ex.name)}</strong> กันต่อ` : 'อ่านครบทุกบทแล้ว! พร้อมทบทวนได้เลย',
+      btn: `${ico('play', 12)} จับเวลาทบทวน`,
+      attrs: `data-act="smart-focus" data-sid="${esc(ex?.id || '')}"`
     };
+  } catch (err) {
+    console.warn('smartActionData error:', err);
+    return { badge: 'พร้อมลุย', kind: 'idle', text: 'วางแผนอ่านหนังสือกันต่อเลย', btn: '', attrs: '' };
   }
-  const exams = upcomingExams();
-  const targetSub = exams.find(s => s.chapters.some(ch => !ch.done)) || DB.subjects.find(s => s.chapters.some(ch => !ch.done));
-  if (targetSub) {
-    const nextCh = targetSub.chapters.find(ch => !ch.done);
-    return {
-      badge: 'แนะนำตอนนี้',
-      kind: 'study',
-      text: `อ่าน <strong>${esc(targetSub.name)}</strong> · ${esc(nextCh.title)}`,
-      btn: `${ico('play', 12)} เริ่มอ่านเลย`,
-      attrs: `data-act="smart-focus" data-sid="${esc(targetSub.id)}"`
-    };
-  }
-  const nextTask = DB.tasks.filter(x => !x.done).sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99') || (a.time || '').localeCompare(b.time || ''))[0];
-  if (nextTask) {
-    const subTxt = nextTask.subjectId ? ` (${esc(subjectName(nextTask.subjectId))})` : '';
-    return {
-      badge: 'งานถัดไป',
-      kind: 'task',
-      text: `<strong>${esc(nextTask.title)}</strong>${subTxt}`,
-      btn: 'ดูงานค้าง',
-      attrs: 'data-act="open-pending"'
-    };
-  }
-  if (!DB.subjects.length) {
-    return {
-      badge: 'เริ่มต้น',
-      kind: 'idle',
-      text: 'เพิ่มวิชาและวันสอบเพื่อเริ่มวางแผนกันเลย',
-      btn: '+ เพิ่มวิชา',
-      attrs: 'data-act="add-subject"'
-    };
-  }
-  const ex = exams[0];
-  const totCh = DB.subjects.reduce((a, s) => a + (s.chapters?.length || 0), 0);
-  if (totCh === 0 && ex) {
-    const n = daysBetween(t, ex.examDate);
-    return {
-      badge: 'เตรียมสอบ',
-      kind: 'study',
-      text: n === 0 ? `วันนี้สอบ <strong>${esc(ex.name)}</strong> สู้ๆ!` : `โฟกัส <strong>${esc(ex.name)}</strong> · อีก ${n} วันสอบ`,
-      btn: `${ico('play', 12)} เริ่มอ่านเลย`,
-      attrs: `data-act="smart-focus" data-sid="${esc(ex.id)}"`
-    };
-  }
-  return {
-    badge: 'ทบทวน',
-    kind: 'study',
-    text: ex ? `อ่านครบทุกบทแล้ว! ทบทวน <strong>${esc(ex.name)}</strong> กันต่อ` : 'อ่านครบทุกบทแล้ว! พร้อมทบทวนได้เลย',
-    btn: `${ico('play', 12)} จับเวลาทบทวน`,
-    attrs: `data-act="smart-focus" data-sid="${esc(ex?.id || '')}"`
-  };
 }
 
 const App = {
