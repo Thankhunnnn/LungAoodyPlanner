@@ -2,12 +2,12 @@
 const FB_VER = '10.12.2';
 const FB_SCRIPTS = ['app', 'auth', 'firestore'].map(n => `https://www.gstatic.com/firebasejs/${FB_VER}/firebase-${n}-compat.js`);
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBn3XmeakcHhGDVz25-_f0ps17ypaOoBU0",
-  authDomain: "buddy-4a1c4.firebaseapp.com",
-  projectId: "buddy-4a1c4",
-  storageBucket: "buddy-4a1c4.firebasestorage.app",
-  messagingSenderId: "150965048225",
-  appId: "1:150965048225:web:669c8ab65fc91a7170b1e0",
+  apiKey: "AIzaSyBwqoervN7dvXUJthI_1cLn-DbXmS85ldI",
+  authDomain: "lungaoodplanner.firebaseapp.com",
+  projectId: "lungaoodplanner",
+  storageBucket: "lungaoodplanner.firebasestorage.app",
+  messagingSenderId: "422403109286",
+  appId: "1:422403109286:web:35f9757f5d7ff2aefd1f67",
 };
 
 function loadScript(src) {
