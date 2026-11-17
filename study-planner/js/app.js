@@ -141,8 +141,8 @@ function planItemHTML(p, showDate = false) {
     <input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''}>
     ${tag(p.subjectId)}
     <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${p.time ? ` <small class="muted">⏰ ${esc(p.time)}${p.remind !== false ? ' 🔔' : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
-    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข">✎</button>
-    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ">✕</button></span>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">✎</button>
+    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ" aria-label="ลบแผนอ่าน">✕</button></span>
   </div>`;
 }
 function countdownCard(s) {
@@ -694,7 +694,7 @@ function subjectForm(s = {}) {
       <label class="field">เวลา<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
       <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น อ่านเอง, ห้อง 301"></label>
     </div>
-    <div class="field">สี<div class="colors">${SUBJECT_COLORS.map(c => `<label class="color-dot" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''}><span></span></label>`).join('')}
+    <div class="field">สี<div class="colors">${SUBJECT_COLORS.map((c, i) => `<label class="color-dot" style="--c:${c}" aria-label="เลือกสีที่ ${i + 1}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''} aria-label="เลือกสีที่ ${i + 1}"><span></span></label>`).join('')}
       <input type="color" name="customColor" value="${color}" title="สีอื่น" data-chg="custom-color"></div></div>
     ${s.id ? '' : `<label class="field">บท/หัวข้อ (บรรทัดละ 1 บท, ใส่ทีหลังก็ได้)<textarea name="chapters" rows="4" placeholder="Ch1 Introduction&#10;Ch2 Cost behavior&#10;..."></textarea></label>`}
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
@@ -1334,7 +1334,9 @@ function findProposal(id) {
 async function sendChat(q) {
   q = (q || '').trim();
   const files = (App.chatAttach || []).slice();
-  if ((!q && !files.length) || App.aiBusy) return;
+  if (App.aiBusy) return;
+  if (!q && !files.length) { App.toast('พิมพ์ข้อความหรือแนบไฟล์ก่อนส่งนะ'); return; }
+  if (!AI.ready()) { App.toast('ใส่ API key ในตั้งค่าก่อนนะ'); App.go('settings'); return; }
   LOCAL.chat = LOCAL.chat || [];
   LOCAL.chat.push({ role: 'user', content: q, files: files.map(f => ({ name: f.name, thumb: f.thumb || '' })) });
   App.chatAttach = [];
@@ -1358,15 +1360,21 @@ async function sendChat(q) {
 const Actions = {
   'go': el => { closeModal(); App.go(el.dataset.tab); },
   'close-modal': () => closeModal(),
-  'toggle-dark': () => { DB.prefs.dark = !DB.prefs.dark; save(); },
+  'toggle-dark': () => {
+    if (DB.prefs.theme === 'navy') { DB.prefs.theme = 'sky'; DB.prefs.dark = false; save(); App.toast('สลับเป็นธีมฟ้าใส (โหมดสว่าง) ☀️'); return; }
+    DB.prefs.dark = !DB.prefs.dark; save();
+  },
   'theme': el => { DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; save(); },
   'toggle-past': () => { App.showPast = !App.showPast; App.render(); },
 
   // plan
   'auto-plan': () => {
+    const before = new Set(DB.plan.map(p => p.id));
     const r = autoSchedule(); save();
-    if (r.noExam) App.toast('ต้องมีวิชาที่กำหนดวันสอบ (หลังวันนี้) ก่อนนะ');
-    else App.toast(r.leftover ? `จัดแล้ว ${r.added} รายการ แต่ยังเหลือ ${r.leftover} บทที่อ่านไม่ทัน 😥 ลองเพิ่ม "บท/วัน"` : `จัดตารางเรียบร้อย ${r.added} รายการ ✨`, 4500);
+    if (r.noExam) { App.toast('ต้องมีวิชาที่กำหนดวันสอบ (หลังวันนี้) ก่อนนะ'); return; }
+    const dates = [...new Set(DB.plan.filter(p => !before.has(p.id)).map(p => fmtDate(p.date)))];
+    const hint = dates.length ? ` (${dates.slice(0, 4).join(', ')}${dates.length > 4 ? '…' : ''})` : '';
+    App.toast(r.leftover ? `จัดแล้ว ${r.added} รายการ${hint} แต่ยังเหลือ ${r.leftover} บท 😥` : `จัดตารางเรียบร้อย ${r.added} รายการ${hint} ✨`, 4500);
   },
   'toggle-plan': el => {
     const p = DB.plan.find(x => x.id === el.dataset.id); if (!p) return;
@@ -1699,7 +1707,11 @@ function refreshDayModal() {
 
 /* ===== Forms ===== */
 const Forms = {
-  name(d) { DB.name = d.name.trim(); save(); App.toast('บันทึกแล้ว 🌸'); },
+  name(d) {
+    const v = (d.name || '').trim();
+    if (!v) return App.toast('กรุณาใส่ชื่อเล่นก่อนนะ');
+    DB.name = v.slice(0, 60); save(); App.toast('บันทึกแล้ว 🌸');
+  },
   async 'reset-confirm'(d) {
     if (d.word.trim() !== 'ลบทั้งหมด') return App.toast('กรุณาพิมพ์คำว่า "ลบทั้งหมด" ให้ตรงกันนะ');
     closeModal();
