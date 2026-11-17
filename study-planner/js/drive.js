@@ -263,3 +263,194 @@ const Drive = {
     catch (e) { if (e.code !== 'missing') throw e; }
   },
 };
+
+/* ===== Google Calendar Sync (browser only, reuses OAuth client ID) ===== */
+const GCAL_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+
+const GCal = {
+  token: '', expires: 0,
+
+  ensureToken() {
+    if (this.token && Date.now() < this.expires - 60000) return Promise.resolve(this.token);
+    if (!driveClientId()) return Promise.reject(Drive.err('ยังไม่ได้ตั้งค่า Google Client ID', 'noconfig'));
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.reject(Drive.err('ออฟไลน์อยู่ ซิงก์ Google Calendar ไม่ได้', 'offline'));
+    const run = () => new Promise((resolve, reject) => {
+      let settled = false;
+      const fail = (msg, code) => { if (settled) return; settled = true; reject(Drive.err(msg, code)); };
+      try {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: driveClientId(),
+          scope: GCAL_SCOPE,
+          hint: (typeof Sync !== 'undefined' && Sync.user && Sync.user.email) || '',
+          callback: resp => {
+            if (settled) return;
+            if (!resp || resp.error || !resp.access_token) {
+              fail('ไม่ได้รับสิทธิ์เข้าถึง Google Calendar — ลองอนุญาตอีกครั้ง', 'auth');
+              return;
+            }
+            settled = true;
+            this.token = resp.access_token;
+            this.expires = Date.now() + (Number(resp.expires_in) || 3600) * 1000;
+            resolve(this.token);
+          },
+          error_callback: () => fail('ยกเลิกการเชื่อมต่อ Google Calendar', 'auth'),
+        });
+        client.requestAccessToken({ prompt: '' });
+      } catch {
+        fail('เปิดหน้าต่างอนุญาต Google Calendar ไม่ได้', 'auth');
+      }
+    });
+    if (window.google?.accounts?.oauth2) return run();
+    return loadScript('https://accounts.google.com/gsi/client').then(() => {
+      if (!window.google?.accounts?.oauth2) throw Drive.err('โหลด Google Sign-In ไม่ได้', 'gis');
+      return run();
+    });
+  },
+
+  async req(path, opts = {}) {
+    const token = await this.ensureToken();
+    const res = await fetch('https://www.googleapis.com/calendar/v3' + path, {
+      ...opts,
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    if (res.status === 401) { this.token = ''; this.expires = 0; throw Drive.err('สิทธิ์ Google Calendar หมดอายุ กดซิงก์ใหม่อีกครั้ง', 'auth'); }
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      if (res.status === 403 && /Calendar API|accessNotConfigured/i.test(txt)) {
+        throw Drive.err('ยังไม่ได้เปิด Google Calendar API ใน Google Cloud Console (buddy-4a1c4)', 'disabled');
+      }
+      throw Drive.err(`Google Calendar ผิดพลาด (${res.status})`, 'api');
+    }
+    return res.status === 204 ? null : res.json();
+  },
+
+  _timeRange(date, startTime, endTime) {
+    if (!startTime) {
+      const d = parseDate(date); d.setDate(d.getDate() + 1);
+      return { start: { date }, end: { date: toDateStr(d) } };
+    }
+    const [sh, sm] = startTime.split(':').map(Number);
+    let end = endTime;
+    if (!end) {
+      const total = (sh || 0) * 60 + (sm || 0) + 60;
+      end = `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}`;
+    }
+    return {
+      start: { dateTime: `${date}T${startTime}:00+07:00`, timeZone: 'Asia/Bangkok' },
+      end: { dateTime: `${date}T${end}:00+07:00`, timeZone: 'Asia/Bangkok' },
+    };
+  },
+
+  async syncAll() {
+    await this.ensureToken();
+    const existingRes = await this.req('/calendars/primary/events?maxResults=250&privateExtendedProperty=studyPlannerApp%3D1');
+    const byKey = {};
+    (existingRes.items || []).forEach(ev => {
+      const k = ev.extendedProperties?.private?.studyPlannerKey;
+      if (k) byKey[k] = ev.id;
+    });
+
+    const events = [];
+    // 1. Exams
+    DB.subjects.filter(s => s.examDate).forEach(s => {
+      events.push({
+        key: `exam_${s.id}`,
+        body: {
+          summary: `🎯 สอบ ${s.name}`,
+          location: roomText(s.room) || undefined,
+          description: 'ซิงก์จาก LungAoody Study Planner',
+          ...this._timeRange(s.examDate, s.examTime || '', ''),
+          reminders: { useDefault: true },
+          extendedProperties: { private: { studyPlannerApp: '1', studyPlannerKey: `exam_${s.id}` } },
+        },
+      });
+    });
+
+    // 2. Weekly classes
+    const today = todayStr();
+    const todayDow = parseDate(today).getDay();
+    (DB.classes || []).forEach(c => {
+      const diff = (Number(c.day) - todayDow + 7) % 7;
+      const startDate = addDays(today, diff);
+      events.push({
+        key: `cls_${c.id}`,
+        body: {
+          summary: `🗓️ ${className(c)}`,
+          location: c.room || undefined,
+          description: 'คาบเรียนประจำสัปดาห์ · LungAoody Study Planner',
+          ...this._timeRange(startDate, c.start || '09:00', c.end || ''),
+          recurrence: ['RRULE:FREQ=WEEKLY'],
+          reminders: { useDefault: true },
+          extendedProperties: { private: { studyPlannerApp: '1', studyPlannerKey: `cls_${c.id}` } },
+        },
+      });
+    });
+
+    // 3. Undone plans & tasks
+    DB.plan.filter(p => !p.done && p.date).forEach(p => {
+      const sub = p.subjectId ? subjectName(p.subjectId) : '';
+      events.push({
+        key: `plan_${p.id}`,
+        body: {
+          summary: `📖 ${p.title}${sub ? ` (${sub})` : ''}`,
+          description: 'แผนอ่านหนังสือ · LungAoody Study Planner',
+          ...this._timeRange(p.date, p.time || '', p.endTime || ''),
+          reminders: { useDefault: true },
+          extendedProperties: { private: { studyPlannerApp: '1', studyPlannerKey: `plan_${p.id}` } },
+        },
+      });
+    });
+    DB.tasks.filter(x => !x.done && x.date && !x.gcalId).forEach(x => {
+      const sub = x.subjectId ? subjectName(x.subjectId) : '';
+      events.push({
+        key: `task_${x.id}`,
+        body: {
+          summary: `${x.type === 'event' ? '📌' : '📝'} ${x.title}${sub ? ` (${sub})` : ''}`,
+          description: 'สิ่งที่ต้องทำ · LungAoody Study Planner',
+          ...this._timeRange(x.date, x.time || '', ''),
+          reminders: { useDefault: true },
+          extendedProperties: { private: { studyPlannerApp: '1', studyPlannerKey: `task_${x.id}` } },
+        },
+      });
+    });
+
+    let pushed = 0;
+    for (const ev of events) {
+      const eid = byKey[ev.key];
+      if (eid) {
+        await this.req(`/calendars/primary/events/${encodeURIComponent(eid)}`, { method: 'PATCH', body: JSON.stringify(ev.body) });
+      } else {
+        await this.req('/calendars/primary/events', { method: 'POST', body: JSON.stringify(ev.body) });
+      }
+      pushed++;
+    }
+
+    // 4. Pull external events from Google Calendar -> Web (To do list / Calendar)
+    const fromD = addDays(today, -7);
+    const toD = addDays(today, 120);
+    const pullUrl = `/calendars/primary/events?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(fromD + 'T00:00:00+07:00')}&timeMax=${encodeURIComponent(toD + 'T23:59:59+07:00')}`;
+    const pullRes = await this.req(pullUrl);
+    let pulled = 0;
+    (pullRes.items || []).forEach(ev => {
+      if (!ev || ev.status === 'cancelled') return;
+      if (ev.extendedProperties?.private?.studyPlannerApp === '1') return;
+      const rawStart = ev.start?.dateTime || ev.start?.date || '';
+      const date = rawStart.slice(0, 10);
+      if (!date) return;
+      const time = ev.start?.dateTime ? rawStart.slice(11, 16) : '';
+      const title = String(ev.summary || '(ไม่มีชื่อ)').trim().slice(0, 200);
+      const existing = DB.tasks.find(x => x.gcalId === ev.id);
+      if (existing) {
+        existing.title = title;
+        existing.date = date;
+        existing.time = time;
+      } else {
+        DB.tasks.push({ id: uid(), gcalId: ev.id, title, type: 'event', date, time, subjectId: '', remind: !!time, done: false });
+      }
+      pulled++;
+    });
+    if (pulled) save({ silent: true });
+
+    return { pushed, pulled };
+  },
+};

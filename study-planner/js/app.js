@@ -44,16 +44,46 @@ const ico = (name, size = 16) => `<svg class="svg-ic" width="${size}" height="${
 
 const THEMES = [
   ['pink', 'ชมพูพาสเทล', '#ec6a9c'], ['lavender', 'ลาเวนเดอร์', '#9b7ede'], ['mint', 'มิ้นต์', '#3fb68b'],
-  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'ฟุตบอล', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
+  ['peach', 'พีช', '#f08a5d'], ['mono', 'มินิมอล', '#555555'],
+  ['sky', 'อู๊ด', '#60c5ff'], ['navy', 'Madrid', '#3b82f6'], ['manutd', 'Man U', '#dc2626'],
 ];
+const isMinimalTheme = (th = DB.prefs.theme || 'navy') => ['mono', 'pink', 'lavender', 'mint', 'peach'].includes(th);
+const liveTimeStr = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const aiTabLabel = () => {
+  const th = DB.prefs.theme || 'navy';
+  return isMinimalTheme(th) ? 'Ask AI' : th === 'navy' ? 'Ask Kylian' : th === 'manutd' ? 'Ask Dr.Marcus' : 'อู๊ดเอไอ';
+};
+const aiBotName = () => {
+  const th = DB.prefs.theme || 'navy';
+  return isMinimalTheme(th) ? 'AI' : th === 'navy' ? 'Kylian' : th === 'manutd' ? 'Dr.Marcus' : 'อออ';
+};
 const TABS = [
-  ['home', ico('home'), 'หน้าแรก'], ['plan', ico('book'), 'ตารางอ่าน'], ['subjects', ico('layers'), 'วิชา'], ['calendar', ico('calendar'), 'ปฏิทิน'],
+  ['home', ico('home'), 'หน้าแรก'], ['plan', ico('book'), 'To do list'], ['subjects', ico('layers'), 'วิชา'], ['calendar', ico('calendar'), 'ปฏิทินและตารางเรียน'],
   ['timer', ico('clock'), 'จับเวลา'], ['stats', ico('chart'), 'สถิติ'], ['ai', ico('sparkles'), 'อู๊ดเอไอ'],
 ];
 const ALL_TABS = [...TABS, ['settings', ico('settings'), 'ตั้งค่า']];
 
+function subjectMatchesName(s, title) {
+  const a = String(s?.name || '').trim().toLowerCase();
+  const b = String(title || '').trim().toLowerCase();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const codeA = (/^\d{4,10}/.exec(a) || [])[0];
+  const codeB = (/^\d{4,10}/.exec(b) || [])[0];
+  return !!(codeA && codeB && codeA === codeB);
+}
+function autoLinkClassesToSubjects() {
+  let changed = false;
+  (DB.classes || []).forEach(c => {
+    if (c.subjectId) return;
+    const sub = DB.subjects.find(s => subjectMatchesName(s, c.title));
+    if (sub) { c.subjectId = sub.id; c.color = sub.color || c.color; changed = true; }
+  });
+  if (changed) save({ silent: true });
+}
+
 const App = {
-  tab: 'home', calView: 'timetable', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
+  tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
   aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
 
   init() {
@@ -63,6 +93,7 @@ const App = {
       if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
     };
     setHash(location.hash.slice(1));
+    autoLinkClassesToSubjects();
     window.addEventListener('hashchange', () => { setHash(location.hash.slice(1)); this.render(); });
     changeListeners.push(() => { this.applyTheme(); this.render(); refreshFilesIfOpen(); });
     bindEvents();
@@ -80,9 +111,17 @@ const App = {
     document.documentElement.dataset.dark = DB.prefs.dark ? '1' : '0';
     const c = (THEMES.find(t => t[0] === DB.prefs.theme) || THEMES[0])[2];
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', DB.prefs.dark ? '#1d1a1f' : c);
+    const tc = DB.prefs.tagColors || {};
+    const rs = document.documentElement.style;
+    rs.setProperty('--tag-plan', safeColor(tc.plan || '#3b82f6'));
+    rs.setProperty('--tag-exam', safeColor(tc.exam || '#a855f7'));
+    rs.setProperty('--tag-hw', safeColor(tc.hw || '#f59e0b'));
+    rs.setProperty('--tag-ev', safeColor(tc.ev || '#10b981'));
   },
 
   go(tab) {
+    if (tab === 'plan') { this.todoSub = ''; }
+    else if (tab === 'calendar' && this.tab !== 'calendar') { this.calView = 'month'; }
     location.hash = tab; this.tab = tab; this.render(); window.scrollTo({ top: 0 });
     const main = document.getElementById('main');
     if (main) { main.classList.remove('view-active'); void main.offsetWidth; main.classList.add('view-active'); }
@@ -93,22 +132,15 @@ const App = {
     hdr.classList.toggle('compact', this.tab !== 'home');
     hdr.innerHTML = this.headerHTML();
     const nextEx = upcomingExams()[0];
-    const isFootball = (DB.prefs.theme || 'navy') === 'navy';
+    const theme = DB.prefs.theme || 'navy';
+    const isFootball = theme === 'navy';
+    const isManU = theme === 'manutd';
+    const isMono = isMinimalTheme(theme);
     document.getElementById('nav').innerHTML = `
-      <div class="side-brand"><span class="side-logo">${isFootball ? '<img src="assets/madrid-crest.png" alt="Real Madrid" class="side-logo-img">' : '🐃'}</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
+      <div class="side-brand"><span class="side-logo">${isFootball ? '<img src="assets/madrid-crest.png" alt="Real Madrid" class="side-logo-img">' : isManU ? '<img src="assets/manutd-crest.png" alt="Man Utd" class="side-logo-img">' : isMono ? ico('layers', 18) : '🐃'}</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
       <div class="side-tabs">${ALL_TABS.map(([id, ic, label]) =>
-        `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('')}</div>
-      ${isFootball ? '<div class="side-hala" aria-hidden="true">Hala Madrid</div>' : ''}
-      <div class="side-cards">
-        <div class="side-quote">
-          <img src="assets/coach-moto.webp" alt="อู๊ด">
-          <div class="side-quote-txt"><b>Keep going!</b><small>สู้ๆ ครับ ✨</small></div>
-        </div>
-        <button type="button" class="side-goal" data-act="go" data-tab="subjects">
-          <span class="side-goal-ic">${ico('target', 17)}</span>
-          <div class="side-quote-txt"><b>เป้าหมายถัดไป</b><small>${nextEx ? esc(nextEx.name) : 'เพิ่มวิชาสอบ'}</small></div>
-        </button>
-      </div>`;
+        `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${id === 'ai' ? aiTabLabel() : label}</span></button>`).join('')}</div>
+      ${isFootball ? '<div class="side-hala" aria-hidden="true">Hala Madrid</div>' : isManU ? '<div class="side-hala" aria-hidden="true">Glory Glory Man United</div>' : ''}`;
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
     syncGutters();
@@ -125,8 +157,8 @@ const App = {
       btn.innerHTML = btn.dataset.mini ? (Timer.running ? ico('pause', 13) : ico('play', 13)) : (Timer.running ? `${ico('pause')} หยุดชั่วคราว` : `${ico('play')} เริ่ม`);
       btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start';
     }
-    const mini = document.getElementById('timerMini');
-    if (mini) { mini.innerHTML = `${ico('clock', 14)} ${txt}`; mini.hidden = !Timer.running; }
+    const clk = document.getElementById('liveClock');
+    if (clk) clk.innerHTML = `${ico('clock', 14)} ${liveTimeStr()}`;
     document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
   },
 
@@ -146,13 +178,14 @@ const App = {
       </div>`;
     } else {
       const cur = ALL_TABS.find(x => x[0] === this.tab) || ALL_TABS[0];
-      left = `<div class="hello compact"><button class="avatar avatar-btn" data-act="go" data-tab="home" title="หน้าแรก">${avatarImg()}</button><h1>${cur[1]} ${cur[2]}</h1></div>`;
+      const curTitle = cur[0] === 'ai' ? aiTabLabel() : cur[2];
+      left = `<div class="hello compact"><button class="avatar avatar-btn" data-act="go" data-tab="home" title="หน้าแรก">${avatarImg()}</button><h1>${cur[1]} ${curTitle}</h1></div>`;
     }
-    const isDark = DB.prefs.dark || DB.prefs.theme === 'navy';
+    const isDark = !!DB.prefs.dark;
     return `${left}
       <div class="head-actions">
         <span class="chip date-pill">${ico('calendar', 14)} ${fmtDateLong(t)}</span>
-        <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" aria-label="ตัวจับเวลา" ${Timer.running ? '' : 'hidden'}>${ico('clock', 14)}</button>
+        <span id="liveClock" class="chip date-pill live-clock" aria-label="เวลาปัจจุบัน">${ico('clock', 14)} ${liveTimeStr()}</span>
         ${this.syncBadgeHTML()}
         <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
         <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? ico('sun', 17) : ico('moon', 17)}</button>
@@ -184,15 +217,47 @@ const App = {
 };
 
 /* ===== Modal ===== */
-function openModal(title, html, wide = false) {
+App._modalStack = App._modalStack || [];
+function _updateModalBackBtn() {
+  const b = document.getElementById('modalBack');
+  if (b) b.hidden = !App._modalStack?.length;
+}
+function openModal(title, html, wide = false, opts = {}) {
   const m = document.getElementById('modal');
   const titleEl = document.getElementById('modalTitle');
+  if (opts.push !== false && !m.classList.contains('hidden')) {
+    App._modalStack = App._modalStack || [];
+    App._modalStack.push({
+      title: titleEl.innerHTML,
+      html: document.getElementById('modalBody').innerHTML,
+      wide: m.querySelector('.modal-box').classList.contains('wide'),
+      _dayOpen: App._dayOpen || '',
+      _pendingOpen: !!App._pendingOpen,
+      filesSid: App.filesSid || null,
+      _chFiles: App._chFiles ? { ...App._chFiles } : null,
+    });
+  }
+  if (!opts.keepPending) App._pendingOpen = false;
   titleEl.innerHTML = title;
   titleEl.hidden = !title;
   document.getElementById('modalBody').innerHTML = html;
   m.querySelector('.modal-box').classList.toggle('wide', wide);
   m.classList.remove('hidden');
+  _updateModalBackBtn();
   setTimeout(() => m.querySelector('input:not([type=checkbox]):not([type=color]):not([type=file]),textarea')?.focus(), 50);
+}
+function modalBack() {
+  const prev = (App._modalStack || []).pop();
+  if (!prev) return closeModal();
+  App._dayOpen = prev._dayOpen || '';
+  App._pendingOpen = !!prev._pendingOpen;
+  App.filesSid = prev.filesSid || null;
+  App._chFiles = prev._chFiles || null;
+  if (prev._pendingOpen) { openPendingModal({ push: false }); return; }
+  if (prev._dayOpen && !prev._chFiles && !prev.filesSid) { dayModal(prev._dayOpen, { push: false }); return; }
+  openModal(prev.title, prev.html, prev.wide, { push: false, keepPending: prev._pendingOpen });
+  if (prev._chFiles) renderChapterFilesModal();
+  else if (prev.filesSid) filesRender();
 }
 function setModalBody(html) { document.getElementById('modalBody').innerHTML = html; }
 function closeModal() {
@@ -201,24 +266,43 @@ function closeModal() {
   const titleEl = document.getElementById('modalTitle');
   titleEl.innerHTML = '';
   titleEl.hidden = true;
-  App.fc = null; App.quiz = null; App.filesSid = null; App._examImg = null;
+  App._modalStack = [];
+  _updateModalBackBtn();
+  App.fc = null; App.quiz = null; App.filesSid = null; App._examImg = null; App._dayOpen = ''; App._pendingOpen = false; App._chFiles = null;
   if (needRender) App.render();
 }
 
 /* ===== Small UI pieces ===== */
 const tag = id => `<span class="tag" style="--c:${subjectColor(id)}">${esc(subjectName(id))}</span>`;
+function time24HTML(name, val = '', opts = {}) {
+  const m = /^(\d{2}):(\d{2})/.exec(String(val || ''));
+  const hh = m ? m[1] : '', mm = m ? m[2] : '';
+  const hrs = [...Array(24)].map((_, h) => { const v = pad(h); return `<option value="${v}" ${hh === v ? 'selected' : ''}>${v}</option>`; }).join('');
+  const mins = [...Array(60)].map((_, i) => { const v = pad(i); return `<option value="${v}" ${mm === v ? 'selected' : ''}>${v}</option>`; }).join('');
+  return `<span class="time24">
+    <input type="hidden" name="${esc(name)}" value="${esc(hh && mm ? `${hh}:${mm}` : '')}" ${opts.bind ? `data-bind="${esc(opts.bind)}"` : ''}>
+    <select class="t24-h" aria-label="${esc(opts.aria || 'ชั่วโมง')}"><option value="">--</option>${hrs}</select>
+    <span class="t24-sep">:</span>
+    <select class="t24-m" aria-label="นาที"><option value="">--</option>${mins}</select>
+  </span>`;
+}
 const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, Number(pct) || 0))}%;${color ? '--c:' + safeColor(color) : ''}"></div></div>`;
 const subjectOptions = (sel, allowNone = true) =>
   (allowNone ? `<option value="">— ทั่วไป —</option>` : '') + DB.subjects.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 const empty = (icon, text, btn = '', img = '') => `<div class="empty">${img ? `<img src="${img}" alt="" class="empty-mascot">` : `<div class="empty-ic">${icon}</div>`}<p>${text}</p>${btn}</div>`;
 
 function planItemHTML(p, showDate = false, cat = '') {
+  const ch = p.chapterId ? (subjectById(p.subjectId)?.chapters || []).find(c => c.id === p.chapterId) : null;
+  const files = ch ? (ch.files || []) : (p.files || []);
+  const fileBtn = p.chapterId
+    ? `<button class="mini-btn ${files.length ? 'has' : ''}" data-act="chapter-files" data-sid="${p.subjectId}" data-id="${p.chapterId}" title="ไฟล์ในบทนี้ (${files.length})" aria-label="ไฟล์ในบท">${ico('paperclip', 14)}${files.length ? `<small class="ch-fc">${files.length}</small>` : ''}</button>`
+    : `<button class="mini-btn ${files.length ? 'has' : ''}" data-act="plan-files" data-id="${p.id}" title="แนบ/ดูไฟล์ (${files.length})" aria-label="แนบไฟล์">${ico('paperclip', 14)}${files.length ? `<small class="ch-fc">${files.length}</small>` : ''}</button>`;
   return `<div class="item ${p.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
     ${cat}
     ${tag(p.subjectId)}
-    <span class="grow">${p.kind === 'review' ? `${ico('reset', 13)} ` : ''}${esc(p.title)}${p.time ? ` <small class="muted">${ico('clock', 12)} ${esc(p.time)}${p.remind !== false ? ` ${ico('bell', 12)}` : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
-    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">${ico('edit', 15)}</button>
+    <span class="grow">${p.kind === 'review' ? `${ico('reset', 13)} ` : ''}${esc(p.title)}${p.time ? ` <small class="muted">${ico('clock', 12)} ${esc(p.time)}${p.endTime ? '–' + esc(p.endTime) : ''}${p.remind !== false ? ` ${ico('bell', 12)}` : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
+    <span class="item-actions">${fileBtn}<button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">${ico('edit', 15)}</button>
     <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ" aria-label="ลบแผนอ่าน">${ico('close', 15)}</button></span>
   </div>`;
 }
@@ -254,8 +338,15 @@ function dateField(label, name, value, required) {
   return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" min="${now - 1}-01-01" max="${now + 5}-12-31" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
 }
 function avatarImg() {
-  if ((DB.prefs.theme || 'navy') === 'navy') {
+  const theme = DB.prefs.theme || 'navy';
+  if (theme === 'navy') {
     return `<img class="avatar-img madrid-av" src="assets/madrid-crest.png" alt="Real Madrid" width="46" height="46">`;
+  }
+  if (theme === 'manutd') {
+    return `<img class="avatar-img manutd-av" src="assets/manutd-crest.png" alt="Man Utd" width="46" height="46">`;
+  }
+  if (isMinimalTheme(theme)) {
+    return `<span class="avatar-mono">${ico('user', 20)}</span>`;
   }
   return `<img class="avatar-img" src="assets/avatar-profile.webp" alt="อู๊ด" width="46" height="46" loading="eager" fetchpriority="high" decoding="sync" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='assets/avatar-profile.png'}">`;
 }
@@ -332,12 +423,17 @@ const Views = {
     const today = planForDate(t);
     const overdue = DB.plan.filter(p => !p.done && p.date < t);
     const soonTasks = DB.tasks.filter(x => !x.done && x.date >= t && x.date <= addDays(t, 7)).sort((a, b) => a.date.localeCompare(b.date));
-    const ws = weekStart(t);
+    const ws = App.statWeek || weekStart(t);
+    const curWs = weekStart(t);
     const week = [...Array(7)].map((_, i) => { const d = addDays(ws, i); return { label: TH_DAYS[parseDate(d).getDay()], value: minutesOn(d), hl: d === t }; });
     const weekTotal = week.reduce((a, d) => a + d.value, 0);
-    const doneToday = today.filter(p => p.done).length;
     const dow = new Date().getDay();
     const todayClasses = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
+    const todayExams = DB.subjects.filter(s => s.examDate === t);
+    const todayTasks = DB.tasks.filter(x => x.date === t).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    const pendingTasks = DB.tasks.filter(x => !x.done).sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99') || (a.time || '').localeCompare(b.time || ''));
+    const nextPendingTask = pendingTasks[0];
+    const todayListCount = todayExams.length + todayClasses.length + today.length + todayTasks.length;
 
     const totCh = DB.subjects.reduce((a, s) => a + subjectProgress(s).total, 0);
     const doneCh = DB.subjects.reduce((a, s) => a + subjectProgress(s).done, 0);
@@ -348,7 +444,7 @@ const Views = {
     const todayHrs = (todayMin / 60).toFixed(1).replace(/\.0$/, '');
     const goalHrs = Math.max(1, Math.round((DB.prefs.dailyGoalMin || 180) / 60));
     const todayHrPct = Math.min(100, Math.round((todayMin / (goalHrs * 60)) * 100));
-    const pendingCount = overdue.length + today.filter(p => !p.done).length + soonTasks.length;
+    const pendingCount = DB.tasks.filter(x => !x.done).length;
     const pendingPct = Math.min(100, pendingCount * 15);
 
     // Mini Calendar for current month
@@ -377,7 +473,7 @@ const Views = {
     // 7-day forecast strip
     const forecast = [...Array(7)].map((_, i) => {
       const d = addDays(t, i);
-      const cnt = planForDate(d).length;
+      const cnt = planForDate(d).length + DB.tasks.filter(x => x.date === d).length;
       const lbl = i === 0 ? 'วันนี้' : i === 1 ? 'พรุ่งนี้' : TH_DAYS[parseDate(d).getDay()];
       return { d, lbl, cnt, isToday: i === 0 };
     });
@@ -392,11 +488,14 @@ const Views = {
     const timerPct = Math.round((1 - sec / Timer.dur()) * 100);
     const pomoCfg = DB.prefs.pomo || { work: 25, short: 5, long: 15 };
 
-    const isFootball = (DB.prefs.theme || 'navy') === 'navy';
+    const theme = DB.prefs.theme || 'navy';
+    const isFootball = theme === 'navy';
+    const isManU = theme === 'manutd';
+    const isMono = isMinimalTheme(theme);
     return `
     <div class="ref-row1">
-      <section class="card ref-banner ${isFootball ? 'is-football' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
-        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true">` : ''}
+      <section class="card ref-banner ${isFootball ? 'is-football' : isManU ? 'is-manutd' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
+        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true">` : isManU ? `<img class="banner-crest" src="assets/manutd-crest.png" alt="" aria-hidden="true">` : ''}
         <div class="banner-ic" aria-hidden="true">${ico('target', 24)}</div>
         <div class="ref-banner-body">
           <div class="ref-banner-title"><span>เป้าหมายหลักของคุณ</span></div>
@@ -404,17 +503,22 @@ const Views = {
           <p class="banner-sub">${DB.subjects.length} วิชา · อ่านจบแล้ว ${doneCh}/${totCh} บท (${overallPct}%)</p>
           <button class="btn small ref-cta" data-act="go" data-tab="plan">ดูแผนทั้งหมด →</button>
         </div>
-        <img class="${isFootball ? 'bento-mascot ronaldo-hero' : 'bento-mascot'}" src="${isFootball ? 'assets/ronaldo-cutout.png' : 'assets/coach-hero-real.webp'}" alt="${isFootball ? 'Cristiano Ronaldo' : 'อู๊ด'}">
+        ${isMono ? '' : `<img class="${isFootball || isManU ? 'bento-mascot ronaldo-hero' : 'bento-mascot'}" src="${isFootball ? 'assets/ronaldo-cutout.png' : isManU ? 'assets/bruno-cutout.png' : 'assets/coach-hero-real.webp'}" alt="${isFootball ? 'Cristiano Ronaldo' : isManU ? 'Bruno Fernandes' : 'อู๊ด'}">`}
+      </section>
+
+      <section class="card ref-todos ref-pending-top">
+        <div class="card-head" style="margin-bottom:6px">
+          <h2 style="cursor:pointer" data-act="open-pending" title="กดเพื่อขยายดูทั้งหมด">${ico('book', 17)} งานที่ค้าง</h2>
+          <button class="mini-btn" data-act="add-task" data-date="${t}" title="เพิ่มงาน">+ เพิ่มงาน</button>
+          <span class="chip accent">${pendingTasks.length} รายการ</span>
+        </div>
+        <div class="ref-todo-list">
+          ${pendingTasks.length ? pendingTasks.map(x => taskItemHTML(x, x.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">งาน</span>')).join('')
+            : empty(ico('check', 22), 'ไม่มีงานค้างแล้ว!')}
+        </div>
       </section>
 
       <section class="card ref-kpi">
-        <div class="kpi-ic kpi-blue">${ico('book', 17)}</div>
-        <div class="kpi-lbl">งานที่ค้าง</div>
-        <div class="kpi-val stat-num">${pendingCount} <small>รายการ</small></div>
-        <div class="bar-bg"><div class="bar-fill kpi-bar-purple" style="width:${pendingPct}%"></div></div>
-      </section>
-
-      <section class="card ref-kpi" data-act="go" data-tab="subjects" style="cursor:pointer">
         <div class="kpi-ic kpi-indigo">${ico('calendar', 17)}</div>
         <div class="kpi-lbl">สอบวิชาถัดไป</div>
         <div class="kpi-val stat-num">${nextEx ? esc(fmtDate(nextEx.examDate)) : '—'}</div>
@@ -429,14 +533,6 @@ const Views = {
       </section>
     </div>
 
-    ${todayClasses.length ? `<section class="card" style="margin-bottom:14px;padding:12px 16px">
-      <div class="card-head" style="margin-bottom:8px"><h2>${ico('calendar', 17)} ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go-timetable">ดูทั้งหมด</button></div>
-      <div class="tt-strip">${todayClasses.map(c => {
-        const col = classColor(c), nm = className(c);
-        return `<div class="tt-pill" style="--c:${col}"><b>${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</b> ${esc(nm)}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</div>`;
-      }).join('')}</div>
-    </section>` : ''}
-
     <div class="ref-row2">
       <section class="card ref-cal">
         <div class="card-head">
@@ -445,39 +541,54 @@ const Views = {
         </div>
         <div class="mini-cal-grid">
           ${['อา','จ','อ','พ','พฤ','ศ','ส'].map(d => `<span class="mc-hd">${d}</span>`).join('')}
-          ${calCells.map(c => `<button type="button" class="mc-day ${c.muted ? 'muted' : ''} ${c.isToday ? 'today' : ''}" data-act="go" data-tab="calendar">
+          ${calCells.map(c => `<button type="button" class="mc-day ${c.muted ? 'muted' : ''} ${c.isToday ? 'today' : ''}" ${c.iso ? `data-date="${c.iso}" data-act="cal-day"` : 'data-act="go" data-tab="calendar"'}>
             <span>${c.day}</span>
             <span class="mc-dots">${c.hasPlan ? '<i class="d-blue"></i>' : ''}${c.hasTask ? '<i class="d-amber"></i>' : ''}${c.hasExam ? '<i class="d-purple"></i>' : ''}</span>
           </button>`).join('')}
         </div>
         <div class="mc-legend">
-          <span><i class="d-blue"></i> อ่านหนังสือ</span>
-          <span><i class="d-purple"></i> วันสอบ</span>
-          <span><i class="d-amber"></i> การบ้าน</span>
+          <button type="button" class="mc-legend-btn" data-act="tag-colors" title="คลิกเพื่อเปลี่ยนสีแท็ก"><i class="d-blue"></i> อ่านหนังสือ</button>
+          <button type="button" class="mc-legend-btn" data-act="tag-colors" title="คลิกเพื่อเปลี่ยนสีแท็ก"><i class="d-purple"></i> วันสอบ</button>
+          <button type="button" class="mc-legend-btn" data-act="tag-colors" title="คลิกเพื่อเปลี่ยนสีแท็ก"><i class="d-amber"></i> งาน</button>
         </div>
       </section>
 
       <section class="card ref-todos">
         <div class="card-head">
-          <h2>${ico('check', 17)} งานที่ต้องทำวันนี้</h2>
-          <button class="mini-btn" data-act="add-task" title="เพิ่มการบ้าน/งาน">+ งาน</button>
-          <span class="chip accent">${todayTodos.length} รายการ</span>
+          <h2>${ico('check', 17)} Today list</h2>
+          <button class="mini-btn" data-act="add-todo" data-date="${t}" title="เพิ่มสิ่งที่ต้องทำ">+ สิ่งที่ต้องทำ</button>
+          <span class="chip accent">${todayListCount} รายการ</span>
         </div>
         <div class="ref-todo-list">
-          ${todayTodos.length ? todayTodos.map(t0 => t0.kind === 'plan'
-              ? planItemHTML(t0.item, false, '<span class="todo-cat cat-plan">แผนอ่าน</span>')
-              : taskItemHTML(t0.item, t0.item.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">การบ้าน</span>')).join('')
-            : empty('', 'วันนี้ยังไม่มีรายการ', `<button class="btn small" data-act="add-plan" data-date="${t}">${ico('plus', 14)} เพิ่มแผนอ่านวันนี้</button>`, 'assets/coach-action.webp')}
+          ${todayListCount ? [
+            ...todayExams.map(s => `<div class="item" style="cursor:pointer" data-act="open-subject" data-id="${s.id}">
+              <span class="todo-cat cht-exam">สอบ</span>
+              ${tag(s.id)}
+              <span class="grow">${s.examTime ? `<b>${esc(s.examTime)}</b> ` : ''}${roomText(s.room) ? `ห้อง ${esc(roomText(s.room))}` : 'วันสอบ'}</span>
+            </div>`),
+            ...todayClasses.map(c => `<div class="item" style="cursor:pointer" data-act="go-timetable">
+              <span class="todo-cat cht-cls" style="--c:${classColor(c)}">เรียน</span>
+              <span class="tag" style="--c:${classColor(c)}">${esc(className(c))}</span>
+              <span class="grow"><b>${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</b>${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</span>
+            </div>`),
+            ...today.map(p => planItemHTML(p, false, '<span class="todo-cat cat-plan">อ่านหนังสือ</span>')),
+            ...todayTasks.map(x => taskItemHTML(x, x.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">งาน</span>'))
+          ].join('') : empty(isFootball || isManU || isMono ? ico('check', 30) : '', 'วันนี้ยังไม่มีรายการ', `<button class="btn small" data-act="add-todo" data-date="${t}">${ico('plus', 14)} เพิ่มสิ่งที่ต้องทำ</button>`, isFootball || isManU || isMono ? '' : 'assets/coach-action.webp')}
         </div>
         <div class="ref-todo-foot">
-          <button class="btn ghost full" data-act="go" data-tab="plan">ดูงานทั้งหมด →</button>
+          <button class="btn ghost full" data-act="go" data-tab="plan">ดูทั้งหมด →</button>
         </div>
       </section>
 
-      <section class="card ref-stats">
+      <section class="card ref-stats" data-act="go" data-tab="stats" style="cursor:pointer" title="กดเพื่อดูสถิติทั้งหมด">
         <div class="card-head">
           <h2>${ico('chart', 17)} สถิติการเรียน</h2>
-          <button class="mini-btn" data-act="go" data-tab="stats">สัปดาห์นี้ ▾</button>
+          <select class="mini-sel" data-chg="home-stat-week" aria-label="เลือกสัปดาห์">
+            ${[[0, 'สัปดาห์นี้'], [-7, 'สัปดาห์ที่แล้ว'], [-14, '2 สัปดาห์ก่อน'], [-21, '3 สัปดาห์ก่อน']].map(([off, lbl]) => {
+              const val = addDays(curWs, off);
+              return `<option value="${val}" ${ws === val ? 'selected' : ''}>${lbl}</option>`;
+            }).join('')}
+          </select>
         </div>
         <div class="ref-stats-top">
           <div class="donut-ring" style="--p:${overallPct}">
@@ -486,7 +597,7 @@ const Views = {
           <div class="ref-stats-leg">
             <div><span class="leg-dot d-blue"></span>อ่านจบแล้ว <b>${doneCh} บท</b></div>
             <div><span class="leg-dot d-purple"></span>เหลืออ่าน <b>${Math.max(0, totCh - doneCh)} บท</b></div>
-            <div><span class="leg-dot d-amber"></span>สัปดาห์นี้ <b>${fmtMin(weekTotal)}</b></div>
+            <div><span class="leg-dot d-amber"></span>${ws === curWs ? 'สัปดาห์นี้' : 'สัปดาห์ที่เลือก'} <b>${fmtMin(weekTotal)}</b></div>
           </div>
         </div>
         <svg class="sparkline" viewBox="0 0 240 60" preserveAspectRatio="none" aria-hidden="true">
@@ -501,13 +612,13 @@ const Views = {
     <div class="ref-row3">
       <section class="card ref-sched">
         <div class="card-head">
-          <h2>${ico('book', 17)} ตารางอ่านหนังสือ</h2>
+          <h2>${ico('book', 17)} สิ่งที่ต้องทำ 7 วันข้างหน้า</h2>
           <button class="mini-btn" data-act="go" data-tab="plan">ดูทั้งหมด →</button>
         </div>
         <div class="forecast-grid">
-          ${forecast.map(f => `<button type="button" class="fc-pill ${f.isToday ? 'active' : ''}" data-act="go" data-tab="plan">
+          ${forecast.map(f => `<button type="button" class="fc-pill ${f.isToday ? 'active' : ''}" data-act="cal-day" data-date="${f.d}">
             <small>${f.lbl}</small>
-            <b>${f.cnt ? `${f.cnt} บท` : 'ว่าง'}</b>
+            <b>${f.cnt ? `${f.cnt} รายการ` : 'ว่าง'}</b>
           </button>`).join('')}
         </div>
       </section>
@@ -535,10 +646,10 @@ const Views = {
       <section class="card ref-ai">
         <div class="card-head">
           <h2>${ico('sparkles', 17)} AI Assistant</h2>
-          <span class="chip accent">อู๊ดเอไอ</span>
+          <span class="chip accent">${aiTabLabel()}</span>
         </div>
         <div class="ref-ai-body">
-          <img src="assets/ooo-chat.webp" alt="อู๊ดเอไอ">
+          ${isFootball ? `<img class="ref-ai-kylian" src="assets/kylian-chat.png" alt="Kylian">` : isManU ? `<img class="ref-ai-kylian manutd" src="assets/marcus-chat.png" alt="Dr.Marcus">` : isMono ? `<div class="ai-crest-badge">${ico('sparkles', 28)}</div>` : `<img src="assets/ooo-chat.webp" alt="อู๊ดเอไอ">`}
           <div class="ref-ai-txt">
             <p>พร้อมลุยต่อไหมครับ? วันนี้มี <b>${today.length + soonTasks.length}</b> งานรอคุณอยู่!</p>
             <button class="btn small full" data-act="go" data-tab="ai">คุยกับ AI →</button>
@@ -548,40 +659,70 @@ const Views = {
     </div>`;
   },
 
-  plan() {
+  plan(embedded = false) {
     const t = todayStr();
-    const overdue = DB.plan.filter(p => !p.done && p.date < t).sort((a, b) => a.date.localeCompare(b.date));
-    const future = DB.plan.filter(p => p.date >= t);
-    const past = DB.plan.filter(p => p.date < t && p.done);
-    const dates = [...new Set(future.map(p => p.date))];
-    DB.subjects.forEach(s => { if (s.examDate && s.examDate >= t && !dates.includes(s.examDate)) dates.push(s.examDate); });
+    const subF = App.todoSub || '';
+    const bySub = item => !subF || item.subjectId === subF;
+    const overduePlans = DB.plan.filter(p => !p.done && p.date < t && bySub(p)).map(p => ({ kind: 'plan', item: p }));
+    const overdueTasks = DB.tasks.filter(x => !x.done && x.date < t && bySub(x)).map(x => ({ kind: 'task', item: x }));
+    const overdue = [...overduePlans, ...overdueTasks].sort((a, b) => a.item.date.localeCompare(b.item.date));
+    const futurePlans = DB.plan.filter(p => p.date >= t && bySub(p));
+    const futureTasks = DB.tasks.filter(x => x.date >= t && bySub(x));
+    const pastPlans = DB.plan.filter(p => p.date < t && p.done && bySub(p)).map(p => ({ kind: 'plan', item: p }));
+    const pastTasks = DB.tasks.filter(x => x.date < t && x.done && bySub(x)).map(x => ({ kind: 'task', item: x }));
+    const past = [...pastPlans, ...pastTasks].sort((a, b) => b.item.date.localeCompare(a.item.date));
+    const dates = [...new Set([...futurePlans.map(p => p.date), ...futureTasks.map(x => x.date)])];
+    DB.subjects.forEach(s => { if (s.examDate && s.examDate >= t && (!subF || s.id === subF) && !dates.includes(s.examDate)) dates.push(s.examDate); });
     dates.sort();
+    const filterBar = DB.subjects.length ? `<div class="folder-bar" style="margin-bottom:12px">
+      <button type="button" class="chip ${!subF ? 'accent' : ''}" data-act="todo-filter" data-sid="">ทั้งหมด</button>
+      ${DB.subjects.map(s => `<button type="button" class="chip ${subF === s.id ? 'accent' : ''}" data-act="todo-filter" data-sid="${s.id}" style="--c:${safeColor(s.color)}">${esc(s.name)}</button>`).join('')}
+    </div>` : '';
+    const splitCode = name => {
+      const m = /^(\d{4,10})\s+(.+)$/.exec(String(name || '').trim());
+      return m ? { code: m[1], title: m[2] } : { code: '', title: String(name || '') };
+    };
+    const renderTodoEntry = entry => entry.kind === 'plan'
+      ? planItemHTML(entry.item, true, '<span class="todo-cat cat-plan">อ่านหนังสือ</span>')
+      : taskItemHTML(entry.item, entry.item.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">งาน</span>');
     const day = d => {
-      const items = planForDate(d), exams = DB.subjects.filter(s => s.examDate === d);
+      const items = planForDate(d).filter(bySub);
+      const exams = DB.subjects.filter(s => s.examDate === d && (!subF || s.id === subF));
+      const dayTasks = DB.tasks.filter(x => x.date === d && bySub(x)).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
       const n = daysBetween(t, d);
       return `<div class="day-group ${d === t ? 'is-today' : ''}">
-        <div class="day-head"><b>${fmtDateLong(d)}</b> ${n === 0 ? '<span class="chip accent">วันนี้</span>' : n === 1 ? '<span class="chip">พรุ่งนี้</span>' : ''}
-          ${exams.map(s => `<span class="exam-badge" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')}</span>`).join('')}
-          <button class="mini-btn right" data-act="add-plan" data-date="${d}">+</button></div>
-        ${items.map(p => planItemHTML(p)).join('')}
+        <div class="day-head">
+          <b class="${exams.length ? 'exam-day-lbl' : ''}">${fmtDateLong(d)}</b>
+          ${n === 0 ? '<span class="chip accent">วันนี้</span>' : n === 1 ? '<span class="chip">พรุ่งนี้</span>' : ''}
+          ${exams.length ? '<span class="chip exam-day-chip">วันสอบ</span>' : ''}
+          <button class="mini-btn right" data-act="add-todo" data-date="${d}" aria-label="เพิ่มสิ่งที่ต้องทำ">${ico('plus', 15)}</button>
+        </div>
+        ${exams.map(s => {
+          const sp = splitCode(s.name);
+          return `<div class="exam-row" style="--c:${safeColor(s.color)}" data-act="open-subject" data-id="${s.id}">
+            ${s.examTime ? `<b class="exam-time">${esc(s.examTime)}</b>` : ''}
+            <span class="grow"><b>สอบ ${esc(sp.title)}</b>${sp.code ? ` <small class="muted">(${esc(sp.code)})</small>` : ''}${roomText(s.room) ? ` <small class="muted">· ห้อง ${esc(roomText(s.room))}</small>` : ''}</span>
+          </div>`;
+        }).join('')}
+        ${items.map(p => planItemHTML(p, false, '<span class="todo-cat cat-plan">อ่านหนังสือ</span>')).join('')}
+        ${dayTasks.map(x => taskItemHTML(x, x.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">งาน</span>')).join('')}
       </div>`;
     };
 
-
     return `
-    
-    <section class="card">
+    ${embedded ? '' : `<section class="card">
       <div class="toolbar">
-        <h2 class="grow">${ico('book', 18)} ตารางอ่านหนังสือ</h2>
-        <button class="btn" data-act="add-plan" data-date="${t}">${ico('plus', 15)} เพิ่มแผนอ่าน</button>
+        <h2 class="grow">${ico('book', 18)} To do list</h2>
+        <button class="btn" data-act="add-todo" data-date="${t}">${ico('plus', 15)} สิ่งที่ต้องทำ</button>
       </div>
-    </section>
-    ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2></div>${overdue.map(p => planItemHTML(p, true)).join('')}</section>` : ''}
+    </section>`}
+    ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2></div>${overdue.map(renderTodoEntry).join('')}</section>` : ''}
     <section class="card">
-      ${dates.length ? dates.map(day).join('') : empty('🗓️', DB.subjects.length ? 'ยังไม่มีตาราง — กด "+ เพิ่มแผนอ่าน" ได้เลย' : 'เพิ่มวิชาก่อนนะ', DB.subjects.length ? '' : `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
+      ${filterBar}
+      ${dates.length ? dates.map(day).join('') : empty('🗓️', DB.subjects.length ? 'ยังไม่มีรายการ — กด "+ สิ่งที่ต้องทำ" ด้านบนได้เลย' : 'เพิ่มวิชาก่อนนะ', DB.subjects.length ? '' : `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
     </section>
-    ${past.length ? `<section class="card"><button class="link" data-act="toggle-past">${App.showPast ? '▾ ซ่อน' : '▸ แสดง'}รายการที่อ่านเสร็จแล้ว (${past.length})</button>
-      ${App.showPast ? past.sort((a, b) => b.date.localeCompare(a.date)).map(p => planItemHTML(p, true)).join('') : ''}</section>` : ''}`;
+    ${past.length ? `<section class="card"><button class="link" data-act="toggle-past">${App.showPast ? '▾ ซ่อน' : '▸ แสดง'}รายการที่ทำเสร็จแล้ว (${past.length})</button>
+      ${App.showPast ? past.map(renderTodoEntry).join('') : ''}</section>` : ''}`;
   },
 
   subjects() {
@@ -595,34 +736,28 @@ const Views = {
     ${DB.subjects.length ? '' : `<section class="card">${empty(ico('layers', 32), 'ยังไม่มีวิชา เพิ่มวิชาแรกกันเลย')}</section>`}
     <div class="subj-list">${DB.subjects.map(s => {
       const p = subjectProgress(s), n = s.examDate ? daysBetween(todayStr(), s.examDate) : null;
-      const fcN = DB.flashcards.filter(f => f.subjectId === s.id).length;
       const fileN = FileStore.count(s.id);
+      const cls = (DB.classes || []).filter(c => c.subjectId === s.id).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
       return `<section class="card subj" id="subj-${s.id}" style="--c:${safeColor(s.color)}">
         <div class="subj-head">
           <div class="grow"><h3>${esc(s.name)}</h3>
-            <div class="muted small">${s.examDate ? `${ico('target', 13)} สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
+            <div class="muted small">${s.examDate ? `${ico('target', 13)} สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div>
+            ${cls.length ? `<div class="muted small" style="margin-top:2px;cursor:pointer" data-act="go-timetable" title="ดูในตารางเรียน">${ico('calendar', 13)} เรียน ${cls.map(c => `${TH_DAYS[c.day]} ${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}${c.room ? ` (${esc(c.room)})` : ''}`).join(' · ')}</div>` : ''}</div>
           <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวิชา ${esc(s.name)}">${ico('edit', 15)} แก้ไข</button>
           <button class="mini-btn" data-act="del-subject" data-id="${s.id}" aria-label="ลบวิชา ${esc(s.name)}">${ico('trash', 15)}</button>
         </div>
         <div class="prog-top"><span>ความคืบหน้า</span><span>${p.done}/${p.total} บท (${p.pct}%)</span></div>
         ${progressBar(p.pct, s.color)}
-        <div class="chapters">${s.chapters.map((c, i) => {
+        <div class="chapters">${s.chapters.map(c => {
           const cf = Array.isArray(c.files) ? c.files : [];
-          const rounds = Number(c.rounds) || 0;
-          return `<div class="item ${c.done ? 'done' : ''}">
+          return `<div class="item ch-row ${c.done ? 'done' : ''}" data-sid="${s.id}" data-cid="${c.id}">
+            <span class="ch-drag" title="ลากขึ้น-ลงเพื่อเรียงลำดับ" aria-label="ลากเพื่อเรียงลำดับ">⋮⋮</span>
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">
               <span>${esc(c.title)}</span>
             </span>
             <span class="item-actions">
-            <span class="round-ticker ${rounds > 0 ? 'has' : ''}" role="group" aria-label="จำนวนรอบที่เรียน">
-              <button type="button" class="rt-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="-1" ${rounds <= 0 ? 'disabled' : ''} aria-label="ลดรอบ">−</button>
-              <span class="rt-val stat-num">${rounds} รอบ</span>
-              <button type="button" class="rt-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="1" aria-label="เพิ่มรอบ">+</button>
-            </span>
             <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
-            <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">${ico('note', 15)}</button>
-            <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">${ico('arrow-up', 14)}</button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
             <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
             </span>
@@ -631,21 +766,21 @@ const Views = {
         <div class="row wrap">
           <button class="btn small" data-act="add-chapters" data-sid="${s.id}">${ico('plus', 14)} เพิ่มบท</button>
           <button class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('paperclip', 14)} ไฟล์ (${fileN})</button>
-          <button class="btn small ghost" data-act="flashcards" data-sid="${s.id}">${ico('cards', 14)} แฟลชการ์ด (${fcN})</button>
         </div>
       </section>`;
     }).join('')}</div>`;
   },
 
   calendar() {
-    const view = App.calView || 'timetable';
+    const view = App.calView === 'exams' ? 'timetable' : App.calView === 'todo' ? 'month' : (App.calView || 'month');
     const switcher = `<section class="card"><div class="toolbar">
-      <h2 class="grow">${view === 'timetable' ? `${ico('calendar', 18)} จัดตารางเรียน` : view === 'exams' ? `${ico('target', 18)} ตารางสอบ` : `${ico('calendar', 18)} ปฏิทิน`}</h2>
+      <h2 class="grow">${view === 'timetable' ? `${ico('calendar', 18)} ตารางเรียน &amp; ตารางสอบ` : `${ico('calendar', 18)} ปฏิทิน`}</h2>
       <div class="pills" style="margin:0">
-        <button class="pill ${view === 'timetable' ? 'active' : ''}" data-act="cal-view" data-v="timetable">ตารางเรียน</button>
         <button class="pill ${view === 'month' ? 'active' : ''}" data-act="cal-view" data-v="month">ปฏิทิน</button>
-        <button class="pill ${view === 'exams' ? 'active' : ''}" data-act="cal-view" data-v="exams">ตารางสอบ</button>
+        <button class="pill ${view === 'timetable' ? 'active' : ''}" data-act="cal-view" data-v="timetable">ตารางเรียน &amp; สอบ</button>
       </div>
+      <button class="btn ghost small" data-act="gcal-sync" title="ซิงก์วันสอบ ตารางเรียน และสิ่งที่ต้องทำขึ้น Google Calendar">📅 ซิงก์ Google Cal</button>
+      <button class="btn" data-act="add-todo">${ico('plus', 15)} สิ่งที่ต้องทำ</button>
     </div></section>`;
 
     if (view === 'timetable') {
@@ -700,23 +835,26 @@ const Views = {
           <span class="grow"></span>
           <span class="muted small">รวมในตาราง: <b>${classes.length} คาบ</b> · ${uniqueSubs} วิชา</span>
         </div>
-      </section>`;
-    }
-
-    if (view === 'exams') {
-      const t = todayStr();
-      const withExam = DB.subjects.filter(s => s.examDate).sort((a, b) => (a.examDate + (a.examTime || '')).localeCompare(b.examDate + (b.examTime || '')));
-      return `
+      </section>
       <section class="card">
-        ${switcher}
-        ${withExam.length ? withExam.map(s => {
-          const n = daysBetween(t, s.examDate);
-          return `<div class="item">
-            <span class="tag" style="--c:${safeColor(s.color)}">${n === 0 ? 'วันนี้!' : n > 0 ? `อีก ${n} วัน` : 'สอบแล้ว'}</span>
-            <span class="grow"><b>${esc(s.name)}</b><br><small class="muted">🎯 ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''}</small></span>
-            <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวันสอบ ${esc(s.name)}">✎</button>
-          </div>`;
-        }).join('') : empty('🎯', 'ยังไม่มีวิชาที่กำหนดวันสอบ', `<button class="btn small" data-act="go" data-tab="subjects">ไปเพิ่มวิชา</button>`)}
+        <div class="card-head"><h2>${ico('target', 18)} ตารางสอบ</h2></div>
+        ${(() => {
+          const t = todayStr();
+          const withExam = DB.subjects.filter(s => s.examDate).sort((a, b) => (a.examDate + (a.examTime || '')).localeCompare(b.examDate + (b.examTime || '')));
+          return withExam.length ? withExam.map(s => {
+            const n = daysBetween(t, s.examDate);
+            const p = subjectProgress(s);
+            return `<div class="item">
+              <span class="tag" style="--c:${safeColor(s.color)};cursor:pointer" data-act="open-subject" data-id="${s.id}">${n === 0 ? 'วันนี้!' : n > 0 ? `อีก ${n} วัน` : 'สอบแล้ว'}</span>
+              <span class="grow" style="cursor:pointer" data-act="open-subject" data-id="${s.id}" title="กดเพื่อไปที่วิชานี้">
+                <b>${esc(s.name)}</b>
+                <br><small class="muted">🎯 ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} · ความพร้อม <b>${p.done}/${p.total} บท (${p.pct}%)</b></small>
+                ${progressBar(p.pct, s.color)}
+              </span>
+              <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวันสอบ ${esc(s.name)}">✎</button>
+            </div>`;
+          }).join('') : empty('🎯', 'ยังไม่มีวิชาที่กำหนดวันสอบ', `<button class="btn small" data-act="go" data-tab="subjects">ไปเพิ่มวิชา</button>`);
+        })()}
       </section>`;
     }
 
@@ -739,8 +877,6 @@ const Views = {
         ${plan.length ? `<div class="cal-chip plan">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
       </div>`;
     }
-    const upcoming = DB.tasks.filter(x => !x.done && x.date >= t).sort((a, b) => a.date.localeCompare(b.date));
-
     return `
     <section class="card">
       ${switcher}
@@ -749,14 +885,9 @@ const Views = {
         <h2 class="cal-title">${TH_MONTHS_FULL[m - 1]} ${y + 543}</h2>
         <button class="icon-btn" data-act="cal-nav" data-dir="1" aria-label="เดือนถัดไป">›</button>
         <button class="btn ghost small" data-act="cal-today">วันนี้</button>
-        <span class="grow"></span>
-        <button class="btn" data-act="add-task">+ การบ้าน/กิจกรรม</button>
       </div>
       <div class="cal-grid">${TH_DAYS.map(d => `<div class="cal-dow">${d}</div>`).join('')}${html}</div>
-      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 การบ้าน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด</p>
-    </section>
-    <section class="card"><h2>📝 การบ้าน/กิจกรรมที่ยังไม่เสร็จ</h2>
-      ${upcoming.length ? upcoming.map(taskItemHTML).join('') : empty('✅', 'ไม่มีงานค้าง')}
+      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 งาน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด</p>
     </section>`;
   },
 
@@ -823,6 +954,7 @@ const Views = {
     const allCh = DB.subjects.reduce((a, s) => a + s.chapters.length, 0), allDone = DB.subjects.reduce((a, s) => a + s.chapters.filter(c => c.done).length, 0);
 
 
+    const weekSessions = DB.sessions.filter(x => x.date >= ws && x.date <= days[6]).sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
     return `
     
     <section class="card">
@@ -852,6 +984,20 @@ const Views = {
         ${progressBar(allCh ? allDone / allCh * 100 : 0)}
       </section>
     </div>
+    <section class="card" style="margin-top:16px">
+      <div class="card-head">
+        <h2>${ico('clock', 18)} ประวัติบันทึกเวลาอ่าน (${weekSessions.length})</h2>
+        <button class="btn small ghost" data-act="add-session">${ico('plus', 14)} เพิ่มบันทึก</button>
+      </div>
+      ${weekSessions.length ? weekSessions.map(x => `<div class="item">
+        ${tag(x.subjectId)}
+        <span class="grow"><b>${fmtMin(x.minutes)}</b> <small class="muted">· ${fmtDateBE(x.date)}${x.at ? ' ' + new Date(x.at).toTimeString().slice(0, 5) : ''}</small></span>
+        <span class="item-actions">
+          <button class="mini-btn" data-act="edit-session" data-id="${x.id}" aria-label="แก้ไขบันทึก">${ico('edit', 15)}</button>
+          <button class="mini-btn" data-act="del-session" data-id="${x.id}" aria-label="ลบบันทึก">${ico('close', 15)}</button>
+        </span>
+      </div>`).join('') : empty(ico('clock', 28), 'ยังไม่มีบันทึกเวลาในสัปดาห์นี้')}
+    </section>
     ${coachActionHTML()}`;
   },
 
@@ -866,20 +1012,20 @@ const Views = {
 
     return `
       <section class="card chat-card">
-        <div class="card-head"><h2>💬 คุยกับอออ</h2><span class="chip">${esc(AI.providerLabel())}</span>
+        <div class="card-head"><h2>💬 คุยกับ${aiBotName()}</h2><span class="chip">${esc(AI.providerLabel())}</span>
           <button class="mini-btn" data-act="clear-chat">ล้างแชท</button></div>
         <div id="chatBox" class="chat-box">
           ${chat.length ? chat.map(chatRowHTML).join('') : chatRowHTML({ role: 'assistant', content: 'ว่าไง\n---\nถามเนื้อหา บอกวันสอบ หรือแนบรูปตารางผ่านปุ่ม 📎 มาให้ช่วยจัดการได้เลย' })}
-          ${App.aiBusy ? `<div class="msg-row ai"><img class="ooo-av" src="assets/ooo-chat.webp" alt="" width="36" height="36"><div class="msg-col"><div class="ooo-name">อออ</div><div class="msg assistant typing"><span></span><span></span><span></span></div></div></div>` : ''}
+          ${App.aiBusy ? `<div class="msg-row ai">${chatAvatarHTML()}<div class="msg-col"><div class="ooo-name">${aiBotName()}</div><div class="msg assistant typing"><span></span><span></span><span></span></div></div></div>` : ''}
         </div>
         <div class="quick">${quick.map(q => `<button class="chip" data-act="quick-ask" data-q="${esc(q)}">${q}</button>`).join('')}</div>
-        <p class="muted small" style="margin:0 0 6px">💡 อยากให้ช่วยจัดตาราง เพิ่มวิชา หรือสรุปบทเรียน แนบรูป/ไฟล์ผ่านปุ่ม <b>📎</b> แล้วพิมพ์บอกอออได้เลย</p>
+        <p class="muted small" style="margin:0 0 6px">💡 อยากให้ช่วยจัดตาราง เพิ่มวิชา หรือสรุปบทเรียน แนบรูป/ไฟล์ผ่านปุ่ม <b>📎</b> แล้วพิมพ์บอก${aiBotName()}ได้เลย</p>
         <form data-form="chat" class="chat-form">
           <div id="chatChips" class="chat-chips">${chatChipsHTML()}</div>
           <div class="chat-input">
             <button type="button" class="icon-btn" data-act="chat-attach" title="แนบไฟล์" aria-label="แนบไฟล์" ${App.aiBusy ? 'disabled' : ''}>📎</button>
             <button type="button" class="icon-btn chat-cam" data-act="chat-cam" title="ถ่ายรูป" aria-label="ถ่ายรูป" ${App.aiBusy ? 'disabled' : ''}>📷</button>
-            <textarea name="q" rows="2" placeholder="พิมพ์หาอออ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)" ${App.aiBusy ? 'disabled' : ''}></textarea>
+            <textarea name="q" rows="2" placeholder="พิมพ์หา${aiBotName()}… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)" ${App.aiBusy ? 'disabled' : ''}></textarea>
             <button class="btn" ${App.aiBusy ? 'disabled' : ''}>ส่ง</button>
           </div>
           <input id="chatFile" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,.txt,.pdf,.jpg,.jpeg,.png,.webp" data-chg="chat-file">
@@ -927,14 +1073,18 @@ const Views = {
     </section>
 
     <section class="card"><h2>🎨 ธีม</h2>
-      <div class="theme-grid">${THEMES.map(([k, l, c]) => `<button class="theme-sw ${DB.prefs.theme === k ? 'active' : ''}" data-act="theme" data-theme="${k}" style="--c:${c}"><span class="dot"></span>${l}</button>`).join('')}</div>
+      <div class="theme-group-lbl muted small">ธีมสีพื้น</div>
+      <div class="theme-grid">${THEMES.filter(([k]) => isMinimalTheme(k)).map(([k, l, c]) => `<button class="theme-sw ${DB.prefs.theme === k ? 'active' : ''}" data-act="theme" data-theme="${k}" style="--c:${c}"><span class="dot"></span>${l}</button>`).join('')}</div>
+      <div class="theme-group-lbl muted small" style="margin-top:10px">ธีมพิเศษ</div>
+      <div class="theme-grid">${THEMES.filter(([k]) => !isMinimalTheme(k)).map(([k, l, c]) => `<button class="theme-sw ${DB.prefs.theme === k ? 'active' : ''}" data-act="theme" data-theme="${k}" style="--c:${c}"><span class="dot"></span>${l}</button>`).join('')}</div>
       <label class="switch"><input type="checkbox" data-bind="prefs.dark" ${DB.prefs.dark ? 'checked' : ''}><span></span> โหมดมืด 🌙</label>
+      <div style="margin-top:8px"><button type="button" class="btn small ghost" data-act="tag-colors">🎨 เลือกสีแท็ก (อ่านหนังสือ / วันสอบ / งาน / กิจกรรม)</button></div>
     </section>
 
     <section class="card"><h2>🔔 การแจ้งเตือน</h2>
-      <label class="switch"><input type="checkbox" data-act="toggle-notify" ${DB.prefs.notify ? 'checked' : ''}><span></span> แจ้งเตือนทุกวันว่าต้องอ่านอะไร</label>
+      <label class="switch"><input type="checkbox" data-act="toggle-notify" ${DB.prefs.notify ? 'checked' : ''}><span></span> เปิดการแจ้งเตือน</label>
       <div class="row wrap">
-        <label class="inline">เวลา <input type="time" data-bind="prefs.notifyTime" value="${DB.prefs.notifyTime}"></label>
+        <label class="inline">เวลา ${time24HTML('notifyTime', DB.prefs.notifyTime, { bind: 'prefs.notifyTime', aria: 'เวลาแจ้งเตือน' })}</label>
         <button class="btn ghost small" data-act="test-notify">ทดสอบแจ้งเตือน</button>
       </div>
       <div class="row wrap" style="margin-top:10px">สถานะ: ${permUI}</div>
@@ -1012,25 +1162,30 @@ const firebaseConfig = {
 };
 
 function taskItemHTML(x, cat = '') {
-  const n = daysBetween(todayStr(), x.date);
+  const n = x.date ? daysBetween(todayStr(), x.date) : null;
+  const tf = Array.isArray(x.files) ? x.files : [];
+  const cd = !x.done && n !== null ? (n < 0 ? `<small class="warn-text">เลย ${Math.abs(n)} วัน</small>` : n === 0 ? '<b class="accent-text">วันนี้</b>' : n === 1 ? '<b class="accent-text">พรุ่งนี้</b>' : `<small class="muted">อีก ${n} วัน</small>`) : '';
   return `<div class="item ${x.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
     ${cat || `<span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>`}
     ${x.subjectId ? tag(x.subjectId) : ''}
-    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
-    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
+    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}</small>${cd ? ` · ${cd}` : ''}</span>
+    <span class="item-actions"><button class="mini-btn ${tf.length ? 'has' : ''}" data-act="task-files" data-id="${x.id}" title="แนบ/ดูไฟล์ (${tf.length})" aria-label="แนบไฟล์ ${esc(x.title)}">${ico('paperclip', 14)}${tf.length ? `<small class="ch-fc">${tf.length}</small>` : ''}</button>
+    <button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
     <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">${ico('close', 15)}</button></span>
   </div>`;
 }
 
 /* ===== Modal contents ===== */
-function subjectClassRowHTML(c = {}) {
+function subjectClassRowHTML(c = {}, blank = false) {
   const dayOpts = [[1, 'จันทร์'], [2, 'อังคาร'], [3, 'พุธ'], [4, 'พฤหัส'], [5, 'ศุกร์'], [6, 'เสาร์'], [0, 'อาทิตย์']]
     .map(([v, lbl]) => `<option value="${v}" ${Number(c.day ?? 1) === v ? 'selected' : ''}>${lbl}</option>`).join('');
+  const st = blank ? (c.start || '') : (c.start || '09:00');
+  const en = blank ? (c.end || '') : (c.end || '12:00');
   return `<div class="subj-class-row" data-cid="${esc(c.id || '')}">
     <select name="clsDay" aria-label="วันเรียน">${dayOpts}</select>
-    <input type="time" name="clsStart" value="${esc(c.start || '09:00')}" aria-label="เวลาเริ่ม">
-    <input type="time" name="clsEnd" value="${esc(c.end || '12:00')}" aria-label="เวลาเลิก">
+    ${time24HTML('clsStart', st, { aria: 'เวลาเริ่ม' })}
+    ${time24HTML('clsEnd', en, { aria: 'เวลาเลิก' })}
     <input name="clsRoom" value="${esc(c.room || '')}" placeholder="ห้องเรียน" maxlength="60" aria-label="ห้องเรียน">
     <button type="button" class="mini-btn" data-act="subj-cls-del" aria-label="ลบคาบเรียน">${ico('close', 14)}</button>
   </div>`;
@@ -1038,19 +1193,26 @@ function subjectClassRowHTML(c = {}) {
 function subjectForm(s = {}) {
   const color = s.color || SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length];
   const classes = s.id ? (DB.classes || []).filter(c => c.subjectId === s.id) : [];
+  const hasExam = !!(s.examDate || s.examTime || s.room);
   return `<form data-form="subject" data-id="${s.id || ''}" novalidate>
     <label class="field">ชื่อวิชา<input name="name" required maxlength="120" value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
-    <div class="row wrap">
-      ${dateField('วันสอบ', 'examDate', s.examDate || '')}
-      <label class="field">เวลาสอบ<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
-      <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น ห้อง 301"></label>
-    </div>
     <div class="field">
       <div class="row" style="margin:0 0 6px;justify-content:space-between">
         <span>ตารางเรียนประจำสัปดาห์ (ซิงก์กับปฏิทินและหน้าแรกอัตโนมัติ)</span>
         <button type="button" class="btn small ghost" data-act="subj-cls-add">${ico('plus', 13)} เพิ่มคาบเรียน</button>
       </div>
-      <div id="subjClasses" class="subj-classes">${classes.map(subjectClassRowHTML).join('')}</div>
+      <div id="subjClasses" class="subj-classes">${classes.length ? classes.map(c => subjectClassRowHTML(c)).join('') : subjectClassRowHTML({}, true)}</div>
+    </div>
+    <div class="field">
+      <div class="row" style="margin:0 0 6px;justify-content:space-between">
+        <span>วันสอบ (ไม่บังคับ)</span>
+        <button type="button" class="btn small ghost" data-act="subj-exam-toggle" id="subjExamToggle">${hasExam ? 'ซ่อนวันสอบ' : `${ico('plus', 13)} เพิ่มวันสอบ`}</button>
+      </div>
+      <div id="subjExamFields" class="row wrap" ${hasExam ? '' : 'hidden'}>
+        ${dateField('วันสอบ', 'examDate', s.examDate || '')}
+        <label class="field">เวลาสอบ${time24HTML('examTime', s.examTime || '', { aria: 'เวลาสอบ' })}</label>
+        <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น ห้อง 301"></label>
+      </div>
     </div>
     <div class="field">สี<div class="colors">${SUBJECT_COLORS.map((c, i) => `<label class="color-dot" style="--c:${c}" aria-label="เลือกสีที่ ${i + 1}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''} aria-label="เลือกสีที่ ${i + 1}"><span></span></label>`).join('')}
       <input type="color" name="customColor" value="${color}" title="สีอื่น" data-chg="custom-color"></div></div>
@@ -1058,13 +1220,51 @@ function subjectForm(s = {}) {
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
+function sessionForm(x = {}) {
+  return `<form data-form="session" data-id="${x.id || ''}" novalidate>
+    <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
+    <div class="grid2-sm">
+      <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" max="1440" value="${x.minutes || ''}" placeholder="เช่น 45" required></label>
+      ${dateField('วันที่', 'date', x.date || todayStr(), true)}
+    </div>
+    <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
+  </form>`;
+}
+function todoForm(opts = {}) {
+  const kind = opts.kind || 'homework';
+  const sid = opts.subjectId || DB.subjects[0]?.id || '';
+  const isPlan = kind === 'plan';
+  return `<form data-form="todo">
+    <input type="hidden" name="todoKind" id="todoKindInput" value="${kind}">
+    <div class="pills" style="margin-bottom:12px">
+      <button type="button" class="pill ${kind === 'homework' ? 'active' : ''}" data-act="todo-kind" data-k="homework">📝 งาน</button>
+      <button type="button" class="pill ${kind === 'event' ? 'active' : ''}" data-act="todo-kind" data-k="event">📌 กิจกรรม</button>
+      <button type="button" class="pill ${isPlan ? 'active' : ''}" data-act="todo-kind" data-k="plan">📖 อ่านหนังสือ</button>
+    </div>
+    <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
+    <div id="todoTaskFields" ${isPlan ? 'hidden' : ''}>
+      <label class="field">ชื่องาน / กิจกรรม<input name="taskTitle" maxlength="200" placeholder="เช่น ส่งรายงานกลุ่ม หรือ ประชุมโปรเจกต์"></label>
+    </div>
+    <div id="todoPlanFields" ${isPlan ? '' : 'hidden'}>
+      <label class="field">บท (เลือก หรือพิมพ์เองด้านล่าง)<select name="chapterId" id="planCh">${planChapterOptions(sid, '')}</select></label>
+      <label class="field">รายละเอียด<input name="planTitle" placeholder="เช่น ทำแบบฝึกหัดบท 3"></label>
+    </div>
+    <div class="row wrap">
+      ${dateField('วันที่', 'date', opts.date || todayStr(), true)}
+      <label class="field">เวลาเริ่ม <small class="muted">(ไม่บังคับ)</small>${time24HTML('time', '', { aria: 'เวลาเริ่ม' })}</label>
+      <label class="field" id="todoEndWrap" ${isPlan ? '' : 'hidden'}>เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', '', { aria: 'เวลาสิ้นสุด' })}</label>
+    </div>
+    <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" checked> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
+    <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
+  </form>`;
+}
 function taskForm(x = {}) {
   return `<form data-form="task" data-id="${x.id || ''}">
+    <input type="hidden" name="type" value="${esc(x.type || 'homework')}">
     <label class="field">ชื่องาน<input name="title" required maxlength="200" value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
     <div class="row wrap">
-      <label class="field">ประเภท<select name="type"><option value="homework" ${x.type !== 'event' ? 'selected' : ''}>📝 การบ้าน</option><option value="event" ${x.type === 'event' ? 'selected' : ''}>📌 กิจกรรม</option></select></label>
       ${dateField('วันที่', 'date', x.date || todayStr(), true)}
-      <label class="field">เวลา<input type="time" name="time" value="${esc(x.time || '')}"></label>
+      <label class="field">เวลา${time24HTML('time', x.time || '', { aria: 'เวลา' })}</label>
     </div>
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
     <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" ${x.remind !== false ? 'checked' : ''}> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
@@ -1079,7 +1279,8 @@ function planForm(p = {}) {
     <label class="field">รายละเอียด<input name="title" value="${esc(p.chapterId ? '' : (p.title || ''))}" placeholder="เช่น ทำแบบฝึกหัดบท 3"></label>
     <div class="row wrap">
       ${dateField('วันที่', 'date', p.date || todayStr(), true)}
-      <label class="field">เวลา <small class="muted">(ไม่บังคับ)</small><input type="time" name="time" value="${esc(p.time || '')}"></label>
+      <label class="field">เวลาเริ่ม <small class="muted">(ไม่บังคับ)</small>${time24HTML('time', p.time || '', { aria: 'เวลาเริ่ม' })}</label>
+      <label class="field">เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', p.endTime || '', { aria: 'เวลาสิ้นสุด' })}</label>
     </div>
     <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" ${p.remind !== false ? 'checked' : ''}> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
@@ -1097,8 +1298,8 @@ function classForm(c = {}) {
   return `<form data-form="class" data-id="${c.id || ''}">
     <div class="row wrap">
       <label class="field">วัน<select name="day">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>วัน${TH_DAYS_FULL[d]}</option>`).join('')}</select></label>
-      <label class="field">เวลาเริ่ม<input type="time" name="start" required value="${esc(start)}"></label>
-      <label class="field">เวลาจบ<input type="time" name="end" value="${esc(end)}"></label>
+      <label class="field">เวลาเริ่ม${time24HTML('start', start, { aria: 'เวลาเริ่ม' })}</label>
+      <label class="field">เวลาจบ${time24HTML('end', end, { aria: 'เวลาจบ' })}</label>
     </div>
     <label class="field">วิชา (เลือกจากรายการ หรือพิมพ์ชื่อเองด้านล่าง)<select name="subjectId">${subjectOptions(c.subjectId || '')}</select></label>
     <label class="field">ชื่อวิชา / หมายเหตุ (ถ้าไม่ได้เลือกด้านบน)<input name="title" value="${esc(c.title || '')}" placeholder="เช่น Gen Ed / สัมมนา"></label>
@@ -1115,13 +1316,12 @@ function noteModal(s, c) {
       <div class="row wrap">
         <button class="btn">💾 บันทึก</button>
         <button type="button" class="btn ghost" data-act="ai-summary-note" data-sid="${s.id}" data-id="${c.id}">✨ AI สรุปให้</button>
-        <button type="button" class="btn ghost" data-act="ai-flash" data-sid="${s.id}" data-id="${c.id}">🃏 แฟลชการ์ด</button>
         <button type="button" class="btn ghost" data-act="ai-quiz" data-sid="${s.id}" data-id="${c.id}">❓ ข้อสอบ</button>
       </div>
       <div id="aiOut"></div>
     </form>`, true);
 }
-function dayModal(d) {
+function dayModal(d, opts = {}) {
   const exams = DB.subjects.filter(s => s.examDate === d), tasks = DB.tasks.filter(x => x.date === d), plan = planForDate(d);
   const dow = parseDate(d).getDay();
   const cls = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
@@ -1129,8 +1329,50 @@ function dayModal(d) {
     ${exams.map(s => `<div class="exam-badge big" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
     ${cls.length ? `<h3>🗓️ ตารางเรียน</h3>${cls.map(c => `<div class="item"><span class="tag" style="--c:${classColor(c)}">${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</span><span class="grow">${esc(className(c))}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</span></div>`).join('')}` : ''}
     <h3>📖 แผนอ่าน</h3>${plan.length ? plan.map(p => planItemHTML(p)).join('') : '<p class="muted small">ไม่มี</p>'}
-    <h3>📝 การบ้าน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
-    <div class="row wrap"><button class="btn small" data-act="add-task" data-date="${d}">+ การบ้าน/กิจกรรม</button><button class="btn small ghost" data-act="add-plan" data-date="${d}">+ แผนอ่าน</button></div>`);
+    <h3>📝 งาน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
+    <div class="row wrap"><button class="btn small" data-act="add-todo" data-date="${d}">+ สิ่งที่ต้องทำ</button></div>`, false, opts);
+}
+function openTagColorsModal(opts = {}) {
+  const defs = [
+    ['plan', '📖 อ่านหนังสือ', '#3b82f6'],
+    ['exam', '🎯 วันสอบ', '#a855f7'],
+    ['hw', '📝 งาน', '#f59e0b'],
+    ['ev', '📌 กิจกรรม', '#10b981'],
+  ];
+  const tc = DB.prefs.tagColors || {};
+  openModal('🎨 เลือกสีแท็ก', `
+    <p class="muted small" style="margin-top:0">เลือกสีที่ใช้แสดงบนปฏิทิน แท็กโฮเวอร์ และรายการสิ่งที่ต้องทำ</p>
+    ${defs.map(([k, lbl, def]) => {
+      const cur = safeColor(tc[k] || def);
+      return `<div class="field" style="margin-bottom:12px">
+        <div class="row" style="margin:0 0 6px;justify-content:space-between">
+          <b>${lbl}</b>
+          <span class="cht-tag" style="background:color-mix(in srgb, ${cur} 22%, transparent);color:${cur}">${lbl.replace(/^\S+\s+/, '')}</span>
+        </div>
+        <div class="colors">
+          ${SUBJECT_COLORS.map(c => `<button type="button" class="color-dot ${cur.toLowerCase() === c.toLowerCase() ? 'sel' : ''}" style="--c:${c}" data-act="tag-color-pick" data-k="${k}" data-c="${c}" aria-label="เลือกสี ${c}"><span></span></button>`).join('')}
+          <input type="color" value="${esc(cur)}" data-chg="tag-color-custom" data-k="${k}" title="เลือกสีเอง">
+        </div>
+      </div>`;
+    }).join('')}
+    <div class="row" style="justify-content:space-between;margin-top:14px">
+      <button type="button" class="btn ghost small" data-act="tag-color-reset">รีเซ็ตสีเริ่มต้น</button>
+      <button type="button" class="btn small" data-act="close-modal">เสร็จสิ้น</button>
+    </div>
+  `, false, opts);
+}
+function openPendingModal(opts = {}) {
+  const t = todayStr();
+  App._pendingOpen = true;
+  const tasks = DB.tasks.filter(x => !x.done).map(x => ({ date: x.date || '9999-99-99', time: x.time || '', item: x }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+  openModal(`📋 งานที่ค้างทั้งหมด (${tasks.length} รายการ)`, `
+    <div class="row" style="justify-content:space-between;margin:0 0 10px">
+      <span class="muted small">เรียงตามใกล้เดดไลน์ที่สุดไว้ด้านบน</span>
+      <button class="btn small" data-act="add-task" data-date="${t}">${ico('plus', 14)} เพิ่มงาน</button>
+    </div>
+    ${tasks.length ? tasks.map(e => taskItemHTML(e.item, e.item.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">งาน</span>')).join('')
+    : empty('✅', 'ไม่มีงานค้างแล้ว เยี่ยมเลย!')}`, true, { ...opts, keepPending: true });
 }
 
 /* flashcards */
@@ -1393,29 +1635,73 @@ function openAllExamsModal() {
     ${past.length ? `<div style="margin-top:16px"><h3>สอบผ่านไปแล้ว (${past.length})</h3><div class="cd-grid" style="opacity:.65">${past.map(countdownCard).join('')}</div></div>` : ''}
   `, true);
 }
+async function collectSubjectRows(sid) {
+  const subs = sid ? [subjectById(sid)].filter(Boolean) : DB.subjects;
+  const rows = [];
+  for (const s of subs) {
+    const local = await FileStore.list(s.id).catch(() => []);
+    const drive = (s.driveFiles || []).filter(f => f && safeDriveId(f.id));
+    const links = s.links || [];
+    const prefix = sid ? '' : `${s.name} · `;
+    drive.forEach(f => rows.push({ kind: 'drive', id: f.id, name: f.name, folder: f.folder || '', sub: `${prefix}${f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive'}` }));
+    local.filter(f => f && !f.driveId).forEach(f => rows.push({ kind: 'local', id: f.id, name: f.name, folder: f.folder || '', sub: `${prefix}${f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง'}` }));
+    links.forEach(l => rows.push({ kind: 'link', id: l.id, name: l.title, url: l.url, folder: l.folder || '', sub: `${prefix}${l.folder ? `ลิงก์ · 📁 ${l.folder}` : 'ลิงก์เอกสาร'}` }));
+  }
+  return rows;
+}
 async function openChapterFilesModal(sid, cid) {
   const s = subjectById(sid); if (!s) return;
   const c = (s.chapters || []).find(x => x.id === cid); if (!c) return;
   openModal(`${ico('paperclip', 17)} บท: ${esc(c.title)}`, '<p class="muted">กำลังโหลดรายการไฟล์…</p>', true);
-  const local = await FileStore.list(sid).catch(() => []);
-  const drive = (s.driveFiles || []).filter(f => f && safeDriveId(f.id));
-  const links = s.links || [];
-  const rows = [
-    ...drive.map(f => ({ kind: 'drive', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive' })),
-    ...local.filter(f => f && !f.driveId).map(f => ({ kind: 'local', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
-    ...links.map(l => ({ kind: 'link', id: l.id, name: l.title, folder: l.folder || '', sub: l.folder ? `ลิงก์ · 📁 ${l.folder}` : 'ลิงก์เอกสาร' })),
-  ];
+  const rows = await collectSubjectRows(sid);
   const hasLinked = Array.isArray(c.files) && c.files.length > 0;
-  App._chFiles = { sid, cid, rows, folder: hasLinked ? '__checked__' : '', q: '' };
+  App._chFiles = { mode: 'chapter', sid, cid, rows, folder: hasLinked ? '__checked__' : '', q: '', editing: false };
   renderChapterFilesModal();
+}
+async function openItemFilesModal(mode, id) {
+  const item = mode === 'task' ? DB.tasks.find(x => x.id === id) : DB.plan.find(x => x.id === id);
+  if (!item) return;
+  openModal(`${ico('paperclip', 17)} ไฟล์แนบ: ${esc(item.title)}`, '<p class="muted">กำลังโหลดรายการไฟล์…</p>', true);
+  const rows = await collectSubjectRows(item.subjectId || '');
+  const hasLinked = Array.isArray(item.files) && item.files.length > 0;
+  App._chFiles = { mode, itemId: id, sid: item.subjectId || '', rows, folder: hasLinked ? '__checked__' : '', q: '', editing: false };
+  renderChapterFilesModal();
+}
+function _chFilesTarget() {
+  const st = App._chFiles; if (!st) return null;
+  if (st.mode === 'task') return DB.tasks.find(x => x.id === st.itemId) || null;
+  if (st.mode === 'plan') return DB.plan.find(x => x.id === st.itemId) || null;
+  const s = subjectById(st.sid);
+  return (s?.chapters || []).find(x => x.id === st.cid) || null;
 }
 function renderChapterFilesModal() {
   const st = App._chFiles; if (!st) return;
-  const s = subjectById(st.sid), c = (s?.chapters || []).find(x => x.id === st.cid);
-  if (!s || !c) return;
-  const linked = Array.isArray(c.files) ? c.files : [];
+  const target = _chFilesTarget(); if (!target) return;
+  const s = st.sid ? subjectById(st.sid) : null;
+  const linked = Array.isArray(target.files) ? target.files : [];
   const isLinked = (kind, id) => linked.some(x => x.kind === kind && x.id === id);
-  const folders = s.folders || [];
+  const rowHTML = (r, withCheck) => `<div class="item file-item">
+    ${withCheck ? `<input type="checkbox" class="cb" data-chg="toggle-chapter-file" data-kind="${r.kind}" data-id="${esc(r.id)}" data-name="${esc(r.name)}" ${isLinked(r.kind, r.id) ? 'checked' : ''} aria-label="เลือก ${esc(r.name)}">` : ''}
+    <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
+    <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
+    <button type="button" class="mini-btn pill-btn" data-act="ch-file-open" data-kind="${r.kind}" data-id="${esc(r.id)}" data-url="${esc(r.url || '')}">เปิดดู</button>
+  </div>`;
+
+  if (!st.editing) {
+    const linkedRows = linked.map(f => st.rows.find(r => r.kind === f.kind && r.id === f.id) || { kind: f.kind, id: f.id, name: f.name || 'ไฟล์', url: '', sub: f.kind === 'drive' ? 'Google Drive' : f.kind === 'link' ? 'ลิงก์เอกสาร' : 'ในเครื่อง' });
+    setModalBody(`
+      <div class="card-head">
+        <h3>ไฟล์ที่แนบ (${linkedRows.length})</h3>
+        <button type="button" class="btn small ghost" data-act="ch-files-edit">${ico('edit', 14)} แก้ไขไฟล์แนบ</button>
+      </div>
+      ${linkedRows.length
+        ? `<div class="ch-file-scroll">${linkedRows.map(r => rowHTML(r, false)).join('')}</div>`
+        : empty(ico('paperclip', 28), 'ยังไม่ได้แนบไฟล์', `<button type="button" class="btn small" data-act="ch-files-edit">${ico('edit', 14)} แก้ไขไฟล์แนบ</button>`)}
+    `);
+    return;
+  }
+
+  const folders = s ? (s.folders || []) : [...new Set(st.rows.map(r => r.folder).filter(Boolean))];
   const q = st.q.trim().toLowerCase();
   const filtered = st.rows.filter(r => {
     if (st.folder === '__checked__' && !isLinked(r.kind, r.id)) return false;
@@ -1424,19 +1710,13 @@ function renderChapterFilesModal() {
     if (q && !r.name.toLowerCase().includes(q) && !r.folder.toLowerCase().includes(q)) return false;
     return true;
   });
-  const rounds = Number(c.rounds) || 0;
   setModalBody(`
-    <div class="ch-round-bar">
-      <div><b>จำนวนรอบที่เรียน / ทบทวน</b><br><small class="muted">บันทึกไว้กันลืมว่าอ่านบทนี้ซ้ำไปกี่รอบแล้ว</small></div>
-      <div class="row" style="margin:0">
-        <button type="button" class="icon-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="-1" aria-label="ลดรอบ">−</button>
-        <b id="chRoundVal" class="stat-num" style="min-width:60px;text-align:center">${rounds} รอบ</b>
-        <button type="button" class="icon-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="1" aria-label="เพิ่มรอบ">+</button>
+    <div class="card-head">
+      <h3>เลือกไฟล์/ลิงก์ (${linked.length}/${st.rows.length})</h3>
+      <div class="row" style="margin:0;gap:6px">
+        ${s ? `<button type="button" class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('upload', 14)} จัดการไฟล์วิชา</button>` : ''}
+        <button type="button" class="btn small" data-act="ch-files-edit">เสร็จสิ้น</button>
       </div>
-    </div>
-    <div class="card-head" style="margin-top:14px">
-      <h3>เลือกไฟล์/ลิงก์ในบทนี้ (${linked.length}/${st.rows.length})</h3>
-      <button type="button" class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('upload', 14)} จัดการไฟล์วิชา</button>
     </div>
     ${st.rows.length ? `
       <div class="row wrap" style="margin:6px 0 8px">
@@ -1451,13 +1731,9 @@ function renderChapterFilesModal() {
         ${st.rows.some(r => !r.folder) ? `<button type="button" class="chip ${st.folder === '__none__' ? 'accent' : ''}" data-act="ch-file-folder" data-f="__none__">ยังไม่จัดหมวด</button>` : ''}
       </div>
       <div class="ch-file-scroll">
-        ${filtered.length ? filtered.map(r => `<label class="item file-item" style="cursor:pointer">
-          <input type="checkbox" class="cb" data-chg="toggle-chapter-file" data-sid="${s.id}" data-cid="${c.id}" data-kind="${r.kind}" data-id="${esc(r.id)}" data-name="${esc(r.name)}" ${isLinked(r.kind, r.id) ? 'checked' : ''}>
-          <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
-          <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
-        </label>`).join('') : '<p class="muted center" style="padding:16px">ไม่พบไฟล์ที่ค้นหา</p>'}
+        ${filtered.length ? filtered.map(r => rowHTML(r, true)).join('') : '<p class="muted center" style="padding:16px">ไม่พบไฟล์ที่ค้นหา</p>'}
       </div>
-    ` : empty(ico('folder', 28), 'วิชานี้ยังไม่มีไฟล์หรือลิงก์', `<button type="button" class="btn small" data-act="files" data-sid="${s.id}">${ico('upload', 14)} อัปโหลดไฟล์ / เพิ่มลิงก์</button>`)}
+    ` : empty(ico('folder', 28), 'ยังไม่มีไฟล์หรือลิงก์', s ? `<button type="button" class="btn small" data-act="files" data-sid="${s.id}">${ico('upload', 14)} อัปโหลดไฟล์ / เพิ่มลิงก์</button>` : '')}
   `);
 }
 
@@ -1507,6 +1783,13 @@ function chatChipsHTML() {
 function chatSavedChips(files) {
   return (files || []).map(f => `<span class="chat-chip">${f.thumb ? `<img src="${f.thumb}" alt="">` : '<span>📄</span>'}<span>${esc(f.name)}</span></span>`).join('');
 }
+function chatAvatarHTML() {
+  const theme = DB.prefs.theme || 'navy';
+  if (theme === 'navy') return `<img class="ooo-av ooo-av-ronaldo" src="assets/kylian-chat.png" alt="Kylian" width="36" height="36">`;
+  if (theme === 'manutd') return `<img class="ooo-av ooo-av-ronaldo manutd" src="assets/marcus-chat.png" alt="Dr.Marcus" width="36" height="36">`;
+  if (isMinimalTheme(theme)) return `<span class="ooo-av ooo-av-mono" aria-hidden="true">${ico('sparkles', 17)}</span>`;
+  return `<img class="ooo-av" src="assets/ooo-chat.webp" alt="" width="36" height="36">`;
+}
 function chatRowHTML(m) {
   if (m.role === 'user') {
     const bits = chatBubbles(m.content);
@@ -1516,7 +1799,7 @@ function chatRowHTML(m) {
   const bits = chatBubbles(m.content);
   const bubbles = bits.map(b => `<div class="msg assistant">${md(b)}</div>`).join('');
   const card = m.proposal ? proposalCardHTML(m.proposal) : '';
-  return `<div class="msg-row ai"><img class="ooo-av" src="assets/ooo-chat.webp" alt="" width="36" height="36"><div class="msg-col"><div class="ooo-name">อออ</div>${bubbles}${card}</div></div>`;
+  return `<div class="msg-row ai">${chatAvatarHTML()}<div class="msg-col"><div class="ooo-name">${aiBotName()}</div>${bubbles}${card}</div></div>`;
 }
 function proposalCardHTML(p) {
   const lines = (p.lines || []).map(l => `<li>${esc(l)}</li>`).join('');
@@ -1868,18 +2151,8 @@ async function sendChat(q) {
 const Actions = {
   'go': el => { closeModal(); App.go(el.dataset.tab); },
   'close-modal': () => closeModal(),
-  'toggle-dark': () => {
-    if (DB.prefs.theme === 'navy') {
-      App._fromNavy = true; DB.prefs.theme = 'sky'; DB.prefs.dark = false; save();
-      App.toast('สลับเป็นโหมดสว่าง (ฟ้าใส) ☀️'); return;
-    }
-    if (App._fromNavy && !DB.prefs.dark) {
-      App._fromNavy = false; DB.prefs.theme = 'navy'; DB.prefs.dark = true; save();
-      App.toast('กลับเป็นธีมน้ำเงินเข้ม 🌙'); return;
-    }
-    App._fromNavy = false; DB.prefs.dark = !DB.prefs.dark; save();
-  },
-  'theme': el => { App._fromNavy = false; DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; save(); },
+  'toggle-dark': () => { DB.prefs.dark = !DB.prefs.dark; save(); },
+  'theme': el => { DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; if (el.dataset.theme === 'navy' || el.dataset.theme === 'manutd') DB.prefs.dark = true; save(); },
   'toggle-past': () => { App.showPast = !App.showPast; App.render(); },
 
   // plan
@@ -1903,7 +2176,7 @@ const Actions = {
   'del-plan': el => { DB.plan = DB.plan.filter(x => x.id !== el.dataset.id); save(); refreshDayModal(); },
 
   // timetable
-  'go-timetable': () => { App.calView = 'timetable'; App.go('calendar'); },
+  'go-timetable': () => { App.tab = 'calendar'; App.calView = 'timetable'; location.hash = 'calendar'; App.render(); window.scrollTo({ top: 0 }); },
   'cal-view': el => { App.calView = el.dataset.v; App.render(); },
   'add-class': el => openModal('+ เพิ่มคาบเรียน', classForm({ day: el.dataset.day != null ? Number(el.dataset.day) : 1, start: el.dataset.start || '08:30' })),
   'edit-class': el => { const c = (DB.classes || []).find(x => x.id === el.dataset.id); if (c) openModal('✎ แก้ไขคาบเรียน', classForm(c)); },
@@ -1958,6 +2231,11 @@ const Actions = {
     if (wrap) wrap.insertAdjacentHTML('beforeend', subjectClassRowHTML());
   },
   'subj-cls-del': el => el.closest('.subj-class-row')?.remove(),
+  'subj-exam-toggle': el => {
+    const box = document.getElementById('subjExamFields'); if (!box) return;
+    box.hidden = !box.hidden;
+    el.innerHTML = box.hidden ? `${ico('plus', 13)} เพิ่มวันสอบ` : 'ซ่อนวันสอบ';
+  },
   'toggle-coach': () => {
     const next = localStorage.getItem('lp_coach_collapsed') === '1' ? '0' : '1';
     localStorage.setItem('lp_coach_collapsed', next);
@@ -1986,14 +2264,28 @@ const Actions = {
     save();
   },
   'chapter-files': el => openChapterFilesModal(el.dataset.sid, el.dataset.id),
+  'task-files': el => openItemFilesModal('task', el.dataset.id),
+  'plan-files': el => openItemFilesModal('plan', el.dataset.id),
+  'ch-file-open': async el => {
+    const { kind, id, url } = el.dataset;
+    if (kind === 'drive') {
+      const did = safeDriveId(id || ''); if (!did) return;
+      window.open('https://drive.google.com/file/d/' + did + '/view', '_blank', 'noopener');
+    } else if (kind === 'link') {
+      if (url) window.open(url, '_blank', 'noopener');
+    } else if (kind === 'local') {
+      const r = await FileStore.get(id); if (r) window.open(URL.createObjectURL(r.blob), '_blank');
+    }
+  },
+  'ch-files-edit': () => { if (App._chFiles) { App._chFiles.editing = !App._chFiles.editing; renderChapterFilesModal(); } },
+  'modal-back': () => modalBack(),
   'ch-file-folder': el => { if (App._chFiles) { App._chFiles.folder = el.dataset.f || ''; renderChapterFilesModal(); } },
   'ch-files-bulk': el => {
     const st = App._chFiles; if (!st) return;
-    const s = subjectById(st.sid), c = (s?.chapters || []).find(x => x.id === st.cid);
-    if (!s || !c) return;
-    c.files = Array.isArray(c.files) ? c.files : [];
+    const target = _chFilesTarget(); if (!target) return;
+    target.files = Array.isArray(target.files) ? target.files : [];
     const q = st.q.trim().toLowerCase();
-    const isLinked = (kind, id) => c.files.some(x => x.kind === kind && x.id === id);
+    const isLinked = (kind, id) => target.files.some(x => x.kind === kind && x.id === id);
     const filtered = st.rows.filter(r => {
       if (st.folder === '__checked__' && !isLinked(r.kind, r.id)) return false;
       else if (st.folder === '__none__' && r.folder) return false;
@@ -2002,10 +2294,10 @@ const Actions = {
       return true;
     });
     if (el.dataset.v === '1') {
-      filtered.forEach(r => { if (!isLinked(r.kind, r.id)) c.files.push({ kind: r.kind, id: r.id, name: r.name || 'ไฟล์' }); });
+      filtered.forEach(r => { if (!isLinked(r.kind, r.id)) target.files.push({ kind: r.kind, id: r.id, name: r.name || 'ไฟล์' }); });
     } else {
       const rm = new Set(filtered.map(r => `${r.kind}:${r.id}`));
-      c.files = c.files.filter(x => !rm.has(`${x.kind}:${x.id}`));
+      target.files = target.files.filter(x => !rm.has(`${x.kind}:${x.id}`));
     }
     save(); renderChapterFilesModal();
   },
@@ -2016,8 +2308,37 @@ const Actions = {
       <div class="row wrap"><input name="prefix" value="บทที่ " class="num-lg"><label class="inline">จำนวน <input name="count" type="number" min="0" max="100" class="num"> บท</label></div>
       <div class="row end"><button class="btn">เพิ่ม</button></div></form>`),
   'rename-chapter': el => {
-    const s = subjectById(el.dataset.sid), c = s.chapters.find(c => c.id === el.dataset.id);
-    const v = prompt('ชื่อบท', c.title); if (v && v.trim()) { c.title = v.trim(); DB.plan.forEach(p => { if (p.chapterId === c.id) p.title = c.title; }); save(); }
+    const s = subjectById(el.dataset.sid), c = s?.chapters.find(c => c.id === el.dataset.id);
+    if (!c) return;
+    const row = el.closest('.ch-row'), box = row?.querySelector('.grow');
+    if (!box || box.querySelector('.ch-rename-inp')) return;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'ch-rename-inp';
+    inp.maxLength = 200;
+    inp.value = c.title;
+    box.innerHTML = '';
+    box.appendChild(inp);
+    inp.focus();
+    inp.select();
+    let done = false;
+    const finish = ok => {
+      if (done) return;
+      done = true;
+      const v = inp.value.trim();
+      if (ok && v && v !== c.title) {
+        c.title = v;
+        DB.plan.forEach(p => { if (p.chapterId === c.id) p.title = c.title; });
+        save();
+      } else {
+        App.render();
+      }
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', () => finish(true));
   },
   'del-chapter': el => {
     const s = subjectById(el.dataset.sid); if (!confirm('ลบบทนี้?')) return;
@@ -2030,8 +2351,42 @@ const Actions = {
   },
   'note': el => { const { s, c } = getSC(el); if (c) noteModal(s, c); },
 
-  // tasks
-  'add-task': el => openModal('+ การบ้าน / กิจกรรม', taskForm({ date: el.dataset.date })),
+  // tasks & unified todo
+  'open-pending': () => openPendingModal(),
+  'tag-colors': () => openTagColorsModal(),
+  'tag-color-pick': el => {
+    DB.prefs.tagColors = DB.prefs.tagColors || {};
+    DB.prefs.tagColors[el.dataset.k] = safeColor(el.dataset.c);
+    save(); openTagColorsModal({ push: false });
+  },
+  'tag-color-reset': () => {
+    DB.prefs.tagColors = {};
+    save(); openTagColorsModal({ push: false });
+    App.toast('รีเซ็ตสีแท็กแล้ว');
+  },
+  'todo-filter': el => { App.todoSub = el.dataset.sid || ''; App.render(); },
+  'gcal-sync': async () => {
+    if (typeof GCal === 'undefined') return App.toast('ไม่พบโมดูล Google Calendar');
+    try {
+      App.toast('กำลังซิงก์กับ Google Calendar…', 10000);
+      const r = await GCal.syncAll();
+      App.render();
+      App.toast(`ซิงก์ Google Calendar แล้ว (ส่งขึ้น ${r.pushed} · ดึงเข้า ${r.pulled} รายการ) ✓`, 4500);
+    } catch (e) {
+      App.toast(e.message || 'ซิงก์ Google Calendar ไม่สำเร็จ', 6000);
+    }
+  },
+  'add-todo': el => openModal('+ สิ่งที่ต้องทำ', todoForm({ date: el.dataset.date, kind: el.dataset.kind })),
+  'todo-kind': el => {
+    const k = el.dataset.k || 'homework';
+    const inp = document.getElementById('todoKindInput'); if (inp) inp.value = k;
+    el.closest('.pills')?.querySelectorAll('.pill').forEach(b => b.classList.toggle('active', b === el));
+    const isPlan = k === 'plan';
+    const tf = document.getElementById('todoTaskFields'); if (tf) tf.hidden = isPlan;
+    const pf = document.getElementById('todoPlanFields'); if (pf) pf.hidden = !isPlan;
+    const ew = document.getElementById('todoEndWrap'); if (ew) ew.hidden = !isPlan;
+  },
+  'add-task': el => openModal('+ งาน / กิจกรรม', taskForm({ date: el.dataset.date })),
   'edit-task': el => openModal('✎ แก้ไข', taskForm(DB.tasks.find(x => x.id === el.dataset.id))),
   'del-task': el => { DB.tasks = DB.tasks.filter(x => x.id !== el.dataset.id); save(); refreshDayModal(); },
   'toggle-task': el => { const x = DB.tasks.find(x => x.id === el.dataset.id); if (x) { x.done = el.checked; save(); refreshDayModal(); } },
@@ -2039,7 +2394,7 @@ const Actions = {
   // calendar
   'cal-nav': el => { const [y, m] = App.calMonth.split('-').map(Number); const d = new Date(y, m - 1 + Number(el.dataset.dir), 1); App.calMonth = toDateStr(d).slice(0, 7); App.render(); },
   'cal-today': () => { App.calMonth = todayStr().slice(0, 7); App.render(); },
-  'cal-day': (el, e) => { if (e.target.closest('.cal-cell') === el) { App._dayOpen = el.dataset.date; dayModal(el.dataset.date); } },
+  'cal-day': (el, e) => { if (el.dataset.date && (!el.classList.contains('cal-cell') || e.target.closest('.cal-cell') === el)) { App._dayOpen = el.dataset.date; dayModal(el.dataset.date); } },
 
   // timer
   'timer-start': () => Timer.start(),
@@ -2048,7 +2403,12 @@ const Actions = {
   'timer-stoplog': () => Timer.stopAndLog(),
   'timer-skip': () => { Timer.mode = Timer.mode === 'work' ? 'short' : 'work'; Timer.reset(); App.render(); },
   'timer-mode': el => { Timer.setMode(el.dataset.mode || el.dataset.m || 'work'); App.render(); },
-  'del-session': el => { DB.sessions = DB.sessions.filter(x => x.id !== el.dataset.id); save(); },
+  'del-session': el => { DB.sessions = DB.sessions.filter(x => x.id !== el.dataset.id); save(); App.toast('ลบบันทึกเวลาแล้ว'); },
+  'add-session': () => openModal(`${ico('plus', 17)} เพิ่มบันทึกเวลาอ่าน`, sessionForm()),
+  'edit-session': el => {
+    const x = DB.sessions.find(s => s.id === el.dataset.id);
+    if (x) openModal(`${ico('edit', 17)} แก้ไขบันทึกเวลา`, sessionForm(x));
+  },
 
   // stats
   'week-nav': el => { App.statWeek = addDays(App.statWeek, 7 * Number(el.dataset.dir)); App.render(); },
@@ -2269,7 +2629,7 @@ const Actions = {
 
   // settings
   'more-menu': () => openModal('⋯ เมนูเพิ่มเติม', `<div class="more-grid">
-      <button class="more-item" data-act="go" data-tab="calendar"><span>📅</span><b>ปฏิทิน</b><small class="muted">วันสอบ &amp; การบ้าน</small></button>
+      <button class="more-item" data-act="go" data-tab="calendar"><span>📅</span><b>ปฏิทิน</b><small class="muted">วันสอบ &amp; งาน</small></button>
       <button class="more-item" data-act="go" data-tab="timer"><span>⏱️</span><b>จับเวลา</b><small class="muted">Pomodoro &amp; บันทึก</small></button>
       <button class="more-item" data-act="go" data-tab="stats"><span>📊</span><b>สถิติ</b><small class="muted">กราฟ 8 สัปดาห์</small></button>
       <button class="more-item" data-act="go" data-tab="settings"><span>⚙️</span><b>ตั้งค่า</b><small class="muted">ธีม, AI, Sync</small></button>
@@ -2357,14 +2717,8 @@ const Forms = {
     if (!name) return App.toast('ใส่ชื่อวิชาก่อนนะ');
     if (d.examDate && !examYearOk(d.examDate)) return App.toast('วันสอบควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     const color = safeColor(d.color || d.customColor || SUBJECT_COLORS[0]);
-    let s = subjectById(f.dataset.id);
-    if (!s) {
-      s = { id: uid(), chapters: [] }; DB.subjects.push(s);
-      (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title: title.slice(0, 200), done: false, note: '' }));
-    }
-    Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
     const rows = [...f.querySelectorAll('.subj-class-row')];
-    const newSlots = [];
+    const parsedSlots = [];
     for (const row of rows) {
       const day = Number(row.querySelector('[name=clsDay]')?.value ?? 1);
       const start = row.querySelector('[name=clsStart]')?.value || '';
@@ -2372,9 +2726,17 @@ const Forms = {
       const room = (row.querySelector('[name=clsRoom]')?.value || '').trim().slice(0, 60);
       if (!start) continue;
       if (end && end <= start) return App.toast('เวลาเลิกเรียนต้องหลังเวลาเริ่มนะ');
-      newSlots.push({ id: row.dataset.cid || uid(), subjectId: s.id, title: s.name, day, start, end, room, color });
+      parsedSlots.push({ cid: row.dataset.cid || uid(), day, start, end, room });
     }
-    DB.classes = (DB.classes || []).filter(c => c.subjectId !== s.id).concat(newSlots);
+    let s = subjectById(f.dataset.id);
+    if (!s) {
+      s = { id: uid(), chapters: [] }; DB.subjects.push(s);
+      (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title: title.slice(0, 200), done: false, note: '' }));
+    }
+    Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
+    const newSlots = parsedSlots.map(sl => ({ id: sl.cid, subjectId: s.id, title: s.name, day: sl.day, start: sl.start, end: sl.end, room: sl.room, color }));
+    const existingMatched = (DB.classes || []).filter(c => !c.subjectId && subjectMatchesName(s, c.title)).map(c => ({ ...c, subjectId: s.id, title: s.name, color }));
+    DB.classes = (DB.classes || []).filter(c => c.subjectId !== s.id && !(!c.subjectId && subjectMatchesName(s, c.title))).concat(newSlots, existingMatched);
     if (d.examDate) Notifier.ask();
     closeModal(); save();
   },
@@ -2388,6 +2750,13 @@ const Forms = {
     for (let i = 1; i <= n; i++) titles.push(`${(d.prefix || '').trim() || 'บทที่ '}${start + i}`);
     titles.forEach(title => s.chapters.push({ id: uid(), title, done: false, note: '' }));
     closeModal(); save(); App.toast(`เพิ่ม ${titles.length} บทแล้ว`);
+  },
+  todo(d, f) {
+    const kind = d.todoKind || 'homework';
+    if (kind === 'plan') {
+      return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind }, f);
+    }
+    return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind }, f);
   },
   task(d, f) {
     const title = (d.title || '').trim();
@@ -2404,9 +2773,10 @@ const Forms = {
     const title = d.title.trim() || c?.title;
     if (!title) return App.toast('เลือกบทหรือพิมพ์รายละเอียดด้วยนะ');
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
+    if (d.time && d.endTime && d.endTime <= d.time) return App.toast('เวลาสิ้นสุดต้องหลังเวลาเริ่มนะ');
     let p = DB.plan.find(x => x.id === f.dataset.id);
     if (!p) { p = { id: uid(), done: false }; DB.plan.push(p); }
-    Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, time: d.time || '', remind: !!d.remind, kind: c ? 'read' : 'custom', auto: false });
+    Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, time: d.time || '', endTime: d.endTime || '', remind: !!d.remind, kind: c ? 'read' : 'custom', auto: false });
     if (d.remind && d.time) Notifier.ask();
     closeModal(); save();
   },
@@ -2417,14 +2787,23 @@ const Forms = {
     let c = DB.classes.find(x => x.id === f.dataset.id);
     if (!c) { c = { id: uid() }; DB.classes.push(c); }
     const pickedColor = safeColor(d.color || d.customColor || SUBJECT_COLORS[0]);
-    if (d.subjectId) {
-      const sub = subjectById(d.subjectId);
+    let sid = d.subjectId || '';
+    if (!sid && title) {
+      let sub = DB.subjects.find(s => subjectMatchesName(s, title));
+      if (!sub) {
+        sub = { id: uid(), name: title.slice(0, 120), examDate: '', examTime: '', room: '', color: pickedColor, chapters: [] };
+        DB.subjects.push(sub);
+      }
+      sid = sub.id;
+    }
+    if (sid) {
+      const sub = subjectById(sid);
       if (sub) sub.color = pickedColor;
-      DB.classes.forEach(x => { if (x.subjectId === d.subjectId) x.color = pickedColor; });
+      DB.classes.forEach(x => { if (x.subjectId === sid) x.color = pickedColor; });
     }
     Object.assign(c, {
       day: Number(d.day), start: d.start || '08:30', end: d.end || '',
-      subjectId: d.subjectId || '', title: title.slice(0, 120), room: (d.room || '').trim().slice(0, 80),
+      subjectId: sid, title: title.slice(0, 120), room: (d.room || '').trim().slice(0, 80),
       color: pickedColor,
     });
     closeModal(); save();
@@ -2433,11 +2812,18 @@ const Forms = {
     const s = subjectById(f.dataset.sid), c = s.chapters.find(c => c.id === f.dataset.id);
     c.note = d.note; save(); App.toast('บันทึกโน้ตแล้ว 📝');
   },
-  session(d) {
+  session(d, f) {
     const m = Math.round(Number(d.minutes));
     if (!(m > 0) || m > 1440) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
+    const existing = f?.dataset?.id ? DB.sessions.find(x => x.id === f.dataset.id) : null;
+    if (existing) {
+      Object.assign(existing, { subjectId: d.subjectId || '', minutes: m, date: d.date || todayStr() });
+      closeModal(); save(); App.toast('แก้ไขบันทึกแล้ว');
+      return;
+    }
     if (!logSession(d.subjectId, m, d.date)) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
+    if (f?.dataset?.id !== undefined) closeModal();
     App.toast('บันทึกแล้ว');
   },
   chat(d) { sendChat(d.q); },
@@ -2517,6 +2903,12 @@ const Forms = {
 
 /* ===== Change handlers ===== */
 const Changes = {
+  'home-stat-week': el => { App.statWeek = el.value; App.render(); },
+  'tag-color-custom': el => {
+    DB.prefs.tagColors = DB.prefs.tagColors || {};
+    DB.prefs.tagColors[el.dataset.k] = safeColor(el.value);
+    save(); openTagColorsModal({ push: false });
+  },
   'timer-subject': el => { Timer.subjectId = el.value; },
   'ai-sub': el => { App.aiSub = el.value; App.aiCh = ''; App.render(); },
   'ai-ch': el => { App.aiCh = el.value; },
@@ -2537,14 +2929,13 @@ const Changes = {
   },
   'upload-folder': el => { App.fileFolder = el.value || ''; filesRender(); },
   'toggle-chapter-file': el => {
-    const s = subjectById(el.dataset.sid); if (!s) return;
-    const c = (s.chapters || []).find(x => x.id === el.dataset.cid); if (!c) return;
-    c.files = Array.isArray(c.files) ? c.files : [];
+    const target = _chFilesTarget(); if (!target) return;
+    target.files = Array.isArray(target.files) ? target.files : [];
     const { kind, id, name } = el.dataset;
     if (el.checked) {
-      if (!c.files.some(x => x.kind === kind && x.id === id)) c.files.push({ kind, id, name: name || 'ไฟล์' });
+      if (!target.files.some(x => x.kind === kind && x.id === id)) target.files.push({ kind, id, name: name || 'ไฟล์' });
     } else {
-      c.files = c.files.filter(x => !(x.kind === kind && x.id === id));
+      target.files = target.files.filter(x => !(x.kind === kind && x.id === id));
     }
     save();
   },
@@ -2607,8 +2998,103 @@ async function uploadSubjectFiles(sid, files) {
 
 function setPath(obj, path, val) { const ks = path.split('.'); let o = obj; ks.slice(0, -1).forEach(k => o = o[k]); o[ks[ks.length - 1]] = val; }
 
+function calHoverHTML(iso) {
+  const exams = DB.subjects.filter(s => s.examDate === iso);
+  const tasks = DB.tasks.filter(x => x.date === iso);
+  const plan = planForDate(iso);
+  const dow = parseDate(iso).getDay();
+  const cls = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
+  const rows = [];
+  exams.forEach(s => rows.push(`<div class="cht-row"><span class="cht-tag cht-exam">สอบ</span><span><b>${esc(s.name)}</b>${s.examTime ? ` · ${esc(s.examTime)}` : ''}</span></div>`));
+  cls.forEach(c => rows.push(`<div class="cht-row"><span class="cht-tag cht-cls" style="--c:${classColor(c)}">เรียน</span><span>${esc(c.start)} ${esc(className(c))}</span></div>`));
+  plan.forEach(p => rows.push(`<div class="cht-row ${p.done ? 'done' : ''}"><span class="cht-tag cht-plan">อ่าน</span><span>${p.time ? `${esc(p.time)} ` : ''}${esc(p.title)}${p.subjectId ? ` <small class="muted">· ${esc(subjectName(p.subjectId))}</small>` : ''}</span></div>`));
+  tasks.forEach(x => rows.push(`<div class="cht-row ${x.done ? 'done' : ''}"><span class="cht-tag ${x.type === 'event' ? 'cht-ev' : 'cht-hw'}">${x.type === 'event' ? 'กิจกรรม' : 'งาน'}</span><span>${x.time ? `${esc(x.time)} ` : ''}${esc(x.title)}</span></div>`));
+  return `<div class="cht-hd">${fmtDateLong(iso)}</div>${rows.length ? rows.join('') : '<div class="muted small">ไม่มีกิจกรรมในวันนี้</div>'}`;
+}
+
 function bindEvents() {
   const modalBody = document.getElementById('modalBody');
+  const tip = document.createElement('div');
+  tip.id = 'calHoverTip';
+  tip.className = 'cal-hover-tip';
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let tipTarget = null;
+  const hideTip = () => { tipTarget = null; tip.hidden = true; };
+  document.addEventListener('mouseover', e => {
+    const cell = e.target.closest('.mc-day[data-date], .cal-cell[data-date], .fc-pill[data-date]');
+    if (!cell) return;
+    if (tipTarget === cell && !tip.hidden) return;
+    const iso = cell.dataset.date;
+    if (!iso) return;
+    tipTarget = cell;
+    tip.innerHTML = calHoverHTML(iso);
+    tip.hidden = false;
+    const r = cell.getBoundingClientRect();
+    const tw = tip.offsetWidth || 220, th = tip.offsetHeight || 80;
+    const left = Math.max(8, Math.min(window.innerWidth - tw - 8, r.left + r.width / 2 - tw / 2));
+    const top = r.top - th - 8 >= 8 ? r.top - th - 8 : Math.min(window.innerHeight - th - 8, r.bottom + 8);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+  });
+  document.addEventListener('mouseout', e => {
+    if (!tipTarget) return;
+    if (!e.relatedTarget || !tipTarget.contains(e.relatedTarget)) hideTip();
+  });
+  window.addEventListener('scroll', hideTip, { passive: true });
+  document.addEventListener('click', hideTip);
+  let dragCh = null;
+  const clearChMarks = () => document.querySelectorAll('.ch-row.drag-over-top, .ch-row.drag-over-bot, .ch-row.dragging').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bot', 'dragging'));
+  document.addEventListener('pointerdown', e => {
+    const h = e.target.closest('.ch-drag');
+    const row = h?.closest('.ch-row');
+    if (row) row.draggable = true;
+  });
+  document.addEventListener('dragstart', e => {
+    const row = e.target.closest('.ch-row[draggable="true"]');
+    if (!row) return;
+    dragCh = { sid: row.dataset.sid, cid: row.dataset.cid };
+    row.classList.add('dragging');
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragCh.cid); } catch { }
+  });
+  document.addEventListener('dragover', e => {
+    if (!dragCh) return;
+    const row = e.target.closest('.ch-row');
+    if (!row || row.dataset.sid !== dragCh.sid || row.dataset.cid === dragCh.cid) return;
+    e.preventDefault();
+    const r = row.getBoundingClientRect();
+    const before = e.clientY < r.top + r.height / 2;
+    row.classList.toggle('drag-over-top', before);
+    row.classList.toggle('drag-over-bot', !before);
+  });
+  document.addEventListener('dragleave', e => {
+    const row = e.target.closest('.ch-row');
+    if (row && (!e.relatedTarget || !row.contains(e.relatedTarget))) row.classList.remove('drag-over-top', 'drag-over-bot');
+  });
+  document.addEventListener('drop', e => {
+    if (!dragCh) return;
+    const row = e.target.closest('.ch-row');
+    if (!row || row.dataset.sid !== dragCh.sid || row.dataset.cid === dragCh.cid) { clearChMarks(); dragCh = null; return; }
+    e.preventDefault();
+    const s = subjectById(dragCh.sid);
+    if (s) {
+      const from = s.chapters.findIndex(c => c.id === dragCh.cid);
+      let to = s.chapters.findIndex(c => c.id === row.dataset.cid);
+      const r = row.getBoundingClientRect();
+      const after = e.clientY >= r.top + r.height / 2;
+      if (from !== -1 && to !== -1) {
+        const [moved] = s.chapters.splice(from, 1);
+        if (from < to) to--;
+        s.chapters.splice(after ? to + 1 : to, 0, moved);
+        save();
+      }
+    }
+    clearChMarks(); dragCh = null;
+  });
+  document.addEventListener('dragend', () => {
+    document.querySelectorAll('.ch-row[draggable="true"]').forEach(r => { r.draggable = false; });
+    clearChMarks(); dragCh = null;
+  });
   modalBody.addEventListener('input', e => {
     if (e.target.id === 'chFileSearch' && App._chFiles) {
       const pos = e.target.selectionStart;
@@ -2638,13 +3124,25 @@ function bindEvents() {
     if (files.length) uploadSubjectFiles(App.filesSid, files);
   });
   document.addEventListener('click', e => {
+    hideTip();
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
+    if (el.tagName === 'SECTION' && e.target.closest('select, button, a, input, label')) return;
     const fn = Actions[el.dataset.act];
     if (fn) { if (el.tagName === 'BUTTON' || el.tagName === 'A') e.preventDefault(); fn(el, e); }
   });
   document.addEventListener('change', e => {
     const el = e.target;
+    const t24 = el.closest?.('.time24');
+    if (t24) {
+      const hs = t24.querySelector('.t24-h'), ms = t24.querySelector('.t24-m'), hid = t24.querySelector('input[type=hidden]');
+      if (hs && ms && hid) {
+        if (!hs.value) ms.value = '';
+        else if (!ms.value) ms.value = '00';
+        hid.value = hs.value && ms.value ? `${hs.value}:${ms.value}` : '';
+        if (hid.dataset.bind) { setPath(DB, hid.dataset.bind, hid.value); save(); }
+      }
+    }
     if (el.dataset.bind) {
       const v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Math.max(Number(el.min) || 0, Number(el.value) || 0) : el.value;
       setPath(DB, el.dataset.bind, v); save();
