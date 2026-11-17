@@ -1680,11 +1680,49 @@ async function filesRender() {
     return;
   }
 
-  const folderPickHTML = (curFolder && curFolder !== '__none__') ? `
-    <div class="row wrap" style="margin:0 0 10px;justify-content:space-between;align-items:center">
-      <span class="muted small">📁 โฟลเดอร์ <b>${esc(curFolder)}</b></span>
-      <button type="button" class="btn small ${App.filePickMode ? '' : 'ghost'}" data-act="file-pick-toggle">${App.filePickMode ? '✓ เสร็จสิ้น' : '☑ ติ๊กเลือกไฟล์เข้าโฟลเดอร์'}</button>
-    </div>` : '';
+  const folderPickHTML = `
+    <div class="row wrap" style="margin:0 0 10px;justify-content:space-between;align-items:center;gap:6px">
+      ${(curFolder && curFolder !== '__none__') ? `<span class="muted small">📁 โฟลเดอร์ <b>${esc(curFolder)}</b></span>` : '<span class="grow"></span>'}
+      <div class="row" style="margin:0;gap:6px">
+        ${(curFolder && curFolder !== '__none__') ? `<button type="button" class="btn small ${App.filePickMode ? '' : 'ghost'}" data-act="file-pick-toggle">${App.filePickMode ? '✓ เสร็จสิ้น' : '☑ ติ๊กเลือกไฟล์เข้าโฟลเดอร์'}</button>` : ''}
+        ${(driveFiles.length || local.length) && !App.filePickMode ? `<button type="button" class="btn small ${App.fileDlMode ? '' : 'ghost'}" data-act="file-dl-toggle">${App.fileDlMode ? 'ยกเลิก' : '⬇ โหลดหลายไฟล์'}</button>` : ''}
+      </div>
+    </div>`;
+
+  if (App.fileDlMode) {
+    const sel = App._dlSel || (App._dlSel = new Set());
+    const dlList = [
+      ...driveFiles.map(f => ({ kind: 'drive', id: f.id, name: f.name, sub: f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive' })),
+      ...local.map(f => ({ kind: 'local', id: f.id, name: f.name, sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
+    ];
+    setModalBody(`${topTabs}
+      <div class="folder-bar">
+        <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
+        ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
+        ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
+      </div>
+      <div class="row wrap" style="margin:0 0 10px;justify-content:space-between;gap:6px">
+        <div class="row" style="margin:0;gap:6px">
+          <button type="button" class="btn small ghost" data-act="file-dl-all" data-v="1">เลือกทั้งหมด (${dlList.length})</button>
+          <button type="button" class="btn small ghost" data-act="file-dl-all" data-v="0">ล้างเลือก</button>
+        </div>
+        <div class="row" style="margin:0;gap:6px">
+          <button type="button" class="btn small ghost" data-act="file-dl-toggle">ยกเลิก</button>
+          <button type="button" class="btn small" data-act="file-dl-run" ${sel.size ? '' : 'disabled'}>⬇ ดาวน์โหลด (${sel.size})</button>
+        </div>
+      </div>
+      <div class="ch-file-scroll">
+        ${dlList.map(r => {
+          const key = `${r.kind}:${r.id}`;
+          return `<label class="item file-item" style="cursor:pointer">
+            <input type="checkbox" class="cb" data-chg="dl-pick" data-key="${esc(key)}" ${sel.has(key) ? 'checked' : ''}>
+            <span class="file-ic">${ico('folder', 16)}</span>
+            <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
+          </label>`;
+        }).join('')}
+      </div>`);
+    return;
+  }
 
   if (App.filePickMode && curFolder && curFolder !== '__none__') {
     const allPick = [
@@ -2546,9 +2584,65 @@ const Actions = {
     saveLocal();
     filesRender();
   },
-  'file-tab': el => { App.fileTab = el.dataset.t || 'list'; App.filePickMode = false; filesRender(); },
-  'file-folder': el => { App.fileFolder = el.dataset.f || ''; App.filePickMode = false; filesRender(); },
-  'file-pick-toggle': () => { App.filePickMode = !App.filePickMode; filesRender(); },
+  'file-tab': el => { App.fileTab = el.dataset.t || 'list'; App.filePickMode = false; App.fileDlMode = false; filesRender(); },
+  'file-folder': el => { App.fileFolder = el.dataset.f || ''; App.filePickMode = false; App.fileDlMode = false; filesRender(); },
+  'file-pick-toggle': () => { App.filePickMode = !App.filePickMode; App.fileDlMode = false; filesRender(); },
+  'file-dl-toggle': () => { App.fileDlMode = !App.fileDlMode; App.filePickMode = false; if (!App.fileDlMode) App._dlSel = new Set(); filesRender(); },
+  'file-dl-all': async el => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const sel = App._dlSel || (App._dlSel = new Set());
+    if (el.dataset.v === '0') { sel.clear(); return filesRender(); }
+    const local = await FileStore.list(s.id).catch(() => []);
+    const cur = App.fileFolder || '';
+    const matchF = x => !cur ? true : cur === '__none__' ? !x.folder : x.folder === cur;
+    (s.driveFiles || []).filter(f => f && safeDriveId(f.id) && matchF(f)).forEach(f => sel.add(`drive:${f.id}`));
+    local.filter(f => f && !f.driveId && matchF(f)).forEach(f => sel.add(`local:${f.id}`));
+    filesRender();
+  },
+  'file-dl-run': async () => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const keys = [...(App._dlSel || [])];
+    if (!keys.length) return;
+    App.toast(`กำลังดาวน์โหลด ${keys.length} ไฟล์…`, 4000);
+    const triggerA = (href, name) => {
+      const a = document.createElement('a');
+      a.href = href; a.download = name || 'file'; a.rel = 'noopener';
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    let driveToken = '';
+    if (keys.some(k => k.startsWith('drive:')) && typeof Drive !== 'undefined') {
+      try { driveToken = await Drive.ensureToken(); } catch { }
+    }
+    for (const key of keys) {
+      const [kind, id] = key.split(':');
+      if (kind === 'local') {
+        const r = await FileStore.get(id);
+        if (r) {
+          const u = URL.createObjectURL(r.blob);
+          triggerA(u, r.name);
+          setTimeout(() => URL.revokeObjectURL(u), 5000);
+        }
+      } else if (kind === 'drive') {
+        const df = (s.driveFiles || []).find(x => x.id === id);
+        let ok = false;
+        if (driveToken) {
+          try {
+            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`, { headers: { Authorization: 'Bearer ' + driveToken } });
+            if (res.ok) {
+              const blob = await res.blob();
+              const u = URL.createObjectURL(blob);
+              triggerA(u, df?.name || 'file');
+              setTimeout(() => URL.revokeObjectURL(u), 5000);
+              ok = true;
+            }
+          } catch { }
+        }
+        if (!ok) window.open(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(id)}`, '_blank', 'noopener');
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    App.fileDlMode = false; App._dlSel = new Set(); filesRender();
+  },
   'file-folder-add': el => {
     const s = subjectById(App.filesSid); if (!s) return;
     const chip = document.createElement('span');
@@ -3094,6 +3188,11 @@ const Changes = {
     } else if (kind === 'local') {
       await FileStore.setFolder(id, folder);
     }
+    filesRender();
+  },
+  'dl-pick': el => {
+    const sel = App._dlSel || (App._dlSel = new Set());
+    if (el.checked) sel.add(el.dataset.key); else sel.delete(el.dataset.key);
     filesRender();
   },
   'file-upload': async el => {

@@ -1488,3 +1488,7 @@ html:is([data-theme="mono"], [data-theme="pink"], [data-theme="lavender"], [data
   width: 120px; border: 0; background: transparent; color: inherit;
   font: inherit; font-size: .82rem; outline: none; padding: 0 2px;
 }
+
+@media (max-width: 1280px) {
+  .ref-row1 { grid-template-columns: 1fr 1fr; }
+}
