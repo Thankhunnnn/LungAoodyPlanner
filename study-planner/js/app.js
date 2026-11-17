@@ -605,11 +605,10 @@ const Views = {
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">
               <span>${esc(c.title)}</span>
-              ${cf.length ? `<div class="ch-files-mini">${cf.slice(0, 3).map(f => `<span class="ch-file-tag">${ico('paperclip', 11)} ${esc(f.name || 'ไฟล์')}</span>`).join('')}${cf.length > 3 ? `<button type="button" class="ch-file-tag more" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}">+${cf.length - 3} ไฟล์</button>` : ''}</div>` : ''}
             </span>
             <span class="item-actions">
             <button type="button" class="round-chip ${rounds > 0 ? 'has' : ''}" data-act="chapter-round" data-sid="${s.id}" data-id="${c.id}" title="กดเพิ่มรอบที่เรียน/ทบทวน">${ico('reset', 12)} <span>${rounds} รอบ</span></button>
-            <button class="mini-btn ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ไฟล์ในบทนี้ (${cf.length})" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 14)}${cf.length ? `<small class="ch-fc">${cf.length}</small>` : ''}</button>
+            <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
             <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">${ico('note', 15)}</button>
             <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">${ico('arrow-up', 14)}</button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
@@ -1392,7 +1391,8 @@ async function openChapterFilesModal(sid, cid) {
     ...local.filter(f => f && !f.driveId).map(f => ({ kind: 'local', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
     ...links.map(l => ({ kind: 'link', id: l.id, name: l.title, folder: l.folder || '', sub: l.folder ? `ลิงก์ · 📁 ${l.folder}` : 'ลิงก์เอกสาร' })),
   ];
-  App._chFiles = { sid, cid, rows, folder: '', q: '' };
+  const hasLinked = Array.isArray(c.files) && c.files.length > 0;
+  App._chFiles = { sid, cid, rows, folder: hasLinked ? '__checked__' : '', q: '' };
   renderChapterFilesModal();
 }
 function renderChapterFilesModal() {
