@@ -1,12 +1,14 @@
 /* ===== Main app: views, actions, forms ===== */
 const THEMES = [
   ['pink', 'ชมพูพาสเทล', '#ec6a9c'], ['lavender', 'ลาเวนเดอร์', '#9b7ede'], ['mint', 'มิ้นต์', '#3fb68b'],
-  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['mono', 'มินิมอล', '#555555'],
+  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
   ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'แต่ละวิชา'], ['calendar', '📅', 'ปฏิทิน'],
-  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🤖', 'AI ติว'], ['settings', '⚙️', 'ตั้งค่า'],
+  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🤖', 'AI ติว'],
 ];
+const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
+const MOBILE_PRIMARY = new Set(['home', 'plan', 'subjects', 'ai']);
 
 const App = {
   tab: 'home', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
@@ -14,8 +16,8 @@ const App = {
 
   init() {
     this.applyTheme();
-    const h = location.hash.slice(1); if (TABS.some(t => t[0] === h)) this.tab = h;
-    window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
+    const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
+    window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
     changeListeners.push(() => { this.applyTheme(); this.render(); });
     bindEvents();
     this.render();
@@ -36,9 +38,13 @@ const App = {
   go(tab) { location.hash = tab; this.tab = tab; this.render(); window.scrollTo({ top: 0 }); },
 
   render() {
-    document.getElementById('header').innerHTML = this.headerHTML();
+    const hdr = document.getElementById('header');
+    hdr.classList.toggle('compact', this.tab !== 'home');
+    hdr.innerHTML = this.headerHTML();
+    const moreActive = !MOBILE_PRIMARY.has(this.tab);
     document.getElementById('nav').innerHTML = TABS.map(([id, ic, label]) =>
-      `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('');
+      `<button class="tab ${this.tab === id ? 'active' : ''} ${MOBILE_PRIMARY.has(id) ? '' : 'desk-only'}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('') +
+      `<button class="tab mob-only ${moreActive ? 'active' : ''}" data-act="more-menu"><span class="ic">⋯</span><span>เพิ่มเติม</span></button>`;
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
     if (this.tab === 'ai') { const box = document.getElementById('chatBox'); if (box) box.scrollTop = box.scrollHeight; }
@@ -58,18 +64,28 @@ const App = {
 
   headerHTML() {
     const t = todayStr(), ex = upcomingExams()[0];
-    let sub = 'เพิ่มวิชาและวันสอบเพื่อเริ่มวางแผนกันเลย ✨';
-    if (ex) {
-      const n = daysBetween(t, ex.examDate);
-      sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
+    let left = '';
+    if (this.tab === 'home') {
+      let sub = 'เพิ่มวิชาและวันสอบเพื่อเริ่มวางแผนกันเลย ✨';
+      if (ex) {
+        const n = daysBetween(t, ex.examDate);
+        sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
+      }
+      const greet = DB.prefs.theme === 'navy' ? 'หวัดดีค้าบ' : 'หวัดดีค่า';
+      const av = DB.prefs.theme === 'navy' ? `<img src="assets/coach-hero.png" alt="" class="avatar-img">` : '😊';
+      left = `<div class="hello">
+        <div class="avatar">${av}</div>
+        <div><h1>${greet}${DB.name ? ' ' + esc(DB.name) : ''}</h1><p>${sub}</p></div>
+      </div>`;
+    } else {
+      const cur = ALL_TABS.find(x => x[0] === this.tab) || ALL_TABS[0];
+      left = `<div class="hello compact"><button class="icon-btn" data-act="go" data-tab="home" title="หน้าแรก">🌸</button><h1>${cur[1]} ${cur[2]}</h1></div>`;
     }
-    return `<div class="hello">
-        <div class="avatar">😊</div>
-        <div><h1>หวัดดีค่า${DB.name ? ' ' + esc(DB.name) : ''} 🌸</h1><p>${sub}</p></div>
-      </div>
+    return `${left}
       <div class="head-actions">
         <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" style="display:${Timer.running ? '' : 'none'}">⏱</button>
         ${this.syncBadgeHTML()}
+        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า">⚙️</button>
         <button class="icon-btn" data-act="toggle-dark" title="โหมดมืด">${DB.prefs.dark ? '☀️' : '🌙'}</button>
       </div>`;
   },
@@ -133,9 +149,11 @@ function countdownCard(s) {
 }
 function barChart(data, fmt = v => v) {
   const max = Math.max(1, ...data.map(d => d.value));
-  return `<div class="bars">${data.map(d => `<div class="bar-col ${d.hl ? 'hl' : ''}">
+  const rainbow = DB.prefs.theme === 'navy';
+  const pal = ['#4a9be8', '#e85d5d', '#f0a04b', '#3fb68b', '#9b7ede', '#ec6a9c', '#5cc5c5'];
+  return `<div class="bars">${data.map((d, i) => `<div class="bar-col ${d.hl ? 'hl' : ''}">
     <div class="bar-val">${d.value ? fmt(d.value) : ''}</div>
-    <div class="bar-track"><div class="bar" style="height:${d.value / max * 100}%"></div></div>
+    <div class="bar-track"><div class="bar" style="height:${d.value / max * 100}%;${rainbow ? 'background:' + pal[i % pal.length] : ''}"></div></div>
     <div class="bar-label">${d.label}</div></div>`).join('')}</div>`;
 }
 
@@ -148,8 +166,11 @@ const Views = {
         <h2>ยินดีต้อนรับสู่ Study Planner 🌷</h2>
         <p class="muted">เริ่มจาก 3 ขั้นง่ายๆ</p>
         <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>กด "จัดตารางอัตโนมัติ" แล้วอ่านตามได้เลย</li></ol>
-        <form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value="${esc(DB.name)}"><button class="btn ghost">บันทึกชื่อ</button></form>
-        <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
+        ${!DB.name ? `<form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value=""><button class="btn ghost">บันทึกชื่อ</button></form>` : ''}
+        <div class="row center wrap">
+          <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
+          <button class="btn ghost" data-act="load-demo">✨ โหลดข้อมูลตัวอย่าง (Demo)</button>
+        </div>
       </section>`;
     }
     const exams = upcomingExams();
@@ -161,7 +182,26 @@ const Views = {
     const weekTotal = week.reduce((a, d) => a + d.value, 0);
     const doneToday = today.filter(p => p.done).length;
 
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = exams[0];
+    const coachHero = isNavy ? `<section class="coach-hero">
+      <img src="assets/coach-moto.png" alt="" class="coach-moto">
+      <div class="coach-bubble">
+        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
+        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
+      </div>
+      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
+    </section>` : '';
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
+
     return `
+    ${coachHero}
     <section class="card">
       <h2>⏰ นับถอยหลังสอบ</h2>
       ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty('🎉', 'ไม่มีสอบที่กำลังจะมาถึง')}
@@ -192,7 +232,8 @@ const Views = {
         ${barChart(week, v => Math.round(v / 6) / 10 + 'h')}
         <button class="btn ghost full" data-act="go" data-tab="timer">เริ่มจับเวลาอ่าน ▶</button>
       </section>
-    </div>`;
+    </div>
+    ${coachFooter}`;
   },
 
   plan() {
@@ -213,7 +254,27 @@ const Views = {
         ${items.map(p => planItemHTML(p)).join('')}
       </div>`;
     };
+    const exams = upcomingExams();
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = exams[0];
+    const coachHero = isNavy ? `<section class="coach-hero">
+      <img src="assets/coach-moto.png" alt="" class="coach-moto">
+      <div class="coach-bubble">
+        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
+        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
+      </div>
+      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
+    </section>` : '';
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
+
     return `
+    ${coachHero}
     <section class="card">
       <div class="toolbar">
         <button class="btn" data-act="auto-plan">✨ จัดตารางอัตโนมัติ</button>
@@ -287,7 +348,27 @@ const Views = {
       </div>`;
     }
     const upcoming = DB.tasks.filter(x => !x.done && x.date >= t).sort((a, b) => a.date.localeCompare(b.date));
+    const exams = upcomingExams();
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = exams[0];
+    const coachHero = isNavy ? `<section class="coach-hero">
+      <img src="assets/coach-moto.png" alt="" class="coach-moto">
+      <div class="coach-bubble">
+        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
+        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
+      </div>
+      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
+    </section>` : '';
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
+
     return `
+    ${coachHero}
     <section class="card">
       <div class="toolbar">
         <button class="icon-btn" data-act="cal-nav" data-dir="-1">‹</button>
@@ -311,6 +392,15 @@ const Views = {
     const total = sessions.reduce((a, x) => a + x.minutes, 0);
     const modes = [['work', '🎯 โฟกัส'], ['short', '☕ พักสั้น'], ['long', '🌙 พักยาว']];
     setTimeout(() => App.renderTimerBits(), 0);
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = upcomingExams()[0];
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
     return `
     <div class="grid2">
       <section class="card timer-card">
@@ -338,14 +428,17 @@ const Views = {
           <small class="muted">${new Date(x.at).toTimeString().slice(0, 5)}</small>
           <button class="mini-btn" data-act="del-session" data-id="${x.id}">✕</button></div>`).join('') : empty('⏳', 'ยังไม่มีบันทึกวันนี้')}
         <h3>+ บันทึกเวลาเอง</h3>
-        <form data-form="session" class="row wrap">
-          <select name="subjectId">${subjectOptions('')}</select>
-          <input name="minutes" type="number" min="1" placeholder="นาที" required class="num-lg">
-          <input name="date" type="date" value="${t}">
-          <button class="btn small">บันทึก</button>
+        <form data-form="session" class="session-form">
+          <label class="field">วิชา<select name="subjectId">${subjectOptions('')}</select></label>
+          <div class="grid2-sm">
+            <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" placeholder="เช่น 45" required></label>
+            <label class="field"><span>วันที่ <small class="muted">(${fmtDateBE(t)})</small></span><input name="date" type="date" value="${t}" data-chg="be-hint"></label>
+          </div>
+          <button class="btn small full">💾 บันทึกเวลา</button>
         </form>
       </section>
-    </div>`;
+    </div>
+    ${coachFooter}`;
   },
 
   stats() {
@@ -362,11 +455,31 @@ const Views = {
     const maxSub = Math.max(1, ...perSub.map(x => x.m), other);
     const weeks = [...Array(8)].map((_, i) => { const w = addDays(weekStart(t), -7 * (7 - i)); let m = 0; for (let j = 0; j < 7; j++) m += minutesOn(addDays(w, j)); return { label: fmtDate(w), value: m, hl: w === ws }; });
     const allCh = DB.subjects.reduce((a, s) => a + s.chapters.length, 0), allDone = DB.subjects.reduce((a, s) => a + s.chapters.filter(c => c.done).length, 0);
+    const exams = upcomingExams();
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = exams[0];
+    const coachHero = isNavy ? `<section class="coach-hero">
+      <img src="assets/coach-moto.png" alt="" class="coach-moto">
+      <div class="coach-bubble">
+        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
+        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
+      </div>
+      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
+    </section>` : '';
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
+
     return `
+    ${coachHero}
     <section class="card">
       <div class="toolbar">
         <button class="icon-btn" data-act="week-nav" data-dir="-1">‹</button>
-        <h2>สัปดาห์ ${fmtDate(ws)} – ${fmtDate(days[6])}</h2>
+        <h2>สัปดาห์ ${fmtDateBE(ws)} – ${fmtDateBE(days[6])}</h2>
         <button class="icon-btn" data-act="week-nav" data-dir="1">›</button>
       </div>
       <div class="tiles">
@@ -389,7 +502,8 @@ const Views = {
         <p class="muted small">อ่านจบไปแล้วทั้งหมด ${allDone}/${allCh} บท</p>
         ${progressBar(allCh ? allDone / allCh * 100 : 0)}
       </section>
-    </div>`;
+    </div>
+    ${coachFooter}`;
   },
 
   ai() {
@@ -404,6 +518,15 @@ const Views = {
     if (!chs.find(c => c.id === App.aiCh)) App.aiCh = chs[0]?.id || '';
     const chat = LOCAL.chat || [];
     const quick = ['วันนี้ควรอ่านอะไรก่อนดี?', 'ช่วยให้กำลังใจหน่อย 🥺', 'มีเทคนิคจำเนื้อหาเยอะๆ ไหม', 'ประเมินหน่อยว่าอ่านทันไหม'];
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = upcomingExams()[0];
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
     return `
     <div class="ai-layout">
       <section class="card chat-card">
@@ -440,13 +563,56 @@ const Views = {
           <button class="btn full" ${App.aiBusy ? 'disabled' : ''}>✨ จัดตารางให้หน่อย</button>
         </form>` : empty('📚', 'เพิ่มวิชาก่อนนะ', `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
       </section>
-    </div>`;
+    </div>
+    ${coachFooter}`;
   },
 
   settings() {
     const L = LOCAL;
     const sstat = { off: 'ยังไม่ได้ตั้งค่า', loading: 'กำลังเชื่อมต่อ…', signedout: 'ยังไม่ได้ล็อกอิน', syncing: 'กำลัง sync…', synced: 'sync เรียบร้อย ✓', error: 'ผิดพลาด: ' + Sync.message }[Sync.status];
+    const perm = Notifier.supported() ? Notification.permission : 'unsupported';
+    const permUI = {
+      default: '<span class="chip warn">ยังไม่เปิดสิทธิ์</span> <button class="btn small" data-act="ask-notify">🔔 ขออนุญาตแจ้งเตือน</button>',
+      granted: '<span class="chip ok">เปิดรับแจ้งเตือนแล้ว ✓</span>',
+      denied: '<span class="chip err">ถูกบล็อก — เปิดได้ที่ไอคอน 🔒 ข้างช่องเว็บ</span>',
+      unsupported: '<span class="chip">เบราว์เซอร์นี้ไม่รองรับ</span>',
+    }[perm];
+    const C = aiCfg();
+    const gemPresets = [
+      ['gemini-3.8-flash', 'gemini-3.8-flash (แนะนำ · ฉลาดสมดุล)'],
+      ['gemini-3.8-flash-lite', 'gemini-3.8-flash-lite (เร็วมาก)'],
+      ['gemini-3.8-pro', 'gemini-3.8-pro (วิเคราะห์ลึก)'],
+      ['gemini-2.5-flash', 'gemini-2.5-flash (สำหรับคีย์เดิม)'],
+    ];
+    const oaPresets = [
+      ['gpt-4o-mini', 'gpt-4o-mini (แนะนำ · ประหยัด)'],
+      ['gpt-4o', 'gpt-4o (ฉลาดขึ้น)'],
+      ['gpt-4.1-mini', 'gpt-4.1-mini'],
+    ];
+    const presets = C.provider === 'gemini' ? gemPresets : oaPresets;
+    const curModel = C.provider === 'gemini' ? C.geminiModel : C.openaiModel;
+    const isCustom = App._customModel || !presets.some(([v]) => v === curModel);
+    const exams = upcomingExams();
+    const isNavy = DB.prefs.theme === 'navy';
+    const nextEx = exams[0];
+    const coachHero = isNavy ? `<section class="coach-hero">
+      <img src="assets/coach-moto.png" alt="" class="coach-moto">
+      <div class="coach-bubble">
+        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
+        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
+      </div>
+      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
+    </section>` : '';
+    const coachFooter = isNavy ? `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.png" alt="" class="coach-action-img">
+    </section>` : '';
+
     return `
+    ${coachHero}
     <section class="card"><h2>👤 ทั่วไป</h2>
       <form data-form="name" class="row"><input name="name" placeholder="ชื่อเล่น" value="${esc(DB.name)}"><button class="btn small">บันทึก</button></form>
     </section>
@@ -458,29 +624,40 @@ const Views = {
 
     <section class="card"><h2>🔔 การแจ้งเตือน</h2>
       <label class="switch"><input type="checkbox" data-act="toggle-notify" ${DB.prefs.notify ? 'checked' : ''}><span></span> แจ้งเตือนทุกวันว่าต้องอ่านอะไร</label>
-      <label class="inline">เวลา <input type="time" data-bind="prefs.notifyTime" value="${DB.prefs.notifyTime}"></label>
-      <button class="btn ghost small" data-act="test-notify">ทดสอบแจ้งเตือน</button>
-      <p class="muted small">สถานะสิทธิ์: ${Notifier.supported() ? Notification.permission : 'เบราว์เซอร์นี้ไม่รองรับ'} · ต้องเปิดแอปค้างไว้ หรือติดตั้งเป็นแอปบนหน้าจอโฮม (iPhone: Safari > แชร์ > เพิ่มไปยังหน้าจอโฮม)</p>
+      <div class="row wrap">
+        <label class="inline">เวลา <input type="time" data-bind="prefs.notifyTime" value="${DB.prefs.notifyTime}"></label>
+        <button class="btn ghost small" data-act="test-notify">ทดสอบแจ้งเตือน</button>
+      </div>
+      <div class="row wrap" style="margin-top:10px">สถานะ: ${permUI}</div>
+      <div class="guide-box">
+        <b>📲 วิธีติดตั้งเป็นแอปบนมือถือ (เพื่อให้แจ้งเตือนและเปิดใช้ง่าย)</b>
+        <div class="guide-cols">
+          <div><b>🍎 iPhone (Safari)</b><br>1. กดปุ่ม <b>แชร์</b> (⬆️) ด้านล่าง<br>2. เลือก <b>เพิ่มไปยังหน้าจอโฮม</b><br>3. กด <b>เพิ่ม</b></div>
+          <div><b>🤖 Android (Chrome)</b><br>1. กดเมนู <b>⋮</b> มุมขวาบน<br>2. เลือก <b>ติดตั้งแอป</b> หรือเพิ่มลงหน้าจอหลัก<br>3. กด <b>ติดตั้ง</b></div>
+        </div>
+      </div>
     </section>
 
     <section class="card"><h2>🤖 AI</h2>
-      ${(() => { const C = aiCfg(); return `
       <div class="pills">
         <button class="pill ${C.provider === 'gemini' ? 'active' : ''}" data-act="ai-provider" data-p="gemini">Google Gemini</button>
         <button class="pill ${C.provider === 'openai' ? 'active' : ''}" data-act="ai-provider" data-p="openai">OpenAI</button>
       </div>
       ${C.provider === 'gemini' ? `
         <label class="field">Gemini API key <input type="password" data-ai="geminiKey" value="${esc(C.geminiKey)}" placeholder="AIza..."></label>
-        <label class="field">รุ่นโมเดล <input data-ai="geminiModel" value="${esc(C.geminiModel)}" list="gemModels"></label>
-        <datalist id="gemModels"><option value="gemini-3.8-flash"><option value="gemini-3.8-pro"><option value="gemini-3.8-flash-lite"></datalist>
-        <p class="muted small">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : `
+        <p class="muted small" style="margin-top:-6px">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : `
         <label class="field">OpenAI API key <input type="password" data-ai="openaiKey" value="${esc(C.openaiKey)}" placeholder="sk-..."></label>
-        <label class="field">รุ่นโมเดล <input data-ai="openaiModel" value="${esc(C.openaiModel)}" list="oaModels"></label>
-        <datalist id="oaModels"><option value="gpt-4o-mini"><option value="gpt-4o"><option value="gpt-4.1-mini"></datalist>
-        <p class="muted small">สร้าง key ที่ <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> (คิดเงินตามการใช้งาน)</p>`}`; })()}
+        <p class="muted small" style="margin-top:-6px">สร้าง key ที่ <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> (คิดเงินตามการใช้งาน)</p>`}
+      <label class="field">รุ่นโมเดล
+        <select data-chg="ai-model-select">
+          ${presets.map(([v, lbl]) => `<option value="${v}" ${!isCustom && curModel === v ? 'selected' : ''}>${lbl}</option>`).join('')}
+          <option value="__custom__" ${isCustom ? 'selected' : ''}>✏️ พิมพ์ชื่อรุ่นเอง (Custom)…</option>
+        </select>
+      </label>
+      ${isCustom ? `<label class="field">ระบุชื่อรุ่นโมเดลเอง<input data-ai="${C.provider === 'gemini' ? 'geminiModel' : 'openaiModel'}" value="${esc(curModel)}" placeholder="เช่น gemini-3.8-flash"></label>` : ''}
       <button class="btn ghost small" data-act="test-ai">ทดสอบการเชื่อมต่อ</button>
       <label class="switch"><input type="checkbox" data-bind="ai.sync" ${DB.ai?.sync ? 'checked' : ''}><span></span> Sync API key ข้ามเครื่อง (เฉพาะในบัญชี Google ของคุณ)</label>
-      <p class="muted small">${DB.ai?.sync ? '☁️ API key จะ sync เฉพาะในบัญชี Google ของคุณ (ไม่ติดไปในไฟล์ Export)' : '🔒 API key เก็บไว้เฉพาะในเครื่องนี้ ไม่ถูก sync ขึ้น cloud'}</p>
+      <p class="muted small">🔐 <b>ความปลอดภัย:</b> API key ถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง (และเฉพาะในบัญชี Google ส่วนตัวหากเปิด Sync) ข้อมูลจะส่งตรงไปยัง Google / OpenAI โดยไม่ผ่านเซิร์ฟเวอร์กลาง และไม่ติดไปในไฟล์ Export</p>
     </section>
 
     <section class="card"><h2>☁️ Sync ข้ามเครื่อง (Firebase)</h2>
@@ -506,8 +683,13 @@ const firebaseConfig = {
       <div class="row wrap">
         <button class="btn ghost" data-act="export">⬇️ Export (สำรองไฟล์)</button>
         <label class="btn ghost">⬆️ Import<input type="file" accept=".json" data-chg="import" hidden></label>
-        <button class="btn danger" data-act="reset">ล้างข้อมูลทั้งหมด</button>
+        <button class="btn ghost" data-act="load-demo">✨ โหลดข้อมูลตัวอย่าง (Demo)</button>
       </div>
+    </section>
+
+    <section class="card danger-zone"><h2>⚠️ โซนอันตราย (Danger Zone)</h2>
+      <p class="muted small">การล้างข้อมูลจะลบวิชา วันสอบ ตารางอ่าน โน้ต และสถิติทั้งหมด (ไม่สามารถกู้คืนได้หากไม่ได้ Export ไว้)</p>
+      <button class="btn danger" data-act="reset">🗑️ ล้างข้อมูลทั้งหมด</button>
     </section>
     <p class="muted small center">Study Planner 🌸 · ข้อมูลอัปเดตล่าสุด ${DB.updatedAt ? new Date(DB.updatedAt).toLocaleString('th-TH') : '-'}</p>`;
   },
@@ -931,7 +1113,22 @@ const Actions = {
   },
 
   // settings
-  'ai-provider': el => { aiCfg().provider = el.dataset.p; saveAICfg(); if (!DB.ai?.sync) App.render(); },
+  'more-menu': () => openModal('⋯ เมนูเพิ่มเติม', `<div class="more-grid">
+      <button class="more-item" data-act="go" data-tab="calendar"><span>📅</span><b>ปฏิทิน</b><small class="muted">วันสอบ &amp; การบ้าน</small></button>
+      <button class="more-item" data-act="go" data-tab="timer"><span>⏱️</span><b>จับเวลา</b><small class="muted">Pomodoro &amp; บันทึก</small></button>
+      <button class="more-item" data-act="go" data-tab="stats"><span>📊</span><b>สถิติ</b><small class="muted">กราฟ 8 สัปดาห์</small></button>
+      <button class="more-item" data-act="go" data-tab="settings"><span>⚙️</span><b>ตั้งค่า</b><small class="muted">ธีม, AI, Sync</small></button>
+    </div>`),
+  'load-demo': () => {
+    if (DB.subjects.length && !confirm('โหลดข้อมูลตัวอย่างแทนข้อมูลวิชา/ตารางปัจจุบัน?')) return;
+    loadDemoData(); App.go('home'); App.toast('โหลดข้อมูลตัวอย่างเรียบร้อย ✨');
+  },
+  'ask-notify': async () => {
+    const ok = await Notifier.ask();
+    if (ok) { DB.prefs.notify = true; save(); App.toast('เปิดรับแจ้งเตือนแล้ว 🔔'); }
+    else { App.toast('ไม่ได้รับสิทธิ์แจ้งเตือน', 3500); App.render(); }
+  },
+  'ai-provider': el => { App._customModel = false; aiCfg().provider = el.dataset.p; saveAICfg(); if (!DB.ai?.sync) App.render(); },
   'test-ai': async () => { const r = await aiRun('กำลังทดสอบ', () => AI.chat([{ role: 'user', content: 'ทักทายสั้นๆ 1 ประโยค' }], 'ตอบภาษาไทยสั้นๆ')); if (r) alert('เชื่อมต่อสำเร็จ ✓\n\n' + r); },
   'toggle-notify': async el => {
     if (el.checked) { const ok = await Notifier.ask(); if (!ok) { App.toast('ไม่ได้รับสิทธิ์แจ้งเตือน — เปิดในการตั้งค่าเบราว์เซอร์นะ', 5000); el.checked = false; return; } }
@@ -955,7 +1152,14 @@ const Actions = {
     const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `study-planner-${todayStr()}.json`; a.click();
   },
-  'reset': () => { if (confirm('ล้างข้อมูลทั้งหมด? (กู้คืนไม่ได้ ถ้าไม่ได้ export ไว้)') && confirm('แน่ใจนะ?')) { replaceDB(defaultData()); App.go('home'); } },
+  'reset': () => openModal('⚠️ ยืนยันการล้างข้อมูลทั้งหมด', `
+    <p>ข้อมูลวิชา วันสอบ ตารางอ่าน โน้ต และสถิติทั้งหมดจะถูกลบถาวร (ไม่สามารถกู้คืนได้หากไม่ได้ Export ไว้)</p>
+    <form data-form="reset-confirm">
+      <label class="field"><span>พิมพ์คำว่า <b>ลบทั้งหมด</b> เพื่อยืนยัน</span>
+        <input name="word" required placeholder="ลบทั้งหมด" autocomplete="off">
+      </label>
+      <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn danger">ยืนยันลบทั้งหมด</button></div>
+    </form>`),
 };
 
 function showSummaryResult(r) {
@@ -973,6 +1177,10 @@ function refreshDayModal() {
 /* ===== Forms ===== */
 const Forms = {
   name(d) { DB.name = d.name.trim(); save(); App.toast('บันทึกแล้ว 🌸'); },
+  'reset-confirm'(d) {
+    if (d.word.trim() !== 'ลบทั้งหมด') return App.toast('กรุณาพิมพ์คำว่า "ลบทั้งหมด" ให้ตรงกันนะ');
+    closeModal(); replaceDB(defaultData()); App.go('home'); App.toast('ล้างข้อมูลทั้งหมดแล้ว');
+  },
   subject(d, f) {
     const color = d.color || d.customColor;
     let s = subjectById(f.dataset.id);
@@ -1076,6 +1284,14 @@ const Changes = {
   'ai-ch': el => { App.aiCh = el.value; },
   'plan-sub': el => { document.getElementById('planCh').innerHTML = planChapterOptions(el.value); },
   'custom-color': el => { el.form.querySelectorAll('input[name=color]').forEach(r => r.checked = false); },
+  'be-hint': el => { const s = el.closest('.field')?.querySelector('small'); if (s && el.value) s.textContent = `(${fmtDateBE(el.value)})`; },
+  'ai-model-select': el => {
+    const c = aiCfg();
+    if (el.value === '__custom__') { App._customModel = true; App.render(); return; }
+    App._customModel = false;
+    if (c.provider === 'gemini') c.geminiModel = el.value; else c.openaiModel = el.value;
+    saveAICfg(); if (!DB.ai?.sync) App.render();
+  },
   'file-upload': async el => {
     const files = [...(el.files || [])]; if (!files.length || !App.filesSid) return;
     for (const f of files) await FileStore.add(App.filesSid, f);

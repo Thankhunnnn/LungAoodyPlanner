@@ -93,7 +93,8 @@ const TH_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 
 const TH_DAYS = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 const TH_DAYS_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 const fmtDate = s => { if (!s) return '-'; const d = parseDate(s); return `${d.getDate()} ${TH_MONTHS[d.getMonth()]}`; };
-const fmtDateLong = s => { const d = parseDate(s); return `${TH_DAYS_FULL[d.getDay()]} ${d.getDate()} ${TH_MONTHS[d.getMonth()]}`; };
+const fmtDateBE = s => { if (!s) return '-'; const d = parseDate(s); return `${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`; };
+const fmtDateLong = s => { const d = parseDate(s); return `${TH_DAYS_FULL[d.getDay()]} ${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`; };
 const weekStart = s => { const d = parseDate(s); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toDateStr(d); }; // Monday
 
 /* ===== Misc helpers ===== */
@@ -186,3 +187,30 @@ const FileStore = {
     delete this._counts[sid];
   },
 };
+
+function loadDemoData() {
+  const t = todayStr();
+  const s1 = { id: uid(), name: '5500111 EXP ENG I', color: '#9b7ede', examDate: addDays(t, 6), examTime: '08:30', room: '08:30 - 10:30', chapters: ['Essay Structure & Thesis', 'Academic Vocabulary', 'Reading Comprehension', 'Grammar Review', 'Mock Test'].map((c, i) => ({ id: uid(), title: c, done: i < 2, doneAt: i < 2 ? addDays(t, -2 + i) : null, note: i === 0 ? 'Topic sentence ต้องชัด + มี supporting details 2-3 ข้อ' : '' })) };
+  const s2 = { id: uid(), name: '2301119 CAL BUS', color: '#3fb68b', examDate: addDays(t, 8), examTime: '08:30', room: '08:30 - 11:30', chapters: ['Limits & Continuity', 'Derivatives & Rules', 'Optimization Problems', 'Marginal Analysis', 'Integrals'].map((c, i) => ({ id: uid(), title: c, done: i === 0, doneAt: i === 0 ? addDays(t, -1) : null, note: '' })) };
+  const s3 = { id: uid(), name: '2900112 ECONOMICS II', color: '#f0a04b', examDate: addDays(t, 10), examTime: '08:30', room: '08:30 - 11:30', chapters: ['GDP & National Income', 'Inflation & Unemployment', 'Fiscal Policy', 'Monetary Policy', 'International Trade'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
+  const s4 = { id: uid(), name: '2601113 PRIN ACCTG', color: '#4a9be8', examDate: addDays(t, 14), examTime: '08:30', room: '08:30 - 11:30', chapters: ['Accounting Equation', 'Journal & Ledger', 'Adjusting Entries', 'Financial Statements', 'Cash Flow'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
+  DB.subjects = [s1, s2, s3, s4];
+  DB.tasks = [
+    { id: uid(), title: 'ส่งแบบฝึกหัด Cal บท 2', date: addDays(t, 1), time: '16:00', subjectId: s2.id, type: 'homework', done: false },
+    { id: uid(), title: 'ติวกลุ่ม Economics II', date: addDays(t, 3), time: '14:00', subjectId: s3.id, type: 'event', done: false },
+  ];
+  DB.sessions = [
+    { id: uid(), subjectId: s1.id, date: addDays(t, -10), minutes: 50, at: Date.now() - 864000000 },
+    { id: uid(), subjectId: s2.id, date: addDays(t, -8), minutes: 75, at: Date.now() - 691200000 },
+    { id: uid(), subjectId: s3.id, date: addDays(t, -5), minutes: 60, at: Date.now() - 432000000 },
+    { id: uid(), subjectId: s1.id, date: addDays(t, -2), minutes: 90, at: Date.now() - 172800000 },
+    { id: uid(), subjectId: s2.id, date: addDays(t, -1), minutes: 60, at: Date.now() - 86400000 },
+    { id: uid(), subjectId: s4.id, date: t, minutes: 45, at: Date.now() - 3600000 },
+  ];
+  DB.flashcards = [
+    { id: uid(), subjectId: s3.id, chapterId: s3.chapters[0].id, q: 'GDP คืออะไร?', a: 'มูลค่าตลาดของสินค้าและบริการขั้นสุดท้ายทั้งหมดที่ผลิตในประเทศในช่วงเวลาหนึ่ง', known: false },
+    { id: uid(), subjectId: s4.id, chapterId: s4.chapters[0].id, q: 'สมการบัญชีพื้นฐาน', a: 'สินทรัพย์ = หนี้สิน + ส่วนของเจ้าของ (A = L + E)', known: true },
+  ];
+  autoSchedule();
+  save();
+}

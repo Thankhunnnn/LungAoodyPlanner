@@ -1,6 +1,7 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v1';
+const CACHE = 'study-planner-v2';
 const SHELL = ['./', './index.html', './styles.css', './manifest.json', './icon.svg',
+  './assets/coach-hero.png', './assets/coach-action.png', './assets/coach-moto.png',
   './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/services.js', './js/app.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
