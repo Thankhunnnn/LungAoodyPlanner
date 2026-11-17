@@ -17,7 +17,7 @@ const App = {
     this.applyTheme();
     const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
     window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
-    changeListeners.push(() => { this.applyTheme(); this.render(); });
+    changeListeners.push(() => { this.applyTheme(); this.render(); refreshFilesIfOpen(); });
     bindEvents();
     this.render();
     FileStore.refreshCounts().then(() => this.render()).catch(() => { });
@@ -111,7 +111,7 @@ function openModal(title, html, wide = false) {
   document.getElementById('modalBody').innerHTML = html;
   m.querySelector('.modal-box').classList.toggle('wide', wide);
   m.classList.remove('hidden');
-  setTimeout(() => m.querySelector('input:not([type=checkbox]):not([type=color]),textarea')?.focus(), 50);
+  setTimeout(() => m.querySelector('input:not([type=checkbox]):not([type=color]):not([type=file]),textarea')?.focus(), 50);
 }
 function setModalBody(html) { document.getElementById('modalBody').innerHTML = html; }
 function closeModal() {
@@ -638,6 +638,7 @@ const firebaseConfig = {
         <div class="row"><button class="btn small" data-act="save-fb">บันทึกและเชื่อมต่อ</button>${L.firebaseConfig ? '<button class="btn ghost small" data-act="clear-fb">ลบ config</button>' : ''}</div>
         <p class="muted small">วิธีตั้งค่าทีละขั้นอยู่ในไฟล์ README.md · config นี้เก็บในเครื่อง ต้องวางในทุกเครื่องที่จะใช้ (ครั้งเดียว)</p>
       </details>
+      <p class="muted small">ไฟล์ใน "ไฟล์และเอกสาร" ของแต่ละวิชา อัปโหลดขึ้น Google Drive ของบัญชีนี้ (โฟลเดอร์ LungAoodyPlanner) รายชื่อไฟล์ sync มากับข้อมูลวิชา ตัวไฟล์อยู่บน Drive ของคุณ</p>
     </section>
 
     <section class="card"><h2>💾 ข้อมูล</h2>
@@ -794,25 +795,119 @@ const fileIcon = (type, name) => {
   if (/sheet|excel|\.xlsx?$/i.test(type + name)) return '📈';
   return '📁';
 };
+function fmtStamp(v) {
+  const d = new Date(v);
+  if (!v || Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('th-TH');
+}
+function driveNote(s) {
+  if (!Sync.user) return 'ยังไม่ล็อกอิน — ไฟล์จะเก็บในเครื่องนี้ กด "ล็อกอินเพื่อ sync" แล้วกด "ย้ายขึ้น Drive" เพื่อให้เห็นบนเครื่องอื่น';
+  if (!driveClientId()) return 'ยังไม่ได้ตั้งค่า Google Client ID — ไฟล์จะเก็บในเครื่องนี้ก่อน (วิธีตั้งอยู่ใน README)';
+  const who = Sync.user.email || Sync.user.displayName || 'บัญชีนี้';
+  return `อัปโหลดขึ้น Google Drive ของ ${who} ในโฟลเดอร์ ${DRIVE_ROOT_NAME} / ${driveFolderLabel(s.name)}`;
+}
+function driveFailToast(e, savedLocal) {
+  const code = e && e.code;
+  let msg = code === 'noconfig' ? 'ยังไม่ได้ตั้งค่า Google Client ID สำหรับ Drive' : ((e && e.message) || 'อัปโหลดขึ้น Drive ไม่สำเร็จ');
+  if (!savedLocal) return msg;
+  if (code === 'offline') return 'ออฟไลน์อยู่ อัปโหลดขึ้น Drive ไม่ได้ เก็บไฟล์ไว้ในเครื่องนี้แล้ว';
+  return msg + ' เก็บไฟล์ไว้ในเครื่องนี้แล้ว';
+}
+function showUploadProgress(done, total, name, ratio, label) {
+  let el = document.getElementById('upProg');
+  if (!el) {
+    const box = document.querySelector('#modalBody .upload-box');
+    if (!box) return;
+    el = document.createElement('div');
+    el.id = 'upProg';
+    el.className = 'up-prog';
+    el.setAttribute('role', 'status');
+    box.insertAdjacentElement('afterend', el);
+  }
+  el.hidden = false;
+  const pct = total ? Math.max(0, Math.min(100, Math.round(((done + Math.max(0, Math.min(1, Number(ratio) || 0))) / total) * 100))) : 0;
+  const text = label || `กำลังอัปโหลด ${Math.min(total, done + 1)}/${total} — ${name}`;
+  el.innerHTML = `<div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div><small class="muted">${esc(text)} (${pct}%)</small>`;
+}
+async function saveLocalFiles(sid, files) {
+  let n = 0;
+  for (const f of files) { try { await FileStore.add(sid, f); n++; } catch { /* device storage full */ } }
+  return n;
+}
+async function runDriveUploads(sid, files, localIds, tokenPromise) {
+  let ok = 0;
+  try {
+    showUploadProgress(0, files.length, files[0].name, 0, 'กำลังขอสิทธิ์ Google Drive…');
+    await tokenPromise;
+    const subject = subjectById(sid);
+    if (!subject) throw Drive.err('ไม่พบวิชานี้แล้ว', 'other');
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      showUploadProgress(i, files.length, f.name, 0);
+      const meta = await Drive.uploadToSubject(subject, f, ratio => showUploadProgress(i, files.length, f.name, ratio));
+      ok++;
+      try {
+        if (localIds && localIds[i]) await FileStore.markDrive(localIds[i], sid, meta.id);
+        else await FileStore.add(sid, f, { driveId: meta.id });
+      } catch { /* Drive copy is enough if this device cannot cache the blob */ }
+    }
+    App.toast(`อัปโหลด ${ok} ไฟล์ขึ้น Drive แล้ว`);
+  } catch (e) {
+    const rest = files.slice(ok);
+    const savedLocal = !localIds && rest.length ? (await saveLocalFiles(sid, rest)) > 0 : false;
+    const extra = ok ? `อัปโหลดได้ ${ok} ไฟล์ แล้วหยุด: ` : '';
+    App.toast(extra + driveFailToast(e, savedLocal), 7000);
+  }
+  return ok;
+}
+let _filesGen = 0;
+function refreshFilesIfOpen() {
+  if (!App.filesSid || App._uploading) return;
+  if (document.querySelector('#modalBody :focus')) return;
+  filesRender();
+}
 async function filesRender() {
+  const gen = ++_filesGen;
   const sid = App.filesSid; if (!sid) return;
   const s = subjectById(sid); if (!s) return;
-  const files = await FileStore.list(sid).catch(() => []);
+  const all = await FileStore.list(sid).catch(() => []);
+  if (gen !== _filesGen || App.filesSid !== sid) return;
+  const local = (all || []).filter(f => f && !f.driveId);
+  const driveFiles = (s.driveFiles || []).filter(f => f && safeDriveId(f.id))
+    .slice().sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
   const links = s.links || [];
+  const signed = !!Sync.user;
+  const driveRow = f => `<div class="item">
+      <span>${fileIcon(f.mimeType, f.name)}</span>
+      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.modifiedTime))}</small></span>
+      <span class="item-actions">
+        <button class="mini-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
+        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}">ลบ</button>
+      </span>
+    </div>`;
+  const localRow = f => `<div class="item">
+      <span>${fileIcon(f.type, f.name)}</span>
+      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small></span>
+      <span class="item-actions">
+        <button class="mini-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
+        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}">⬇️</button>
+        <button class="mini-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
+        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}">✕</button>
+      </span>
+    </div>`;
   setModalBody(`
     <label class="upload-box">
       <input type="file" multiple data-chg="file-upload" hidden>
       <div>📤 <b>เลือกไฟล์จากเครื่อง</b> (PDF, รูปภาพ, สไลด์, เอกสาร — เลือกได้หลายไฟล์)</div>
-      <div class="muted small">เก็บไว้ในเครื่องนี้ เปิดดูและดาวน์โหลดได้แม้ออฟไลน์</div>
+      <div class="muted small">${esc(driveNote(s))}</div>
     </label>
-    <h3>📁 ไฟล์ที่บันทึกไว้ (${files.length})</h3>
-    ${files.length ? files.map(f => `<div class="item">
-      <span>${fileIcon(f.type, f.name)}</span>
-      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(f.size)} · ${new Date(f.addedAt).toLocaleDateString('th-TH')}</small></span>
-      <button class="mini-btn" data-act="file-open" data-id="${f.id}">เปิดดู</button>
-      <button class="mini-btn" data-act="file-dl" data-id="${f.id}">⬇️</button>
-      <button class="mini-btn" data-act="file-del" data-id="${f.id}">✕</button>
-    </div>`).join('') : '<p class="muted small">ยังไม่มีไฟล์</p>'}
+    ${signed ? '' : '<div class="row"><button class="btn small" data-act="login">ล็อกอินเพื่อ sync</button></div>'}
+    <div id="upProg" class="up-prog" role="status" hidden></div>
+    ${signed || driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>
+      ${driveFiles.length ? driveFiles.map(driveRow).join('') : '<p class="muted small">ยังไม่มีไฟล์บน Drive</p>'}` : ''}
+    ${local.length || !driveFiles.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
+      ${local.length ? '<button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button>' : ''}</div>
+      ${local.length ? local.map(localRow).join('') : `<p class="muted small">${signed ? 'ยังไม่มีไฟล์ในเครื่อง' : 'ยังไม่มีไฟล์'}</p>`}` : ''}
     <hr>
     <h3>🔗 ลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
     <form data-form="link-add" class="link-form" novalidate>
@@ -828,12 +923,13 @@ async function filesRender() {
     ${links.length ? links.map(l => `<div class="item">
       <span>🔗</span>
       <a class="grow" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>
-      <button class="mini-btn" data-act="link-del" data-id="${l.id}">✕</button>
+      <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}">✕</button>
     </div>`).join('') : '<p class="muted small">ยังไม่มีลิงก์ (ลิงก์จะ sync ข้ามเครื่องด้วย)</p>'}`);
 }
 function openFilesModal(sid) {
   App.filesSid = sid;
   openModal(`📎 ไฟล์และเอกสาร — ${esc(subjectName(sid))}`, '<p class="muted">กำลังโหลด…</p>', true);
+  if (typeof Drive !== 'undefined') Drive.preload();
   filesRender();
 }
 
@@ -998,6 +1094,55 @@ const Actions = {
     if (!confirm('ลบไฟล์นี้?')) return;
     await FileStore.del(el.dataset.id, App.filesSid);
     filesRender();
+  },
+  'file-drive-open': el => {
+    const id = safeDriveId(el.dataset.id || '');
+    if (!id) return;
+    const w = window.open('https://drive.google.com/file/d/' + id + '/view', '_blank', 'noopener');
+    if (!w) App.toast('เปิดหน้าต่างไม่สำเร็จ อนุญาตป๊อปอัปแล้วลองใหม่');
+  },
+  'file-drive-del': async el => {
+    if (App._uploading) return App.toast('กำลังอัปโหลดอยู่ รอสักครู่');
+    const id = safeDriveId(el.dataset.id || '');
+    if (!id) return;
+    if (!Sync.user) return App.toast('ล็อกอินก่อน เพื่อลบไฟล์บน Drive');
+    try {
+      if (!(Drive.token && Date.now() < Drive.expires - 60000)) await Drive.ensureToken();
+      if (!confirm('ลบไฟล์นี้จาก Google Drive?')) return;
+      await Drive.deleteFile(id);
+      const s = subjectById(App.filesSid);
+      if (s) { s.driveFiles = (s.driveFiles || []).filter(f => f && f.id !== id); save({ silent: true }); }
+      await FileStore.delDriveCache(App.filesSid, id);
+      App.toast('ลบออกจาก Drive แล้ว');
+    } catch (e) { App.toast((e && e.message) || 'ลบไฟล์บน Drive ไม่สำเร็จ', 6000); }
+    filesRender();
+  },
+  'file-migrate': async el => {
+    if (App._uploading) return App.toast('กำลังอัปโหลดอยู่ รอสักครู่');
+    if (!Sync.user) return App.toast('ล็อกอินก่อน เพื่อย้ายไฟล์ขึ้น Google Drive');
+    const pending = Drive.ensureToken();
+    App._uploading = true;
+    try {
+      const rec = await FileStore.get(el.dataset.id);
+      if (!rec || !rec.blob || rec.driveId) { pending.catch(() => { }); return; }
+      await runDriveUploads(App.filesSid, [new File([rec.blob], rec.name || 'ไฟล์', { type: rec.type || '' })], [rec.id], pending);
+    } catch (e) { pending.catch(() => { }); App.toast((e && e.message) || 'ย้ายขึ้น Drive ไม่สำเร็จ', 6000); }
+    finally { App._uploading = false; filesRender(); }
+  },
+  'file-migrate-all': async () => {
+    if (App._uploading) return App.toast('กำลังอัปโหลดอยู่ รอสักครู่');
+    if (!Sync.user) return App.toast('ล็อกอินก่อน เพื่อย้ายไฟล์ขึ้น Google Drive');
+    const pending = Drive.ensureToken();
+    const sid = App.filesSid;
+    App._uploading = true;
+    try {
+      const all = await FileStore.list(sid);
+      const local = (all || []).filter(f => f && !f.driveId && f.blob);
+      if (!local.length) { pending.catch(() => { }); App.toast('ไม่มีไฟล์ในเครื่องให้ย้าย'); return; }
+      const files = local.map(r => new File([r.blob], r.name || 'ไฟล์', { type: r.type || '' }));
+      await runDriveUploads(sid, files, local.map(r => r.id), pending);
+    } catch (e) { pending.catch(() => { }); App.toast((e && e.message) || 'ย้ายขึ้น Drive ไม่สำเร็จ', 6000); }
+    finally { App._uploading = false; filesRender(); }
   },
   'link-del': el => {
     const s = subjectById(App.filesSid); if (!s) return;
@@ -1299,11 +1444,20 @@ const Changes = {
     saveAICfg(); if (!DB.ai?.sync) App.render();
   },
   'file-upload': async el => {
-    const files = [...(el.files || [])]; if (!files.length || !App.filesSid) return;
-    for (const f of files) await FileStore.add(App.filesSid, f);
+    const files = [...(el.files || [])];
     el.value = '';
-    App.toast(`บันทึก ${files.length} ไฟล์แล้ว 📎`);
-    filesRender();
+    const sid = App.filesSid;
+    if (!files.length || !sid || App._uploading) return;
+    if (!Sync.user) {
+      const n = await saveLocalFiles(sid, files);
+      App.toast(n ? `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว — ล็อกอินเพื่ออัปโหลดขึ้น Drive` : 'บันทึกไฟล์ในเครื่องไม่สำเร็จ');
+      filesRender();
+      return;
+    }
+    const pending = Drive.ensureToken();
+    App._uploading = true;
+    try { await runDriveUploads(sid, files, null, pending); }
+    finally { App._uploading = false; filesRender(); }
   },
   'exam-img': el => {
     const file = el.files?.[0]; if (!file) return;

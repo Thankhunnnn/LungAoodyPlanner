@@ -59,8 +59,13 @@ const Sync = {
       this.auth.onAuthStateChanged(u => {
         this.user = u;
         if (this.unsub) { this.unsub(); this.unsub = null; }
-        if (u) this.listen(); else this.setStatus('signedout');
+        if (u) this.listen();
+        else {
+          if (typeof Drive !== 'undefined') Drive.clear();
+          this.setStatus('signedout');
+        }
         App.render();
+        if (typeof refreshFilesIfOpen === 'function') refreshFilesIfOpen();
       });
     } catch (e) { this.setStatus('error', e.message); }
   },
@@ -74,7 +79,7 @@ const Sync = {
       App.toast('ล็อกอินไม่สำเร็จ: ' + e.message);
     }
   },
-  logout() { if (this.auth) this.auth.signOut(); },
+  logout() { if (typeof Drive !== 'undefined') Drive.clear(); if (this.auth) this.auth.signOut(); },
 
   listen() {
     this.ref = this.db.collection('users').doc(this.user.uid);

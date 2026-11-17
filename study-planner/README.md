@@ -53,8 +53,31 @@
 7. ในแอป ไปที่ **ตั้งค่า → Sync ข้ามเครื่อง** → วาง config → กด *บันทึกและเชื่อมต่อ* → *ล็อกอินด้วย Google*
 8. ทำข้อ 7 ในทุกเครื่องที่จะใช้ (ล็อกอิน Google บัญชีเดียวกัน) ข้อมูลจะ sync อัตโนมัติ
 
-> ข้อมูลที่ sync: วิชา บท โน้ต ตาราง การบ้าน เวลาอ่าน แฟลชการ์ด และการตั้งค่า
-> **ไม่ sync**: API key ของ AI และประวัติแชท (เก็บเฉพาะเครื่องเพื่อความปลอดภัย)
+> ข้อมูลที่ sync: วิชา บท โน้ต ตาราง การบ้าน เวลาอ่าน แฟลชการ์ด การตั้งค่า และรายการไฟล์บน Drive (รหัสไฟล์)
+> **ไม่ sync**: ตัวไฟล์ที่ยังอยู่แค่ในเครื่อง, API key ของ AI และประวัติแชท
+
+## 3.1) ให้ไฟล์ของแต่ละวิชาขึ้น Google Drive ของผู้ใช้
+ล็อกอิน Google ในแอป (ปุ่ม **ล็อกอินเพื่อ sync**) อย่างเดียวยังอัปโหลดไฟล์ไม่ได้ ต้องมี **OAuth Web client ID** คนละค่ากับ `apiKey` ของ Firebase
+
+ค่าที่ใช้อยู่ในโค้ดคือค่าว่าง `GOOGLE_DRIVE_CLIENT_ID` ใน `js/drive.js` อย่าใส่ key มั่ว ขั้นตอนใน Google Cloud Console (โปรเจกต์เดียวกับ Firebase `buddy-4a1c4`):
+
+1. เปิด https://console.cloud.google.com แล้วเลือกโปรเจกต์ `buddy-4a1c4`
+2. เปิด **Google Drive API**: APIs & Services → Library → ค้น *Google Drive API* → Enable
+3. ถ้ายังไม่เคยตั้งค่าจอขอสิทธิ์: **Google Auth platform → Branding** → Get started → ชื่อแอป `LungAoodyPlanner`, อีเมลซัพพอร์ต, Audience เป็น **External**, ยอมรับนโยบาย แล้ว Create (ข้ามการเพิ่ม scope ได้)
+4. **Google Auth platform → Audience**: ถ้าสถานะเป็น Testing ให้เพิ่ม Gmail ที่จะใช้งานใน Test users หรือกด **Publish app** (scope `drive.file` ไม่ sensitive ไม่ต้องยื่น verify)
+5. **Google Auth platform → Clients → Create Client → Web application** (หรือเปิด Web client ที่ Firebase สร้างไว้อยู่แล้ว แล้วแก้ origins)
+   - **Authorized JavaScript origins** ใส่ทีละบรรทัด ห้ามใส่ `*` (Google ไม่รับ wildcard):
+     - `https://lungaoodyplanner.netlify.app`
+     - `http://localhost:8080`
+     - preview ของแต่ละ PR ทั้งก้อน เช่น `https://deploy-preview-12--lungaoodyplanner.netlify.app` (เลข PR จริง, ไม่มี path)
+   - **Authorized redirect URIs** เว้นว่างได้ (แอปใช้ GIS token client ในเบราว์เซอร์)
+6. คัดลอก **Client ID** ที่ลงท้าย `.apps.googleusercontent.com` ไปใส่ใน `study-planner/js/drive.js`:
+   `const GOOGLE_DRIVE_CLIENT_ID = '....apps.googleusercontent.com';`
+   แล้ว deploy ใหม่
+7. ในแอป ล็อกอินด้วย Google → เปิดวิชา → **ไฟล์และเอกสาร** → เลือกไฟล์ ครั้งแรก Google จะถามสิทธิ์ดู/สร้างเฉพาะไฟล์ที่แอปนี้ใช้ ต้องกดอนุญาตด้วยบัญชีเดียวกับที่ล็อกอิน
+8. ไฟล์จะอยู่ที่ My Drive → `LungAoodyPlanner` → ชื่อวิชา เครื่องอื่นที่ล็อกอินบัญชีเดียวกันจะเห็นรายการเดียวกัน
+
+ถ้ายังไม่ใส่ Client ID แอปจะเก็บไฟล์ในเครื่องนี้เหมือนเดิม และขึ้นข้อความภาษาไทยบอกเหตุผล
 
 ## 4) ตั้งค่า AI
 **Gemini (แนะนำ, มีโควตาฟรี)**: https://aistudio.google.com/apikey → Create API key → วางใน *ตั้งค่า → AI*
@@ -74,6 +97,7 @@ js/store.js                 ข้อมูล + ฟังก์ชันวั�
 js/scheduler.js             จัดตารางอัตโนมัติ
 js/ai.js                    เชื่อม Gemini / OpenAI
 js/sync.js                  Firebase sync
+js/drive.js                 อัปโหลดไฟล์ขึ้น Google Drive ของผู้ใช้
 js/services.js              แจ้งเตือน + Pomodoro
 js/app.js                   หน้าจอทั้งหมด
 sw.js, manifest.json        ติดตั้งเป็นแอป / ใช้ออฟไลน์
