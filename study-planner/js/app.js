@@ -79,12 +79,13 @@ const App = {
       const cur = ALL_TABS.find(x => x[0] === this.tab) || ALL_TABS[0];
       left = `<div class="hello compact"><button class="avatar avatar-btn" data-act="go" data-tab="home" title="หน้าแรก">${avatarImg()}</button><h1>${cur[1]} ${cur[2]}</h1></div>`;
     }
+    const isDark = DB.prefs.dark || DB.prefs.theme === 'navy';
     return `${left}
       <div class="head-actions">
         <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" style="display:${Timer.running ? '' : 'none'}">⏱</button>
         ${this.syncBadgeHTML()}
-        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า">⚙️</button>
-        <button class="icon-btn" data-act="toggle-dark" title="โหมดมืด">${DB.prefs.dark ? '☀️' : '🌙'}</button>
+        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">⚙️</button>
+        <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? '☀️' : '🌙'}</button>
       </div>`;
   },
 
@@ -342,19 +343,19 @@ const Views = {
         <div class="subj-head">
           <div class="grow"><h3>${esc(s.name)}</h3>
             <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
-          <button class="mini-btn" data-act="edit-subject" data-id="${s.id}">✎ แก้ไข</button>
-          <button class="mini-btn" data-act="del-subject" data-id="${s.id}">🗑</button>
+          <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวิชา ${esc(s.name)}">✎ แก้ไข</button>
+          <button class="mini-btn" data-act="del-subject" data-id="${s.id}" aria-label="ลบวิชา ${esc(s.name)}">🗑</button>
         </div>
         <div class="prog-top"><span>ความคืบหน้า</span><span>${p.done}/${p.total} บท (${p.pct}%)</span></div>
         ${progressBar(p.pct, s.color)}
         <div class="chapters">${s.chapters.map((c, i) => `<div class="item ${c.done ? 'done' : ''}">
-            <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''}>
+            <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">${esc(c.title)}</span>
             <span class="item-actions">
-            <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต">📝${c.note ? '' : '+'}</button>
-            <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
-            <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}">✎</button>
-            <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}">✕</button>
+            <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">📝${c.note ? '' : '+'}</button>
+            <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">↑</button>
+            <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">✎</button>
+            <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">✕</button>
             </span>
           </div>`).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
         <div class="row wrap">
@@ -590,7 +591,7 @@ const Views = {
     return `
     
     <section class="card"><h2>👤 ทั่วไป</h2>
-      <form data-form="name" class="row"><input name="name" placeholder="ชื่อเล่น" value="${esc(DB.name)}"><button class="btn small">บันทึก</button></form>
+      <form data-form="name" class="row" novalidate><input name="name" required aria-label="ชื่อเล่น" placeholder="ชื่อเล่น" value="${esc(DB.name)}"><button class="btn small">บันทึก</button></form>
     </section>
 
     <section class="card"><h2>🎨 ธีม</h2>
@@ -679,8 +680,8 @@ function taskItemHTML(x) {
     <span>${x.type === 'event' ? '📌' : '📝'}</span>
     ${x.subjectId ? tag(x.subjectId) : ''}
     <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
-    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}">✎</button>
-    <button class="mini-btn" data-act="del-task" data-id="${x.id}">✕</button></span>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">✎</button>
+    <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">✕</button></span>
   </div>`;
 }
 
@@ -692,7 +693,7 @@ function subjectForm(s = {}) {
     <div class="row wrap">
       ${dateField('วันสอบ', 'examDate', s.examDate || '')}
       <label class="field">เวลา<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
-      <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น อ่านเอง, ห้อง 301"></label>
+      <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น ห้อง 301"></label>
     </div>
     <div class="field">สี<div class="colors">${SUBJECT_COLORS.map((c, i) => `<label class="color-dot" style="--c:${c}" aria-label="เลือกสีที่ ${i + 1}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''} aria-label="เลือกสีที่ ${i + 1}"><span></span></label>`).join('')}
       <input type="color" name="customColor" value="${color}" title="สีอื่น" data-chg="custom-color"></div></div>

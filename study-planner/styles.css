@@ -95,7 +95,7 @@ button.avatar { border: none; cursor: pointer; }
 .icon-btn.active { background: var(--soft2); border-color: var(--accent); color: var(--accent); }
 
 /* nav */
-.nav { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 14px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 2px 14px; }
 .nav::-webkit-scrollbar { display: none; height: 0; }
 .tab {
   flex: 0 0 auto;
@@ -123,7 +123,7 @@ html[data-theme="navy"] .tab.active { background: #3b82f6; color: #fff; border-c
   .tab { justify-content: center; padding: 7px 4px; font-size: .78rem; gap: 4px; }
   .hello h1 { font-size: 1.2rem; }
   .app { padding-bottom: 90px; }
-  .mini-btn { min-width: 36px; min-height: 36px; }
+  .mini-btn { min-width: 40px; min-height: 40px; }
   .item { flex-wrap: wrap; align-items: flex-start; }
   .item .grow { flex: 1 1 auto; min-width: 0; }
   .item-actions { display: flex; flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
@@ -170,7 +170,7 @@ h1, h2, h3, .cd-name, .prog-top span, .tag, .subj-head h3 { overflow-wrap: break
 .btn.big { padding: 12px 28px; font-size: 1.05rem; }
 .btn.full { width: 100%; margin-top: 10px; }
 .icon-btn { background: var(--card); border: 1px solid var(--border); border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 1rem; color: var(--text); display: grid; place-items: center; flex-shrink: 0; }
-.mini-btn { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 4px 7px; border-radius: 8px; font: inherit; font-size: .85rem; white-space: nowrap; min-width: 34px; min-height: 34px; display: inline-flex; align-items: center; justify-content: center; }
+.mini-btn { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 4px 7px; border-radius: 8px; font: inherit; font-size: .85rem; white-space: nowrap; min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .mini-btn:hover:not(:disabled) { background: var(--soft); color: var(--accent); }
 .mini-btn:disabled { opacity: .3; }
 .mini-btn.has { color: var(--accent); }
@@ -465,11 +465,13 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
   html[data-home="1"] .coach-hero, html[data-home="1"] .coach-footer { display: none; }
   html[data-home="1"] .coach-moto { display: block; left: 10px; bottom: 12px; width: 190px; height: 154px; }
   .app { padding-bottom: 190px; }
+}
+@media (min-width: 1360px) {
   .sticker { display: block; }
   .s-rocket { top: 10px; left: 12px; width: 52px; height: 78px; background-image: url('assets/sticker-rocket.webp'); transform: rotate(16deg); }
-  .s-book { top: 92px; left: 28px; width: 70px; height: 60px; background-image: url('assets/sticker-book.webp'); transform: rotate(-8deg); }
+  .s-book { top: 92px; left: 18px; width: 64px; height: 54px; background-image: url('assets/sticker-book.webp'); transform: rotate(-8deg); }
   .s-pencil { top: 16px; right: 18px; width: 46px; height: 64px; background-image: url('assets/sticker-pencil.webp'); transform: rotate(-18deg); }
-  .s-sakura { top: 96px; right: 22px; width: 72px; height: 64px; background-image: url('assets/sticker-sakura.webp'); transform: rotate(8deg); }
+  .s-sakura { top: 96px; right: 18px; width: 68px; height: 60px; background-image: url('assets/sticker-sakura.webp'); transform: rotate(8deg); }
 }
 @media (min-width: 1560px) {
   .coach-moto { display: block; left: 10px; bottom: 12px; width: 190px; height: 154px; }
