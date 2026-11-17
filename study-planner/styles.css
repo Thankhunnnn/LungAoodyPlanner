@@ -150,14 +150,13 @@ small, .small { font-size: .82rem; }
 /* header */
 .header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 6px 2px 12px; }
 .header.compact { padding: 2px 2px 8px; }
-.hello { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 200px; }
+.hello { display: flex; align-items: center; gap: 12px; flex: 1 1 340px; min-width: 0; }
 .hello.compact { gap: 10px; min-width: 150px; }
 .hello.compact h1 { font-size: 1.15rem; }
 .hello h1 { margin: 0; }
 .hello p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
-.hello-smart { flex-wrap: nowrap; gap: 10px 12px; }
-@media (max-width: 560px) { .hello-smart { flex-wrap: wrap; } }
-.smart-next { flex: 1; min-width: 170px; }
+.hello-smart { flex-wrap: wrap; gap: 10px 12px; }
+.smart-next { flex: 1 1 180px; min-width: 0; }
 .smart-next-top { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
 .smart-badge {
   display: inline-flex; align-items: center; gap: 4px;
