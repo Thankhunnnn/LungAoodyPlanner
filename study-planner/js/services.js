@@ -64,7 +64,7 @@ const Notifier = {
 /* ===== Pomodoro timer ===== */
 const Timer = {
   mode: 'work', endAt: 0, remaining: null, running: false, round: 0, subjectId: '', startedAt: 0,
-  dur(m = this.mode) { const p = DB.prefs.pomo; return (m === 'work' ? p.work : m === 'short' ? p.short : p.long) * 60; },
+  dur(m = this.mode) { const p = DB.prefs.pomo; return (m === 'short' ? p.short : m === 'long' ? p.long : p.work) * 60; },
   left() { return this.running ? Math.max(0, Math.round((this.endAt - Date.now()) / 1000)) : (this.remaining ?? this.dur()); },
   elapsedMin() { return Math.floor((this.dur() - this.left()) / 60); },
   start() {

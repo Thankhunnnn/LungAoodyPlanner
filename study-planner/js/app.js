@@ -92,8 +92,21 @@ const App = {
     const hdr = document.getElementById('header');
     hdr.classList.toggle('compact', this.tab !== 'home');
     hdr.innerHTML = this.headerHTML();
-    document.getElementById('nav').innerHTML = ALL_TABS.map(([id, ic, label]) =>
-      `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('');
+    const nextEx = upcomingExams()[0];
+    document.getElementById('nav').innerHTML = `
+      <div class="side-brand"><span class="side-logo">🐃</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
+      <div class="side-tabs">${ALL_TABS.map(([id, ic, label]) =>
+        `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('')}</div>
+      <div class="side-cards">
+        <div class="side-quote">
+          <img src="assets/coach-moto.webp" alt="อู๊ด">
+          <div class="side-quote-txt"><b>Keep going!</b><small>สู้ๆ ครับ ✨</small></div>
+        </div>
+        <button type="button" class="side-goal" data-act="go" data-tab="subjects">
+          <span class="side-goal-ic">${ico('target', 17)}</span>
+          <div class="side-quote-txt"><b>เป้าหมายถัดไป</b><small>${nextEx ? esc(nextEx.name) : 'เพิ่มวิชาสอบ'}</small></div>
+        </button>
+      </div>`;
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
     syncGutters();
@@ -106,7 +119,10 @@ const App = {
     const ring = document.getElementById('timerRing');
     if (ring) ring.style.setProperty('--p', (1 - sec / Timer.dur()) * 100);
     const btn = document.getElementById('timerStartBtn');
-    if (btn) { btn.innerHTML = Timer.running ? `${ico('pause')} หยุดชั่วคราว` : `${ico('play')} เริ่ม`; btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start'; }
+    if (btn) {
+      btn.innerHTML = btn.dataset.mini ? (Timer.running ? ico('pause', 13) : ico('play', 13)) : (Timer.running ? `${ico('pause')} หยุดชั่วคราว` : `${ico('play')} เริ่ม`);
+      btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start';
+    }
     const mini = document.getElementById('timerMini');
     if (mini) { mini.innerHTML = `${ico('clock', 14)} ${txt}`; mini.hidden = !Timer.running; }
     document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
@@ -133,6 +149,7 @@ const App = {
     const isDark = DB.prefs.dark || DB.prefs.theme === 'navy';
     return `${left}
       <div class="head-actions">
+        <span class="chip date-pill">${ico('calendar', 14)} ${fmtDateLong(t)}</span>
         <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" aria-label="ตัวจับเวลา" ${Timer.running ? '' : 'hidden'}>${ico('clock', 14)}</button>
         ${this.syncBadgeHTML()}
         <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
@@ -316,44 +333,205 @@ const Views = {
     const dow = new Date().getDay();
     const todayClasses = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
 
+    const totCh = DB.subjects.reduce((a, s) => a + subjectProgress(s).total, 0);
+    const doneCh = DB.subjects.reduce((a, s) => a + subjectProgress(s).done, 0);
+    const overallPct = totCh ? Math.round(doneCh / totCh * 100) : 0;
+    const nextEx = exams[0];
+    const nextDays = nextEx ? daysBetween(t, nextEx.examDate) : null;
+    const todayMin = minutesOn(t);
+    const todayHrs = (todayMin / 60).toFixed(1).replace(/\.0$/, '');
+    const goalHrs = Math.max(1, Math.round((DB.prefs.dailyGoalMin || 180) / 60));
+    const todayHrPct = Math.min(100, Math.round((todayMin / (goalHrs * 60)) * 100));
+    const pendingCount = overdue.length + today.filter(p => !p.done).length + soonTasks.length;
+    const pendingPct = Math.min(100, pendingCount * 15);
+
+    // Mini Calendar for current month
+    const nowD = parseDate(t);
+    const yr = nowD.getFullYear(), mo = nowD.getMonth();
+    const firstDow = new Date(yr, mo, 1).getDay();
+    const daysInMo = new Date(yr, mo + 1, 0).getDate();
+    const prevDays = new Date(yr, mo, 0).getDate();
+    const calCells = [];
+    for (let i = firstDow - 1; i >= 0; i--) calCells.push({ day: prevDays - i, muted: true, iso: '' });
+    for (let d = 1; d <= daysInMo; d++) {
+      const iso = `${yr}-${pad(mo + 1)}-${pad(d)}`;
+      const hasPlan = DB.plan.some(p => p.date === iso);
+      const hasTask = DB.tasks.some(x => x.date === iso);
+      const hasExam = DB.subjects.some(s => s.examDate === iso);
+      calCells.push({ day: d, muted: false, iso, isToday: iso === t, hasPlan, hasTask, hasExam });
+    }
+    while (calCells.length % 7 !== 0) calCells.push({ day: calCells.length % 7 + 1, muted: true, iso: '' });
+
+    // Today's combined todo items (up to 4)
+    const todayTodos = [
+      ...today.map(p => ({ kind: 'plan', item: p })),
+      ...soonTasks.map(x => ({ kind: 'task', item: x }))
+    ].slice(0, 4);
+
+    // 7-day forecast strip
+    const forecast = [...Array(7)].map((_, i) => {
+      const d = addDays(t, i);
+      const cnt = planForDate(d).length;
+      const lbl = i === 0 ? 'วันนี้' : i === 1 ? 'พรุ่งนี้' : TH_DAYS[parseDate(d).getDay()];
+      return { d, lbl, cnt, isToday: i === 0 };
+    });
+
+    // Sparkline SVG points for 7-day week minutes
+    const maxW = Math.max(30, ...week.map(w => w.value));
+    const pts = week.map((w, i) => `${Math.round(i * (220 / 6) + 10)},${Math.round(52 - (w.value / maxW) * 38)}`).join(' ');
+    const areaPts = `10,56 ${pts} 230,56`;
+
+    // Pomodoro live state
+    const sec = Timer.left(), timerTxt = `${pad(Math.floor(sec / 60))}:${pad(sec % 60)}`;
+    const timerPct = Math.round((1 - sec / Timer.dur()) * 100);
+    const pomoCfg = DB.prefs.pomo || { work: 25, short: 5, long: 15 };
+
     return `
-    ${coachHeroHTML()}
-    ${todayClasses.length ? `<section class="card">
-      <div class="card-head"><h2>🗓️ ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go-timetable">ดูทั้งหมด</button></div>
+    <div class="ref-row1">
+      <section class="card ref-banner">
+        <div class="ref-banner-body">
+          <div class="ref-banner-title"><span class="ref-target">${ico('target', 16)}</span> <span>เป้าหมายหลักของคุณ</span></div>
+          <h2>${nextEx ? `${esc(nextEx.name)} · อีก ${nextDays} วันสอบ` : 'อ่านหนังสือให้ครบตามเป้า'}</h2>
+          <p class="banner-sub">${DB.subjects.length} วิชา · อ่านจบแล้ว ${doneCh}/${totCh} บท (${overallPct}%)</p>
+          <button class="btn small ref-cta" data-act="go" data-tab="plan">ดูแผนทั้งหมด →</button>
+        </div>
+        <img class="bento-mascot" src="assets/coach-hero-real.webp" alt="อู๊ด">
+      </section>
+
+      <section class="card ref-kpi">
+        <div class="kpi-ic kpi-blue">${ico('book', 17)}</div>
+        <div class="kpi-lbl">งานที่ค้าง</div>
+        <div class="kpi-val stat-num">${pendingCount} <small>รายการ</small></div>
+        <div class="bar-bg"><div class="bar-fill kpi-bar-purple" style="width:${pendingPct}%"></div></div>
+      </section>
+
+      <section class="card ref-kpi" data-act="go" data-tab="subjects" style="cursor:pointer">
+        <div class="kpi-ic kpi-indigo">${ico('calendar', 17)}</div>
+        <div class="kpi-lbl">สอบวิชาถัดไป</div>
+        <div class="kpi-val stat-num">${nextEx ? esc(fmtDate(nextEx.examDate)) : '—'}</div>
+        <div class="muted small">${nextEx ? esc(nextEx.name) : 'ยังไม่มีวันสอบ'}</div>
+      </section>
+
+      <section class="card ref-kpi">
+        <div class="kpi-ic kpi-green">${ico('clock', 17)}</div>
+        <div class="kpi-lbl">เวลาอ่านวันนี้</div>
+        <div class="kpi-val stat-num">${todayHrs} <small>/ ${goalHrs} ชม.</small></div>
+        <div class="bar-bg"><div class="bar-fill kpi-bar-green" style="width:${todayHrPct}%"></div></div>
+      </section>
+    </div>
+
+    ${todayClasses.length ? `<section class="card" style="margin-bottom:14px;padding:12px 16px">
+      <div class="card-head" style="margin-bottom:8px"><h2>${ico('calendar', 17)} ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go-timetable">ดูทั้งหมด</button></div>
       <div class="tt-strip">${todayClasses.map(c => {
         const col = classColor(c), nm = className(c);
         return `<div class="tt-pill" style="--c:${col}"><b>${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</b> ${esc(nm)}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</div>`;
       }).join('')}</div>
     </section>` : ''}
-    <section class="card">
-      <h2>⏰ นับถอยหลังสอบ</h2>
-      ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty('🎉', 'ไม่มีสอบที่กำลังจะมาถึง')}
-    </section>
 
-    <div class="grid2 home-split">
-      <section class="card today">
-        <div class="card-head"><h2>📌 ตารางวันนี้ <small class="muted">(${fmtDateLong(t)})</small></h2>
-          <span class="chip">${doneToday}/${today.length}</span></div>
-        ${today.length ? today.map(p => planItemHTML(p)).join('') : empty('📖', 'วันนี้ยังไม่มีแผนอ่าน — เพิ่มแผนหรือคุยกับอู๊ดได้เลย', `<button class="btn" data-act="add-plan" data-date="${t}">+ เพิ่มแผนอ่านวันนี้</button>`, 'assets/coach-moto.webp')}
-        ${overdue.length ? `<div class="warn-box">มีรายการค้าง ${overdue.length} อย่าง <button class="link" data-act="go" data-tab="plan">ดูในตารางอ่าน</button></div>` : ''}
+    <div class="ref-row2">
+      <section class="card ref-cal">
+        <div class="card-head">
+          <h2>${ico('calendar', 17)} ปฏิทินการเรียน</h2>
+          <button class="mini-btn" data-act="go" data-tab="calendar">${TH_MONTHS[mo]} ${yr + 543} ›</button>
+        </div>
+        <div class="mini-cal-grid">
+          ${['อา','จ','อ','พ','พฤ','ศ','ส'].map(d => `<span class="mc-hd">${d}</span>`).join('')}
+          ${calCells.map(c => `<button type="button" class="mc-day ${c.muted ? 'muted' : ''} ${c.isToday ? 'today' : ''}" data-act="go" data-tab="calendar">
+            <span>${c.day}</span>
+            <span class="mc-dots">${c.hasPlan ? '<i class="d-blue"></i>' : ''}${c.hasTask ? '<i class="d-amber"></i>' : ''}${c.hasExam ? '<i class="d-purple"></i>' : ''}</span>
+          </button>`).join('')}
+        </div>
+        <div class="mc-legend">
+          <span><i class="d-blue"></i> อ่านหนังสือ</span>
+          <span><i class="d-purple"></i> วันสอบ</span>
+          <span><i class="d-amber"></i> การบ้าน</span>
+        </div>
       </section>
-      <section class="card">
-        <div class="card-head"><h2>📝 การบ้าน / งานใกล้ถึง</h2><button class="mini-btn" data-act="add-task">+ เพิ่ม</button></div>
-        ${soonTasks.length ? soonTasks.map(taskItemHTML).join('') : empty('☕', 'ไม่มีงานใน 7 วันนี้ พักผ่อนได้สบายเลย!', '', 'assets/coach-action.webp')}
+
+      <section class="card ref-todos">
+        <div class="card-head">
+          <h2>${ico('check', 17)} งานที่ต้องทำวันนี้</h2>
+          <span class="chip accent">${todayTodos.length} รายการ</span>
+        </div>
+        <div class="ref-todo-list">
+          ${todayTodos.length ? todayTodos.map(t0 => t0.kind === 'plan' ? planItemHTML(t0.item) : taskItemHTML(t0.item)).join('')
+            : empty('', 'วันนี้ยังไม่มีรายการ', `<button class="btn small" data-act="add-plan" data-date="${t}">${ico('plus', 14)} เพิ่มแผนอ่านวันนี้</button>`, 'assets/coach-action.webp')}
+        </div>
+        <div class="ref-todo-foot">
+          <button class="btn ghost full" data-act="go" data-tab="plan">ดูงานทั้งหมด →</button>
+        </div>
+      </section>
+
+      <section class="card ref-stats">
+        <div class="card-head">
+          <h2>${ico('chart', 17)} สถิติการเรียน</h2>
+          <button class="mini-btn" data-act="go" data-tab="stats">สัปดาห์นี้ ▾</button>
+        </div>
+        <div class="ref-stats-top">
+          <div class="donut-ring" style="--p:${overallPct}">
+            <div class="donut-inner"><b class="stat-num">${overallPct}%</b><small class="muted">ความพร้อม</small></div>
+          </div>
+          <div class="ref-stats-leg">
+            <div><span class="leg-dot d-blue"></span>อ่านจบแล้ว <b>${doneCh} บท</b></div>
+            <div><span class="leg-dot d-purple"></span>เหลืออ่าน <b>${Math.max(0, totCh - doneCh)} บท</b></div>
+            <div><span class="leg-dot d-amber"></span>สัปดาห์นี้ <b>${fmtMin(weekTotal)}</b></div>
+          </div>
+        </div>
+        <svg class="sparkline" viewBox="0 0 240 60" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ea8ff" stop-opacity=".45"/><stop offset="100%" stop-color="#4ea8ff" stop-opacity="0"/></linearGradient></defs>
+          <polygon points="${areaPts}" fill="url(#spGrad)"/>
+          <polyline points="${pts}" fill="none" stroke="#4ea8ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="spark-days">${week.map(w => `<span>${w.label}</span>`).join('')}</div>
       </section>
     </div>
 
-    <div class="grid2">
-      <section class="card">
-        <h2>📊 ความคืบหน้าแต่ละวิชา</h2>
-        ${DB.subjects.map(s => { const p = subjectProgress(s); return `<div class="prog-row" data-act="open-subject" data-id="${s.id}">
-          <div class="prog-top"><span style="color:${safeColor(s.color)}">${esc(s.name)}</span><span class="muted">${p.done}/${p.total}</span></div>
-          ${progressBar(p.pct, s.color)}</div>`; }).join('')}
+    <div class="ref-row3">
+      <section class="card ref-sched">
+        <div class="card-head">
+          <h2>${ico('book', 17)} ตารางอ่านหนังสือ</h2>
+          <button class="mini-btn" data-act="go" data-tab="plan">ดูทั้งหมด →</button>
+        </div>
+        <div class="forecast-grid">
+          ${forecast.map(f => `<button type="button" class="fc-pill ${f.isToday ? 'active' : ''}" data-act="go" data-tab="plan">
+            <small>${f.lbl}</small>
+            <b>${f.cnt ? `${f.cnt} บท` : 'ว่าง'}</b>
+          </button>`).join('')}
+        </div>
       </section>
-      <section class="card">
-        <div class="card-head"><h2>⏱️ สัปดาห์นี้อ่านไป</h2><span class="chip accent">${fmtMin(weekTotal)}</span></div>
-        ${barChart(week, v => Math.round(v / 6) / 10 + 'h')}
-        <button class="btn ghost full" data-act="go" data-tab="timer">เริ่มจับเวลาอ่าน ▶</button>
+
+      <section class="card ref-pomo">
+        <div class="card-head">
+          <h2>${ico('clock', 17)} Pomodoro</h2>
+          <button class="mini-btn" data-act="go" data-tab="timer" aria-label="ตั้งค่าจับเวลา">${ico('settings', 16)}</button>
+        </div>
+        <div class="pomo-mini-body">
+          <div class="pomo-ring" id="timerRing" style="--p:${timerPct}">
+            <div class="pomo-inner">
+              <b id="timerDisplay" class="stat-num">${timerTxt}</b>
+              <button type="button" id="timerStartBtn" class="pomo-play" data-mini="1" data-act="${Timer.running ? 'timer-pause' : 'timer-start'}" aria-label="เริ่มหรือหยุด">${Timer.running ? ico('pause', 13) : ico('play', 13)}</button>
+            </div>
+          </div>
+          <div class="pomo-modes">
+            <button type="button" class="pomo-m ${Timer.mode === 'work' ? 'active' : ''}" data-act="timer-mode" data-mode="work">โฟกัส ${pomoCfg.work || 25} นาที</button>
+            <button type="button" class="pomo-m ${Timer.mode === 'short' ? 'active' : ''}" data-act="timer-mode" data-mode="short">พัก ${pomoCfg.short || 5} นาที</button>
+            <button type="button" class="pomo-m ${Timer.mode === 'long' ? 'active' : ''}" data-act="timer-mode" data-mode="long">พักยาว ${pomoCfg.long || 15} นาที</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card ref-ai">
+        <div class="card-head">
+          <h2>${ico('sparkles', 17)} AI Assistant</h2>
+          <span class="chip accent">อู๊ดเอไอ</span>
+        </div>
+        <div class="ref-ai-body">
+          <img src="assets/ooo-chat.webp" alt="อู๊ดเอไอ">
+          <div class="ref-ai-txt">
+            <p>พร้อมลุยต่อไหมครับ? วันนี้มี <b>${today.length + soonTasks.length}</b> งานรอคุณอยู่!</p>
+            <button class="btn small full" data-act="go" data-tab="ai">คุยกับ AI →</button>
+          </div>
+        </div>
       </section>
     </div>`;
   },
@@ -1731,7 +1909,7 @@ const Actions = {
   'timer-reset': () => Timer.reset(),
   'timer-stoplog': () => Timer.stopAndLog(),
   'timer-skip': () => { Timer.mode = Timer.mode === 'work' ? 'short' : 'work'; Timer.reset(); App.render(); },
-  'timer-mode': el => { Timer.setMode(el.dataset.mode); App.render(); },
+  'timer-mode': el => { Timer.setMode(el.dataset.mode || el.dataset.m || 'work'); App.render(); },
   'del-session': el => { DB.sessions = DB.sessions.filter(x => x.id !== el.dataset.id); save(); },
 
   // stats
