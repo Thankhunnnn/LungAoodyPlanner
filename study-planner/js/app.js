@@ -4,19 +4,23 @@ const THEMES = [
   ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
-  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['timetable', '🗓️', 'ตารางเรียน'], ['subjects', '📚', 'วิชา'], ['calendar', '📅', 'ปฏิทิน'],
+  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'วิชา'], ['calendar', '📅', 'ปฏิทิน'],
   ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🐃', 'อู๊ดเอไอ'],
 ];
 const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
 
 const App = {
-  tab: 'home', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
+  tab: 'home', calView: 'timetable', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
   aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
 
   init() {
     this.applyTheme();
-    const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
-    window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
+    const setHash = h => {
+      if (h === 'timetable') { this.tab = 'calendar'; this.calView = 'timetable'; return; }
+      if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
+    };
+    setHash(location.hash.slice(1));
+    window.addEventListener('hashchange', () => { setHash(location.hash.slice(1)); this.render(); });
     changeListeners.push(() => { this.applyTheme(); this.render(); refreshFilesIfOpen(); });
     bindEvents();
     this.render();
@@ -257,7 +261,7 @@ const Views = {
     return `
     ${coachHeroHTML()}
     ${todayClasses.length ? `<section class="card">
-      <div class="card-head"><h2>🗓️ ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go" data-tab="timetable">ดูทั้งหมด</button></div>
+      <div class="card-head"><h2>🗓️ ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go-timetable">ดูทั้งหมด</button></div>
       <div class="tt-strip">${todayClasses.map(c => {
         const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
         const nm = c.title || subjectName(c.subjectId);
@@ -337,45 +341,6 @@ const Views = {
       ${App.showPast ? past.sort((a, b) => b.date.localeCompare(a.date)).map(p => planItemHTML(p, true)).join('') : ''}</section>` : ''}`;
   },
 
-  timetable() {
-    const classes = DB.classes || [];
-    const dow = new Date().getDay();
-    const daysOrder = [1, 2, 3, 4, 5, ...(classes.some(c => c.day === 6) ? [6] : []), ...(classes.some(c => c.day === 0) ? [0] : [])];
-    return `
-    <section class="card">
-      <div class="toolbar">
-        <h2 class="grow">🗓️ ตารางเรียนประจำสัปดาห์ (${classes.length} คาบ)</h2>
-        <button class="btn" data-act="add-class">+ เพิ่มคาบเรียน</button>
-      </div>
-      <p class="muted small">เพิ่มตารางเรียนไว้ดูง่ายๆ และคาบเรียนของวันนี้จะแสดงในหน้าแรกอัตโนมัติ</p>
-    </section>
-    <div class="tt-grid">${daysOrder.map(d => {
-      const list = classes.filter(c => c.day === d).sort((a, b) => a.start.localeCompare(b.start));
-      return `<section class="card tt-day ${d === dow ? 'today' : ''}">
-        <div class="card-head">
-          <h3>วัน${TH_DAYS_FULL[d]}</h3>
-          ${d === dow ? '<span class="chip accent">วันนี้</span>' : ''}
-          <button class="mini-btn right" data-act="add-class" data-day="${d}" aria-label="เพิ่มคาบวัน${TH_DAYS_FULL[d]}">+</button>
-        </div>
-        ${list.length ? list.map(c => {
-          const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
-          const nm = c.title || subjectName(c.subjectId);
-          return `<div class="tt-item" style="--c:${col}">
-            <div class="grow">
-              <div class="tt-time">${esc(c.start)}${c.end ? ' – ' + esc(c.end) : ''}</div>
-              <div class="tt-name">${esc(nm)}</div>
-              ${c.room ? `<div class="muted small">📍 ${esc(c.room)}</div>` : ''}
-            </div>
-            <span class="item-actions">
-              <button class="mini-btn" data-act="edit-class" data-id="${c.id}" aria-label="แก้ไขคาบเรียน">✎</button>
-              <button class="mini-btn" data-act="del-class" data-id="${c.id}" aria-label="ลบคาบเรียน">✕</button>
-            </span>
-          </div>`;
-        }).join('') : '<p class="muted small">ไม่มีเรียน</p>'}
-      </section>`;
-    }).join('')}</div>`;
-  },
-
   subjects() {
     return `
     <div class="toolbar subjects-bar"><h2>📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
@@ -415,6 +380,90 @@ const Views = {
   },
 
   calendar() {
+    const view = App.calView || 'timetable';
+    const switcher = `<div class="toolbar">
+      <h2 class="grow">${view === 'timetable' ? '🗓️ จัดตารางเรียน' : view === 'exams' ? '🎯 ตารางสอบ' : '📅 ปฏิทิน'}</h2>
+      <div class="pills" style="margin:0">
+        <button class="pill ${view === 'timetable' ? 'active' : ''}" data-act="cal-view" data-v="timetable">ตารางเรียน</button>
+        <button class="pill ${view === 'month' ? 'active' : ''}" data-act="cal-view" data-v="month">ปฏิทิน</button>
+        <button class="pill ${view === 'exams' ? 'active' : ''}" data-act="cal-view" data-v="exams">ตารางสอบ</button>
+      </div>
+    </div>`;
+
+    if (view === 'timetable') {
+      const classes = DB.classes || [];
+      const toMin = s => { const [h, m] = (s || '08:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+      let minH = 8, maxH = 18;
+      classes.forEach(c => {
+        const s = Math.floor(toMin(c.start) / 60), e = Math.ceil(toMin(c.end || c.start) / 60);
+        if (s < minH) minH = s;
+        if (e > maxH) maxH = Math.min(23, Math.max(e, s + 1));
+      });
+      const hours = []; for (let h = minH; h < maxH; h++) hours.push(h);
+      const totalMin = hours.length * 60;
+      const daysOrder = [1, 2, 3, 4, 5, ...(classes.some(c => c.day === 6) ? [6] : []), ...(classes.some(c => c.day === 0) ? [0] : [])];
+      const EN_DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+      const dow = new Date().getDay();
+      const uniqueSubs = new Set(classes.map(c => c.subjectId || c.title)).size;
+
+      return `
+      <section class="card">
+        ${switcher}
+        <div class="tt-wrap">
+          <div class="tt-table" style="--cols:${hours.length}">
+            <div class="tt-hdr">
+              <div class="tt-corner">Day/Time</div>
+              ${hours.map(h => `<div class="tt-hr">${h}</div>`).join('')}
+            </div>
+            ${daysOrder.map(d => {
+              const list = classes.filter(c => c.day === d).sort((a, b) => a.start.localeCompare(b.start));
+              return `<div class="tt-row ${d === dow ? 'today' : ''}">
+                <div class="tt-day-lbl">${EN_DAYS[d]}</div>
+                <div class="tt-lane">
+                  <div class="tt-cells">${hours.map(h => `<button type="button" class="tt-cell" data-act="add-class" data-day="${d}" data-start="${pad(h)}:00" aria-label="เพิ่มคาบวัน${TH_DAYS_FULL[d]} เวลา ${h}:00"></button>`).join('')}</div>
+                  ${list.map(c => {
+                    const sm = Math.max(minH * 60, toMin(c.start));
+                    const em = Math.min(maxH * 60, Math.max(sm + 30, toMin(c.end) || sm + 60));
+                    const left = ((sm - minH * 60) / totalMin * 100).toFixed(3);
+                    const width = ((em - sm) / totalMin * 100).toFixed(3);
+                    const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
+                    const nm = c.title || subjectName(c.subjectId);
+                    return `<button type="button" class="tt-block" data-act="edit-class" data-id="${c.id}" style="left:${left}%;width:${width}%;--c:${col}" title="${esc(nm)} (${esc(c.start)}–${esc(c.end || '')})">
+                      <span class="tt-bname">${esc(nm)}</span>
+                      <span class="tt-broom">${esc(c.room || `${c.start}${c.end ? '–' + c.end : ''}`)}</span>
+                    </button>`;
+                  }).join('')}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="toolbar" style="margin-top:12px;margin-bottom:0">
+          <button class="btn ghost small" data-act="tt-png">⬇️ PNG</button>
+          <button class="btn small" data-act="add-class">+ เพิ่มคาบเรียน</button>
+          <span class="grow"></span>
+          <span class="muted small">รวมในตาราง: <b>${classes.length} คาบ</b> · ${uniqueSubs} วิชา</span>
+        </div>
+      </section>`;
+    }
+
+    if (view === 'exams') {
+      const t = todayStr();
+      const withExam = DB.subjects.filter(s => s.examDate).sort((a, b) => (a.examDate + (a.examTime || '')).localeCompare(b.examDate + (b.examTime || '')));
+      return `
+      <section class="card">
+        ${switcher}
+        ${withExam.length ? withExam.map(s => {
+          const n = daysBetween(t, s.examDate);
+          return `<div class="item">
+            <span class="tag" style="--c:${safeColor(s.color)}">${n === 0 ? 'วันนี้!' : n > 0 ? `อีก ${n} วัน` : 'สอบแล้ว'}</span>
+            <span class="grow"><b>${esc(s.name)}</b><br><small class="muted">🎯 ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''}</small></span>
+            <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวันสอบ ${esc(s.name)}">✎</button>
+          </div>`;
+        }).join('') : empty('🎯', 'ยังไม่มีวิชาที่กำหนดวันสอบ', `<button class="btn small" data-act="go" data-tab="subjects">ไปเพิ่มวิชา</button>`)}
+      </section>`;
+    }
+
     const [y, m] = App.calMonth.split('-').map(Number);
     const first = new Date(y, m - 1, 1), offset = first.getDay(), dim = new Date(y, m, 0).getDate();
     const cells = Math.ceil((offset + dim) / 7) * 7, t = todayStr();
@@ -425,29 +474,30 @@ const Views = {
       const exams = DB.subjects.filter(s => s.examDate === d);
       const tasks = DB.tasks.filter(x => x.date === d);
       const plan = DB.plan.filter(p => p.date === d);
+      const clsN = (DB.classes || []).filter(c => c.day === parseDate(d).getDay()).length;
       html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''}" data-act="cal-day" data-date="${d}">
         <div class="cal-num">${parseDate(d).getDate()}</div>
         ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
+        ${clsN ? `<div class="cal-chip tt">🗓️ ${clsN} คาบ</div>` : ''}
         ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
         ${plan.length ? `<div class="cal-chip plan">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
       </div>`;
     }
     const upcoming = DB.tasks.filter(x => !x.done && x.date >= t).sort((a, b) => a.date.localeCompare(b.date));
 
-
     return `
-    
     <section class="card">
+      ${switcher}
       <div class="toolbar">
-        <button class="icon-btn" data-act="cal-nav" data-dir="-1">‹</button>
+        <button class="icon-btn" data-act="cal-nav" data-dir="-1" aria-label="เดือนก่อน">‹</button>
         <h2 class="cal-title">${TH_MONTHS_FULL[m - 1]} ${y + 543}</h2>
-        <button class="icon-btn" data-act="cal-nav" data-dir="1">›</button>
+        <button class="icon-btn" data-act="cal-nav" data-dir="1" aria-label="เดือนถัดไป">›</button>
         <button class="btn ghost small" data-act="cal-today">วันนี้</button>
         <span class="grow"></span>
         <button class="btn" data-act="add-task">+ การบ้าน/กิจกรรม</button>
       </div>
       <div class="cal-grid">${TH_DAYS.map(d => `<div class="cal-dow">${d}</div>`).join('')}${html}</div>
-      <p class="muted small">🎯 วันสอบ · 📝 การบ้าน · 📌 กิจกรรม · 📖 แผนอ่าน (เสร็จ/ทั้งหมด) — แตะวันเพื่อดูรายละเอียด</p>
+      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 การบ้าน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด</p>
     </section>
     <section class="card"><h2>📝 การบ้าน/กิจกรรมที่ยังไม่เสร็จ</h2>
       ${upcoming.length ? upcoming.map(taskItemHTML).join('') : empty('✅', 'ไม่มีงานค้าง')}
@@ -781,16 +831,18 @@ function planChapterOptions(sid, sel) {
 }
 function classForm(c = {}) {
   const day = c.day != null ? Number(c.day) : 1;
+  const start = c.start || '08:30';
+  const end = c.end || (start.slice(0, 2) ? `${pad(Math.min(23, Number(start.slice(0, 2)) + 2))}:${start.slice(3, 5) || '00'}` : '');
   return `<form data-form="class" data-id="${c.id || ''}">
     <div class="row wrap">
       <label class="field">วัน<select name="day">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>วัน${TH_DAYS_FULL[d]}</option>`).join('')}</select></label>
-      <label class="field">เวลาเริ่ม<input type="time" name="start" required value="${esc(c.start || '08:30')}"></label>
-      <label class="field">เวลาจบ<input type="time" name="end" value="${esc(c.end || '')}"></label>
+      <label class="field">เวลาเริ่ม<input type="time" name="start" required value="${esc(start)}"></label>
+      <label class="field">เวลาจบ<input type="time" name="end" value="${esc(end)}"></label>
     </div>
     <label class="field">วิชา (เลือกจากรายการ หรือพิมพ์ชื่อเองด้านล่าง)<select name="subjectId">${subjectOptions(c.subjectId || '')}</select></label>
     <label class="field">ชื่อวิชา / หมายเหตุ (ถ้าไม่ได้เลือกด้านบน)<input name="title" value="${esc(c.title || '')}" placeholder="เช่น Gen Ed / สัมมนา"></label>
-    <label class="field">ห้องเรียน / อาคาร<input name="room" value="${esc(c.room || '')}" placeholder="เช่น อาคาร 3 ห้อง 204"></label>
-    <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
+    <label class="field">ห้องเรียน / Sec<input name="room" value="${esc(c.room || '')}" placeholder="เช่น MAHIT 401 | Sec 1"></label>
+    <div class="row end">${c.id ? `<button type="button" class="btn danger" data-act="del-class" data-id="${c.id}" style="margin-right:auto">🗑 ลบ</button>` : ''}<button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
 function noteModal(s, c) {
@@ -808,8 +860,11 @@ function noteModal(s, c) {
 }
 function dayModal(d) {
   const exams = DB.subjects.filter(s => s.examDate === d), tasks = DB.tasks.filter(x => x.date === d), plan = planForDate(d);
+  const dow = parseDate(d).getDay();
+  const cls = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
   openModal(`📅 ${fmtDateLong(d)}`, `
     ${exams.map(s => `<div class="exam-badge big" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
+    ${cls.length ? `<h3>🗓️ ตารางเรียน</h3>${cls.map(c => `<div class="item"><span class="tag" style="--c:${safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'))}">${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</span><span class="grow">${esc(c.title || subjectName(c.subjectId))}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</span></div>`).join('')}` : ''}
     <h3>📖 แผนอ่าน</h3>${plan.length ? plan.map(p => planItemHTML(p)).join('') : '<p class="muted small">ไม่มี</p>'}
     <h3>📝 การบ้าน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
     <div class="row wrap"><button class="btn small" data-act="add-task" data-date="${d}">+ การบ้าน/กิจกรรม</button><button class="btn small ghost" data-act="add-plan" data-date="${d}">+ แผนอ่าน</button></div>`);
@@ -1457,9 +1512,52 @@ const Actions = {
   'del-plan': el => { DB.plan = DB.plan.filter(x => x.id !== el.dataset.id); save(); refreshDayModal(); },
 
   // timetable
-  'add-class': el => openModal('+ เพิ่มคาบเรียน', classForm({ day: el.dataset.day != null ? Number(el.dataset.day) : 1 })),
+  'go-timetable': () => { App.calView = 'timetable'; App.go('calendar'); },
+  'cal-view': el => { App.calView = el.dataset.v; App.render(); },
+  'add-class': el => openModal('+ เพิ่มคาบเรียน', classForm({ day: el.dataset.day != null ? Number(el.dataset.day) : 1, start: el.dataset.start || '08:30' })),
   'edit-class': el => { const c = (DB.classes || []).find(x => x.id === el.dataset.id); if (c) openModal('✎ แก้ไขคาบเรียน', classForm(c)); },
-  'del-class': el => { DB.classes = (DB.classes || []).filter(x => x.id !== el.dataset.id); save(); },
+  'del-class': el => { DB.classes = (DB.classes || []).filter(x => x.id !== el.dataset.id); closeModal(); save(); },
+  'tt-png': () => {
+    const classes = DB.classes || [];
+    const toMin = s => { const [h, m] = (s || '08:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+    let minH = 8, maxH = 18;
+    classes.forEach(c => { const s = Math.floor(toMin(c.start) / 60), e = Math.ceil(toMin(c.end || c.start) / 60); if (s < minH) minH = s; if (e > maxH) maxH = Math.min(23, Math.max(e, s + 1)); });
+    const cols = maxH - minH, daysOrder = [1, 2, 3, 4, 5, ...(classes.some(c => c.day === 6) ? [6] : []), ...(classes.some(c => c.day === 0) ? [0] : [])];
+    const EN = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const dayW = 86, colW = 88, hdrH = 44, rowH = 74, padX = 24, padY = 24;
+    const W = padX * 2 + dayW + cols * colW, H = padY * 2 + hdrH + daysOrder.length * rowH;
+    const cv = document.createElement('canvas'); cv.width = W * 2; cv.height = H * 2;
+    const ctx = cv.getContext('2d'); ctx.scale(2, 2);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1;
+    ctx.strokeRect(padX, padY, dayW + cols * colW, hdrH + daysOrder.length * rowH);
+    ctx.fillStyle = '#1f2937'; ctx.font = '600 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Day/Time', padX + dayW / 2, padY + hdrH / 2);
+    for (let i = 0; i < cols; i++) {
+      const x = padX + dayW + i * colW;
+      ctx.beginPath(); ctx.moveTo(x, padY); ctx.lineTo(x, H - padY); ctx.stroke();
+      ctx.fillStyle = '#374151'; ctx.fillText(String(minH + i), x + 14, padY + hdrH / 2);
+    }
+    daysOrder.forEach((d, r) => {
+      const y = padY + hdrH + r * rowH;
+      ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(W - padX, y); ctx.stroke();
+      ctx.fillStyle = '#374151'; ctx.font = '600 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(EN[d], padX + dayW / 2, y + rowH / 2);
+      classes.filter(c => c.day === d).forEach(c => {
+        const sm = Math.max(minH * 60, toMin(c.start)), em = Math.min(maxH * 60, Math.max(sm + 30, toMin(c.end) || sm + 60));
+        const bx = padX + dayW + ((sm - minH * 60) / 60) * colW + 2, bw = ((em - sm) / 60) * colW - 4;
+        const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
+        ctx.fillStyle = col + '26'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.roundRect(bx, y + 4, bw, rowH - 8, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = col; ctx.font = '600 12px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText((c.title || subjectName(c.subjectId)).slice(0, 22), bx + bw / 2, y + rowH / 2 - 8, bw - 8);
+        ctx.font = '400 11px sans-serif';
+        ctx.fillText((c.room || `${c.start}–${c.end || ''}`).slice(0, 24), bx + bw / 2, y + rowH / 2 + 10, bw - 8);
+      });
+    });
+    const a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = 'timetable.png'; a.click();
+    App.toast('บันทึกตารางเรียนเป็น PNG แล้ว 📸');
+  },
 
   // subjects
   'add-subject': () => openModal('+ เพิ่มวิชา', subjectForm()),
