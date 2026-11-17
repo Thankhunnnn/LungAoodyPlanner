@@ -53,8 +53,15 @@
 7. ในแอป ไปที่ **ตั้งค่า → Sync ข้ามเครื่อง** → วาง config → กด *บันทึกและเชื่อมต่อ* → *ล็อกอินด้วย Google*
 8. ทำข้อ 7 ในทุกเครื่องที่จะใช้ (ล็อกอิน Google บัญชีเดียวกัน) ข้อมูลจะ sync อัตโนมัติ
 
-> ข้อมูลที่ sync: วิชา บท โน้ต ตาราง การบ้าน เวลาอ่าน แฟลชการ์ด และการตั้งค่า
-> **ไม่ sync**: API key ของ AI และประวัติแชท (เก็บเฉพาะเครื่องเพื่อความปลอดภัย)
+> ข้อมูลที่ sync: วิชา บท โน้ต ตาราง การบ้าน เวลาอ่าน แฟลชการ์ด การตั้งค่า และรายการไฟล์บน Drive (รหัสไฟล์)
+> **ไม่ sync**: ตัวไฟล์ที่ยังอยู่แค่ในเครื่อง, API key ของ AI และประวัติแชท
+
+## 3.1) ให้ไฟล์ของแต่ละวิชาขึ้น Google Drive ของผู้ใช้
+ล็อกอิน Google ในแอป (ปุ่ม **ล็อกอินเพื่อ sync**) แล้วเปิด **ไฟล์และเอกสาร** ของวิชา เพื่ออัปโหลดขึ้น Drive ของบัญชีนั้น Client ID อยู่ใน `GOOGLE_DRIVE_CLIENT_ID` ที่ `js/drive.js` (โปรเจกต์ `buddy-4a1c4`, แอป OAuth เป็น External และเผยแพร่แล้ว) ค่านี้ไม่ใช่ `apiKey` ของ Firebase
+
+โดเมนใหม่ต้องอยู่ใน **Authorized JavaScript origins** ของ Web client ตัวเดิม (Google ไม่รับ `*`): `https://lungaoodyplanner.netlify.app`, `http://localhost:8080`, และ preview ทั้งก้อน เช่น `https://deploy-preview-2--lungaoodyplanner.netlify.app` ไม่ต้องใส่ redirect URI
+
+ครั้งแรกที่อัปโหลด Google จะถามสิทธิ์ดู/สร้างเฉพาะไฟล์ที่แอปนี้ใช้ ไฟล์อยู่ที่ My Drive → `LungAoodyPlanner` → ชื่อวิชา ถ้าโดเมนยังไม่ได้รับอนุญาต แอปจะเก็บไฟล์ในเครื่องนี้และขึ้นข้อความภาษาไทย
 
 ## 4) ตั้งค่า AI
 **Gemini (แนะนำ, มีโควตาฟรี)**: https://aistudio.google.com/apikey → Create API key → วางใน *ตั้งค่า → AI*
@@ -74,6 +81,7 @@ js/store.js                 ข้อมูล + ฟังก์ชันวั�
 js/scheduler.js             จัดตารางอัตโนมัติ
 js/ai.js                    เชื่อม Gemini / OpenAI
 js/sync.js                  Firebase sync
+js/drive.js                 อัปโหลดไฟล์ขึ้น Google Drive ของผู้ใช้
 js/services.js              แจ้งเตือน + Pomodoro
 js/app.js                   หน้าจอทั้งหมด
 sw.js, manifest.json        ติดตั้งเป็นแอป / ใช้ออฟไลน์

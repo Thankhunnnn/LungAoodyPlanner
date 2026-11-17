@@ -28,6 +28,81 @@ const AI = {
 ${this.context()}`;
   },
 
+  tutorPrompt() {
+    return `คุณคือ "อออ" เพื่อนที่ช่วยติวหนังสือ พูดภาษาไทยกันเอง สั้นๆ แบบแชทกับเพื่อน
+ไม่ลงท้าย ค่ะ/ครับ และไม่ใช้ดอกซากุระ ตอบเป็นข้อความสั้น ถ้าอยากส่งหลายข้อความให้คั่นด้วยบรรทัดที่มีแค่ ---
+อธิบายง่าย ยกตัวอย่างสั้นๆ ได้
+ถ้าผู้ใช้ขอให้แก้ข้อมูลในแอป (วันสอบ การบ้าน เพิ่มวิชา เพิ่มบทจากไฟล์) ให้เรียกฟังก์ชัน อย่าบอกว่าทำให้เสร็จแล้ว เพราะผู้ใช้ต้องกดยืนยันเอง
+ถ้าไม่แน่ใจว่าหมายถึงวิชาไหน ให้ถามชื่อวิชา อย่าเรียกฟังก์ชัน
+วันที่ใช้ YYYY-MM-DD เวลาใช้ HH:MM ถ้าไม่บอกปี ให้ใช้ปีของวันนี้ หรือปีถัดไปถ้าวันนั้นผ่านไปแล้ว
+วันนี้: ${this.context()}`;
+  },
+
+  tutorTools() {
+    const str = (desc) => ({ type: 'STRING', description: desc });
+    return [{ functionDeclarations: [
+      { name: 'set_exam', description: 'ตั้งหรือลบวันสอบ ถ้ายังไม่มีวิชานี้ให้ใส่ชื่อไว้ ระบบจะเสนอเพิ่มวิชา', parameters: { type: 'OBJECT', properties: {
+        action: str('set หรือ clear'), subjectName: str('ชื่อหรือรหัสวิชา'), examDate: str('YYYY-MM-DD'), examTime: str('HH:MM'), room: str('ห้องสอบ ถ้าว่างไม่ต้องใส่'),
+      }, required: ['action', 'subjectName'] } },
+      { name: 'add_task', description: 'เพิ่มการบ้านหรือกิจกรรม', parameters: { type: 'OBJECT', properties: {
+        title: str('ชื่องาน'), date: str('YYYY-MM-DD'), time: str('HH:MM'), subjectName: str('วิชา ถ้ามี'), type: str('homework หรือ event'),
+      }, required: ['title', 'date'] } },
+      { name: 'add_subject', description: 'เพิ่มวิชาใหม่', parameters: { type: 'OBJECT', properties: {
+        name: str('ชื่อวิชา'), examDate: str('YYYY-MM-DD'), examTime: str('HH:MM'), room: str('ห้อง'),
+      }, required: ['name'] } },
+      { name: 'add_chapters', description: 'เพิ่มบทหรือหัวข้อใต้หนึ่งวิชา จากไฟล์หรือที่ผู้ใช้บอก ถ้าไม่ชัวร์วิชา อย่าเรียก', parameters: { type: 'OBJECT', properties: {
+        subjectName: str('ชื่อวิชาที่มีอยู่หรือกำลังจะเพิ่ม'), titles: { type: 'ARRAY', items: { type: 'STRING' }, description: 'ชื่อบท' },
+      }, required: ['subjectName', 'titles'] } },
+    ] }];
+  },
+
+  /* Chat with อออ. Gemini may return function calls. Other providers are text only. */
+  async tutor(messages) {
+    if (!this.ready()) throw new Error('ยังไม่ได้ใส่ API key — ไปที่ ตั้งค่า > AI');
+    const c = aiCfg();
+    const hist = messages.map(m => {
+      let content = m.content || '';
+      const files = m.files || [];
+      if (c.provider !== 'gemini' && files.length) {
+        const texts = files.filter(f => f.text).map(f => `ไฟล์ ${f.name}:\n${f.text}`);
+        const skipped = files.filter(f => !f.text).map(f => f.name);
+        if (texts.length) content += '\n\n' + texts.join('\n\n');
+        if (skipped.length) content += '\n\n(ไฟล์ ' + skipped.join(', ') + ' ส่งให้โมเดลนี้ไม่ได้ ใช้ Gemini ถึงจะอ่านรูปและ PDF)';
+      }
+      return { role: m.role, content, files: c.provider === 'gemini' ? files : [] };
+    });
+    if (c.provider !== 'gemini') {
+      const text = await this.chat(hist.map(m => ({ role: m.role, content: m.content })), this.tutorPrompt());
+      return { text, calls: [] };
+    }
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.geminiModel)}:generateContent?key=${encodeURIComponent(c.geminiKey)}`;
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: this.tutorPrompt() }] },
+        tools: this.tutorTools(),
+        contents: hist.map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [
+            { text: m.content || (m.files && m.files.length ? 'ดูไฟล์ที่แนบ' : '') },
+            ...(m.files || []).filter(f => f.base64).map(f => ({ inlineData: { mimeType: f.mime || 'application/octet-stream', data: f.base64 } })),
+          ],
+        })),
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error?.message || r.statusText);
+    const parts = j.candidates?.[0]?.content?.parts || [];
+    const text = parts.map(p => p.text || '').filter(Boolean).join('\n');
+    const calls = parts.filter(p => p.functionCall).map(p => {
+      let args = p.functionCall.args || {};
+      if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
+      return { name: p.functionCall.name, args: args || {} };
+    });
+    if (!text && !calls.length) throw new Error('AI ไม่ได้ตอบกลับ (' + (j.candidates?.[0]?.finishReason || j.promptFeedback?.blockReason || 'unknown') + ')');
+    return { text, calls };
+  },
+
   /* messages: [{role:'user'|'assistant', content, image?:{base64,mimeType}}] */
   async chat(messages, system = this.systemPrompt()) {
     if (!this.ready()) throw new Error('ยังไม่ได้ใส่ API key — ไปที่ ตั้งค่า > AI');

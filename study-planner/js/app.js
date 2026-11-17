@@ -11,13 +11,13 @@ const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
 
 const App = {
   tab: 'home', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
-  aiSub: '', aiCh: '', aiBusy: false, replanPreview: null, fc: null, quiz: null,
+  aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
 
   init() {
     this.applyTheme();
     const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
     window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
-    changeListeners.push(() => { this.applyTheme(); this.render(); });
+    changeListeners.push(() => { this.applyTheme(); this.render(); refreshFilesIfOpen(); });
     bindEvents();
     this.render();
     FileStore.refreshCounts().then(() => this.render()).catch(() => { });
@@ -97,9 +97,17 @@ const App = {
     return `<button id="syncBadge" class="chip ${m[1]}" data-act="${act}" data-tab="settings" title="${esc(Sync.message)}">${m[0]}</button>`;
   },
 
-  toast(msg, ms = 2800) {
+  toast(msg, ms = 2800, onUndo) {
     const el = document.getElementById('toast');
-    el.textContent = msg; el.classList.add('show');
+    el.replaceChildren(document.createTextNode(msg));
+    el.classList.toggle('has-undo', !!onUndo);
+    if (onUndo) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'toast-undo'; b.textContent = 'เลิกทำ';
+      b.addEventListener('click', () => { el.classList.remove('show'); onUndo(); });
+      el.append(document.createTextNode(' '), b);
+    }
+    el.classList.add('show');
     clearTimeout(this._tt); this._tt = setTimeout(() => el.classList.remove('show'), ms);
   },
 };
@@ -111,7 +119,7 @@ function openModal(title, html, wide = false) {
   document.getElementById('modalBody').innerHTML = html;
   m.querySelector('.modal-box').classList.toggle('wide', wide);
   m.classList.remove('hidden');
-  setTimeout(() => m.querySelector('input:not([type=checkbox]):not([type=color]),textarea')?.focus(), 50);
+  setTimeout(() => m.querySelector('input:not([type=checkbox]):not([type=color]):not([type=file]),textarea')?.focus(), 50);
 }
 function setModalBody(html) { document.getElementById('modalBody').innerHTML = html; }
 function closeModal() {
@@ -511,17 +519,23 @@ const Views = {
     return `
     <div class="ai-layout">
       <section class="card chat-card">
-        <div class="card-head"><h2>💬 คุยกับน้องติว</h2><span class="chip">${esc(AI.providerLabel())}</span>
+        <div class="card-head"><h2>💬 คุยกับอออ</h2><span class="chip">${esc(AI.providerLabel())}</span>
           <button class="mini-btn" data-act="clear-chat">ล้างแชท</button></div>
         <div id="chatBox" class="chat-box">
-          ${chat.length ? chat.map(m => `<div class="msg ${m.role}">${m.role === 'assistant' ? md(m.content) : esc(m.content).replace(/\n/g, '<br>')}</div>`).join('') :
-        `<div class="msg assistant">สวัสดีค่า 🌸 น้องติวพร้อมช่วยแล้ว ถามเนื้อหาที่ไม่เข้าใจ ให้อธิบาย ยกตัวอย่าง หรือให้ช่วยวางแผนการอ่านก็ได้นะคะ</div>`}
-          ${App.aiBusy ? '<div class="msg assistant typing"><span></span><span></span><span></span></div>' : ''}
+          ${chat.length ? chat.map(chatRowHTML).join('') : chatRowHTML({ role: 'assistant', content: 'ว่าไง\n---\nถามเนื้อหา หรือบอกวันสอบมาได้เลย' })}
+          ${App.aiBusy ? `<div class="msg-row ai"><img class="ooo-av" src="assets/ooo-chat.webp" alt="" width="36" height="36"><div class="msg-col"><div class="ooo-name">อออ</div><div class="msg assistant typing"><span></span><span></span><span></span></div></div></div>` : ''}
         </div>
         <div class="quick">${quick.map(q => `<button class="chip" data-act="quick-ask" data-q="${esc(q)}">${q}</button>`).join('')}</div>
-        <form data-form="chat" class="chat-input">
-          <textarea name="q" rows="2" placeholder="พิมพ์คำถาม… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)" ${App.aiBusy ? 'disabled' : ''}></textarea>
-          <button class="btn" ${App.aiBusy ? 'disabled' : ''}>ส่ง</button>
+        <form data-form="chat" class="chat-form">
+          <div id="chatChips" class="chat-chips">${chatChipsHTML()}</div>
+          <div class="chat-input">
+            <button type="button" class="icon-btn" data-act="chat-attach" title="แนบไฟล์" ${App.aiBusy ? 'disabled' : ''}>📎</button>
+            <button type="button" class="icon-btn chat-cam" data-act="chat-cam" title="ถ่ายรูป" ${App.aiBusy ? 'disabled' : ''}>📷</button>
+            <textarea name="q" rows="2" placeholder="พิมพ์หาอออ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)" ${App.aiBusy ? 'disabled' : ''}></textarea>
+            <button class="btn" ${App.aiBusy ? 'disabled' : ''}>ส่ง</button>
+          </div>
+          <input id="chatFile" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,.txt,.pdf,.jpg,.jpeg,.png,.webp" data-chg="chat-file">
+          <input id="chatCam" type="file" hidden accept="image/*" capture="environment" data-chg="chat-file">
         </form>
       </section>
       <section class="card tools-card">
@@ -641,6 +655,7 @@ const firebaseConfig = {
         <div class="row"><button class="btn small" data-act="save-fb">บันทึกและเชื่อมต่อ</button>${L.firebaseConfig ? '<button class="btn ghost small" data-act="clear-fb">ลบ config</button>' : ''}</div>
         <p class="muted small">วิธีตั้งค่าทีละขั้นอยู่ในไฟล์ README.md · config นี้เก็บในเครื่อง ต้องวางในทุกเครื่องที่จะใช้ (ครั้งเดียว)</p>
       </details>
+      <p class="muted small">ไฟล์ใน "ไฟล์และเอกสาร" ของแต่ละวิชา อัปโหลดขึ้น Google Drive ของบัญชีนี้ (โฟลเดอร์ LungAoodyPlanner) รายชื่อไฟล์ sync มากับข้อมูลวิชา ตัวไฟล์อยู่บน Drive ของคุณ</p>
     </section>
 
     <section class="card"><h2>💾 ข้อมูล</h2>
@@ -797,25 +812,126 @@ const fileIcon = (type, name) => {
   if (/sheet|excel|\.xlsx?$/i.test(type + name)) return '📈';
   return '📁';
 };
+function fmtStamp(v) {
+  const d = new Date(v);
+  if (!v || Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('th-TH');
+}
+function fileGoesToDrive() { return !!Sync.user && LOCAL.fileDest !== 'local'; }
+function driveNote(s) {
+  if (!Sync.user) return 'ยังไม่ล็อกอิน — ไฟล์จะเก็บในเครื่องนี้ กด "ล็อกอินเพื่อ sync" แล้วกด "ย้ายขึ้น Drive" เพื่อให้เห็นบนเครื่องอื่น';
+  if (!fileGoesToDrive()) return 'ไฟล์ใหม่จะเก็บในเครื่องนี้ เลือก "ขึ้น Drive" ถ้าอยากอัปโหลดขึ้น Google Drive';
+  if (!driveClientId()) return 'ยังไม่ได้ตั้งค่า Google Client ID — ไฟล์จะเก็บในเครื่องนี้ก่อน (วิธีตั้งอยู่ใน README)';
+  const who = Sync.user.email || Sync.user.displayName || 'บัญชีนี้';
+  return `อัปโหลดขึ้น Google Drive ของ ${who} ในโฟลเดอร์ ${DRIVE_ROOT_NAME} / ${driveFolderLabel(s.name)}`;
+}
+function driveFailToast(e, savedLocal) {
+  const code = e && e.code;
+  let msg = code === 'noconfig' ? 'ยังไม่ได้ตั้งค่า Google Client ID สำหรับ Drive' : ((e && e.message) || 'อัปโหลดขึ้น Drive ไม่สำเร็จ');
+  if (!savedLocal) return msg;
+  if (code === 'offline') return 'ออฟไลน์อยู่ อัปโหลดขึ้น Drive ไม่ได้ เก็บไฟล์ไว้ในเครื่องนี้แล้ว';
+  return msg + ' เก็บไฟล์ไว้ในเครื่องนี้แล้ว';
+}
+function showUploadProgress(done, total, name, ratio, label) {
+  let el = document.getElementById('upProg');
+  if (!el) {
+    const box = document.querySelector('#modalBody .upload-box');
+    if (!box) return;
+    el = document.createElement('div');
+    el.id = 'upProg';
+    el.className = 'up-prog';
+    el.setAttribute('role', 'status');
+    box.insertAdjacentElement('afterend', el);
+  }
+  el.hidden = false;
+  const pct = total ? Math.max(0, Math.min(100, Math.round(((done + Math.max(0, Math.min(1, Number(ratio) || 0))) / total) * 100))) : 0;
+  const text = label || `กำลังอัปโหลด ${Math.min(total, done + 1)}/${total} — ${name}`;
+  el.innerHTML = `<div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div><small class="muted">${esc(text)} (${pct}%)</small>`;
+}
+async function saveLocalFiles(sid, files) {
+  let n = 0;
+  for (const f of files) { try { await FileStore.add(sid, f); n++; } catch { /* device storage full */ } }
+  return n;
+}
+async function runDriveUploads(sid, files, localIds, tokenPromise) {
+  let ok = 0;
+  try {
+    showUploadProgress(0, files.length, files[0].name, 0, 'กำลังขอสิทธิ์ Google Drive…');
+    await tokenPromise;
+    const subject = subjectById(sid);
+    if (!subject) throw Drive.err('ไม่พบวิชานี้แล้ว', 'other');
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      showUploadProgress(i, files.length, f.name, 0);
+      const meta = await Drive.uploadToSubject(subject, f, ratio => showUploadProgress(i, files.length, f.name, ratio));
+      ok++;
+      try {
+        if (localIds && localIds[i]) await FileStore.markDrive(localIds[i], sid, meta.id);
+        else await FileStore.add(sid, f, { driveId: meta.id });
+      } catch { /* Drive copy is enough if this device cannot cache the blob */ }
+    }
+    App.toast(`อัปโหลด ${ok} ไฟล์ขึ้น Drive แล้ว`);
+  } catch (e) {
+    const rest = files.slice(ok);
+    const savedLocal = !localIds && rest.length ? (await saveLocalFiles(sid, rest)) > 0 : false;
+    const extra = ok ? `อัปโหลดได้ ${ok} ไฟล์ แล้วหยุด: ` : '';
+    App.toast(extra + driveFailToast(e, savedLocal), 7000);
+  }
+  return ok;
+}
+let _filesGen = 0;
+function refreshFilesIfOpen() {
+  if (!App.filesSid || App._uploading) return;
+  if (document.querySelector('#modalBody :focus')) return;
+  filesRender();
+}
 async function filesRender() {
+  const gen = ++_filesGen;
   const sid = App.filesSid; if (!sid) return;
   const s = subjectById(sid); if (!s) return;
-  const files = await FileStore.list(sid).catch(() => []);
+  const all = await FileStore.list(sid).catch(() => []);
+  if (gen !== _filesGen || App.filesSid !== sid) return;
+  const local = (all || []).filter(f => f && !f.driveId);
+  const driveFiles = (s.driveFiles || []).filter(f => f && safeDriveId(f.id))
+    .slice().sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
   const links = s.links || [];
+  const signed = !!Sync.user;
+  const driveRow = f => `<div class="item">
+      <span>${fileIcon(f.mimeType, f.name)}</span>
+      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.modifiedTime))}</small></span>
+      <span class="item-actions">
+        <button class="mini-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
+        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}">ลบ</button>
+      </span>
+    </div>`;
+  const localRow = f => `<div class="item">
+      <span>${fileIcon(f.type, f.name)}</span>
+      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small></span>
+      <span class="item-actions">
+        <button class="mini-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
+        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}">⬇️</button>
+        <button class="mini-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
+        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}">✕</button>
+      </span>
+    </div>`;
+  const dest = fileGoesToDrive() ? 'drive' : 'local';
   setModalBody(`
+    ${signed ? `<div class="pills file-dest">
+      <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
+      <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
+    </div>` : ''}
     <label class="upload-box">
       <input type="file" multiple data-chg="file-upload" hidden>
       <div>📤 <b>เลือกไฟล์จากเครื่อง</b> (PDF, รูปภาพ, สไลด์, เอกสาร — เลือกได้หลายไฟล์)</div>
-      <div class="muted small">เก็บไว้ในเครื่องนี้ เปิดดูและดาวน์โหลดได้แม้ออฟไลน์</div>
+      <div class="muted small">${esc(driveNote(s))}</div>
     </label>
-    <h3>📁 ไฟล์ที่บันทึกไว้ (${files.length})</h3>
-    ${files.length ? files.map(f => `<div class="item">
-      <span>${fileIcon(f.type, f.name)}</span>
-      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(f.size)} · ${new Date(f.addedAt).toLocaleDateString('th-TH')}</small></span>
-      <button class="mini-btn" data-act="file-open" data-id="${f.id}">เปิดดู</button>
-      <button class="mini-btn" data-act="file-dl" data-id="${f.id}">⬇️</button>
-      <button class="mini-btn" data-act="file-del" data-id="${f.id}">✕</button>
-    </div>`).join('') : '<p class="muted small">ยังไม่มีไฟล์</p>'}
+    ${signed ? '' : '<div class="row"><button class="btn small" data-act="login">ล็อกอินเพื่อ sync</button></div>'}
+    <div id="upProg" class="up-prog" role="status" hidden></div>
+    ${signed || driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>
+      ${driveFiles.length ? driveFiles.map(driveRow).join('') : '<p class="muted small">ยังไม่มีไฟล์บน Drive</p>'}` : ''}
+    ${local.length || !driveFiles.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
+      ${local.length ? '<button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button>' : ''}</div>
+      ${local.length ? local.map(localRow).join('') : `<p class="muted small">${signed ? 'ยังไม่มีไฟล์ในเครื่อง' : 'ยังไม่มีไฟล์'}</p>`}` : ''}
     <hr>
     <h3>🔗 ลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
     <form data-form="link-add" class="link-form" novalidate>
@@ -831,12 +947,13 @@ async function filesRender() {
     ${links.length ? links.map(l => `<div class="item">
       <span>🔗</span>
       <a class="grow" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>
-      <button class="mini-btn" data-act="link-del" data-id="${l.id}">✕</button>
+      <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}">✕</button>
     </div>`).join('') : '<p class="muted small">ยังไม่มีลิงก์ (ลิงก์จะ sync ข้ามเครื่องด้วย)</p>'}`);
 }
 function openFilesModal(sid) {
   App.filesSid = sid;
   openModal(`📎 ไฟล์และเอกสาร — ${esc(subjectName(sid))}`, '<p class="muted">กำลังโหลด…</p>', true);
+  if (typeof Drive !== 'undefined') Drive.preload();
   filesRender();
 }
 
@@ -870,14 +987,244 @@ function getSC(el) {
   const s = subjectById(sid), c = s?.chapters.find(c => c.id === cid);
   return { s, c };
 }
+function chatBubbles(content) {
+  return String(content || '').split(/^\s*---\s*$/m).map(s => s.trim()).filter(Boolean);
+}
+function chatChipsHTML() {
+  return (App.chatAttach || []).map((f, i) => `<span class="chat-chip">${f.thumb ? `<img src="${f.thumb}" alt="">` : '<span>📄</span>'}<span>${esc(f.name)}</span><button type="button" class="mini-btn" data-act="chat-unchip" data-i="${i}">✕</button></span>`).join('');
+}
+function chatSavedChips(files) {
+  return (files || []).map(f => `<span class="chat-chip">${f.thumb ? `<img src="${f.thumb}" alt="">` : '<span>📄</span>'}<span>${esc(f.name)}</span></span>`).join('');
+}
+function chatRowHTML(m) {
+  if (m.role === 'user') {
+    const bits = chatBubbles(m.content);
+    const body = bits.map(b => `<div class="msg user">${esc(b).replace(/\n/g, '<br>')}</div>`).join('');
+    return `<div class="msg-row me"><div class="msg-col">${chatSavedChips(m.files)}${body}</div></div>`;
+  }
+  const bits = chatBubbles(m.content);
+  const bubbles = bits.map(b => `<div class="msg assistant">${md(b)}</div>`).join('');
+  const card = m.proposal ? proposalCardHTML(m.proposal) : '';
+  return `<div class="msg-row ai"><img class="ooo-av" src="assets/ooo-chat.webp" alt="" width="36" height="36"><div class="msg-col"><div class="ooo-name">อออ</div>${bubbles}${card}</div></div>`;
+}
+function proposalCardHTML(p) {
+  const lines = (p.lines || []).map(l => `<li>${esc(l)}</li>`).join('');
+  if (p.status === 'applied') return `<div class="confirm-card"><b>ทำแล้ว</b><ul>${lines}</ul></div>`;
+  if (p.status === 'cancelled') return `<div class="confirm-card"><b>ยกเลิกแล้ว</b><ul>${lines}</ul></div>`;
+  return `<div class="confirm-card"><b>ยืนยันการเปลี่ยนแปลง</b><ul>${lines}</ul><div class="row"><button type="button" class="btn small" data-act="chat-apply" data-id="${esc(p.id)}">ยืนยัน</button><button type="button" class="btn small ghost" data-act="chat-cancel" data-id="${esc(p.id)}">ยกเลิก</button></div></div>`;
+}
+function blobToB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1] || '');
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(file);
+  });
+}
+function imageThumb(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = 96; c.height = 96;
+      const s = Math.min(img.width, img.height);
+      c.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 96, 96);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('อ่านรูปไม่ได้')); };
+    img.src = url;
+  });
+}
+function chatFileKind(file) {
+  const name = file.name || '', type = String(file.type || '').toLowerCase();
+  if (/\.(docx?|pptx?)$/i.test(name) || /wordprocessingml|presentationml|msword|powerpoint/.test(type)) return 'office';
+  if (/^image\/(jpeg|png|webp)$/.test(type) || /\.(jpe?g|png|webp)$/i.test(name)) return 'image';
+  if (type === 'application/pdf' || /\.pdf$/i.test(name)) return 'pdf';
+  if (type === 'text/plain' || /\.txt$/i.test(name)) return 'text';
+  return '';
+}
+async function addChatFiles(list) {
+  App.chatAttach = App.chatAttach || [];
+  for (const file of list) {
+    if (App.chatAttach.length >= 4) { App.toast('แนบได้ครั้งละไม่เกิน 4 ไฟล์'); break; }
+    const kind = chatFileKind(file);
+    if (kind === 'office') { App.toast('ยังอ่านไฟล์ Word/PowerPoint ไม่ได้ เซฟเป็น PDF หรือวางข้อความมาได้เลย', 5500); continue; }
+    if (!kind) { App.toast('รองรับ jpg, png, webp, pdf และ txt', 4000); continue; }
+    if (file.size > 7 * 1024 * 1024) { App.toast('ไฟล์ใหญ่เกิน 7 MB', 4000); continue; }
+    let base64 = '';
+    try { base64 = await blobToB64(file); } catch { App.toast('อ่านไฟล์ไม่สำเร็จ'); continue; }
+    let text = '';
+    if (kind === 'text') { try { text = (await file.text()).slice(0, 20000); } catch { text = ''; } }
+    let thumb = '';
+    if (kind === 'image') { try { thumb = await imageThumb(file); } catch { thumb = ''; } }
+    const mime = kind === 'pdf' ? 'application/pdf' : kind === 'text' ? 'text/plain' : (file.type || 'image/jpeg');
+    App.chatAttach.push({ name: file.name || 'ไฟล์', mime, base64, text, thumb, kind });
+  }
+  const box = document.getElementById('chatChips');
+  if (box) box.innerHTML = chatChipsHTML();
+}
+function normClock(t) {
+  const m = String(t || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return '';
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h > 23 || min > 59) return '';
+  return pad(h) + ':' + pad(min);
+}
+function matchSubjects(name) {
+  const q = String(name || '').trim().toLowerCase();
+  if (!q) return [];
+  const exact = DB.subjects.filter(s => s.name.trim().toLowerCase() === q);
+  if (exact.length) return exact;
+  return DB.subjects.filter(s => { const n = s.name.toLowerCase(); return n.includes(q) || q.includes(n); });
+}
+function interpretCalls(calls) {
+  const items = [], lines = [], asks = [];
+  const planned = [];
+  (calls || []).forEach(call => {
+    const a = call.args || {};
+    const name = String(a.subjectName || a.name || '').trim().slice(0, 120);
+    if (call.name === 'set_exam') {
+      const clear = /clear|delete|ลบ/i.test(String(a.action || ''));
+      if (!name) { asks.push('จะตั้งสอบวิชาไหน'); return; }
+      if (clear) {
+        const real = matchSubjects(name);
+        if (real.length !== 1) { asks.push(real.length ? `มีหลายวิชาที่คล้าย "${name}" หมายถึงอันไหน: ${real.map(s => s.name).join(', ')}` : `ไม่เจอวิชา "${name}"`); return; }
+        items.push({ kind: 'clear-exam', subjectId: real[0].id });
+        lines.push(`ลบวันสอบของ ${real[0].name}`);
+        return;
+      }
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(a.examDate || '') && examYearOk(a.examDate) ? a.examDate : '';
+      if (!date) { asks.push('วันสอบยังไม่ชัด บอกเป็นวันที่อีกทีได้ไหม'); return; }
+      const time = normClock(a.examTime);
+      const room = String(a.room || '').trim().slice(0, 80);
+      const real = matchSubjects(name);
+      if (real.length > 1) { asks.push(`มีหลายวิชาที่คล้าย "${name}" หมายถึงอันไหน: ${real.map(s => s.name).join(', ')}`); return; }
+      if (real.length === 1) {
+        items.push({ kind: 'exam', subjectId: real[0].id, examDate: date, examTime: time, room });
+        lines.push(`ตั้งสอบ ${real[0].name} เป็น ${fmtDateLong(date)}${time ? ' เวลา ' + time : ''}${roomText(room) ? ' ห้อง ' + roomText(room) : ''}`);
+      } else {
+        items.push({ kind: 'subject', name, examDate: date, examTime: time, room });
+        planned.push(name);
+        lines.push(`เพิ่มวิชา ${name} สอบ ${fmtDateLong(date)}${time ? ' เวลา ' + time : ''}`);
+      }
+      return;
+    }
+    if (call.name === 'add_subject') {
+      if (!name) { asks.push('จะเพิ่มวิชาชื่ออะไร'); return; }
+      if (matchSubjects(name).some(s => s.name.trim().toLowerCase() === name.toLowerCase())) { asks.push(`มีวิชา ${name} อยู่แล้ว`); return; }
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(a.examDate || '') && examYearOk(a.examDate) ? a.examDate : '';
+      const time = normClock(a.examTime);
+      const room = String(a.room || '').trim().slice(0, 80);
+      items.push({ kind: 'subject', name, examDate: date, examTime: time, room });
+      planned.push(name);
+      lines.push(`เพิ่มวิชา ${name}${date ? ' สอบ ' + fmtDateLong(date) : ''}${time ? ' เวลา ' + time : ''}`);
+      return;
+    }
+    if (call.name === 'add_task') {
+      const title = String(a.title || '').trim().slice(0, 200);
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') && examYearOk(a.date) ? a.date : '';
+      if (!title || !date) { asks.push('การบ้านยังขาดชื่อหรืองวดวันที่'); return; }
+      const subName = String(a.subjectName || '').trim();
+      const hits = subName ? matchSubjects(subName) : [];
+      if (subName && hits.length !== 1) { asks.push(hits.length ? `การบ้านนี้ของวิชาไหน: ${hits.map(s => s.name).join(', ')}` : `ไม่เจอวิชา "${subName}" สำหรับการบ้าน`); return; }
+      const time = normClock(a.time);
+      const type = /event|กิจกรรม/i.test(String(a.type || '')) ? 'event' : 'homework';
+      items.push({ kind: 'task', title, date, time, subjectId: hits[0] ? hits[0].id : '', type });
+      lines.push(`เพิ่ม${type === 'event' ? 'กิจกรรม' : 'การบ้าน'} "${title}" วันที่ ${fmtDateLong(date)}${time ? ' เวลา ' + time : ''}${hits[0] ? ' · ' + hits[0].name : ''}`);
+      return;
+    }
+    if (call.name === 'add_chapters') {
+      let titles = a.titles;
+      if (typeof titles === 'string') titles = titles.split(/\n|,|、/).map(s => s.trim());
+      titles = (Array.isArray(titles) ? titles : []).map(t => String(t || '').trim().slice(0, 120)).filter(Boolean).slice(0, 30);
+      const real = matchSubjects(name);
+      const willCreate = planned.some(p => p.toLowerCase() === name.toLowerCase());
+      if (!name || (real.length !== 1 && !willCreate)) {
+        asks.push(real.length > 1 ? `เพิ่มบทในวิชาไหน: ${real.map(s => s.name).join(', ')}` : `จะเพิ่มบทในวิชาไหน${name ? ' ไม่เจอ "' + name + '"' : ''}`);
+        return;
+      }
+      if (!titles.length) { asks.push('ยังไม่เห็นหัวข้อที่จะเพิ่ม'); return; }
+      const s = real[0];
+      const fresh = s ? titles.filter(t => !s.chapters.some(c => c.title === t)) : titles;
+      if (s && !fresh.length) { asks.push('บทพวกนี้อยู่ในวิชานี้แล้ว'); return; }
+      items.push({ kind: 'chapters', subjectId: s ? s.id : '', subjectName: s ? s.name : name, titles: fresh.length ? fresh : titles });
+      lines.push(`เพิ่ม ${(fresh.length ? fresh : titles).length} บทใน ${s ? s.name : name}: ${(fresh.length ? fresh : titles).join(', ')}`);
+    }
+  });
+  return { items, lines, asks };
+}
+function applyChatProposal(p) {
+  const undo = [];
+  const order = { subject: 0, exam: 1, 'clear-exam': 1, task: 1, chapters: 2 };
+  p.items.slice().sort((a, b) => (order[a.kind] || 1) - (order[b.kind] || 1)).forEach(it => {
+    if (it.kind === 'subject') {
+      const id = uid();
+      DB.subjects.push({
+        id, name: it.name, examDate: it.examDate || '', examTime: it.examTime || '', room: it.room || '',
+        color: SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length], chapters: [],
+      });
+      undo.push(() => { DB.subjects = DB.subjects.filter(s => s.id !== id); });
+    } else if (it.kind === 'exam') {
+      const s = subjectById(it.subjectId); if (!s) return;
+      const prev = { examDate: s.examDate || '', examTime: s.examTime || '', room: s.room || '' };
+      s.examDate = it.examDate || ''; s.examTime = it.examTime || ''; if (it.room) s.room = it.room;
+      undo.push(() => { const x = subjectById(it.subjectId); if (x) Object.assign(x, prev); });
+    } else if (it.kind === 'clear-exam') {
+      const s = subjectById(it.subjectId); if (!s) return;
+      const prev = { examDate: s.examDate || '', examTime: s.examTime || '', room: s.room || '' };
+      s.examDate = ''; s.examTime = ''; s.room = '';
+      undo.push(() => { const x = subjectById(it.subjectId); if (x) Object.assign(x, prev); });
+    } else if (it.kind === 'task') {
+      const id = uid();
+      DB.tasks.push({ id, title: it.title, date: it.date, time: it.time || '', subjectId: it.subjectId || '', type: it.type === 'event' ? 'event' : 'homework', done: false });
+      undo.push(() => { DB.tasks = DB.tasks.filter(t => t.id !== id); });
+    } else if (it.kind === 'chapters') {
+      const s = subjectById(it.subjectId) || DB.subjects.find(x => x.name.trim().toLowerCase() === String(it.subjectName || '').trim().toLowerCase());
+      if (!s) return;
+      const ids = [];
+      it.titles.forEach(t => {
+        if (s.chapters.some(c => c.title === t)) return;
+        const id = uid();
+        s.chapters.push({ id, title: t, done: false, note: '' });
+        ids.push(id);
+      });
+      const sid = s.id;
+      undo.push(() => { const x = subjectById(sid); if (x) x.chapters = x.chapters.filter(c => !ids.includes(c.id)); });
+    }
+  });
+  p.status = 'applied';
+  saveLocal();
+  save();
+  App.toast('อัปเดตตามที่อออบอกแล้ว', 7000, () => {
+    for (let i = undo.length - 1; i >= 0; i--) undo[i]();
+    save();
+    App.toast('เลิกทำแล้ว');
+  });
+}
+function findProposal(id) {
+  return (LOCAL.chat || []).map(m => m.proposal).find(p => p && p.id === id);
+}
 async function sendChat(q) {
-  q = (q || '').trim(); if (!q || App.aiBusy) return;
+  q = (q || '').trim();
+  const files = (App.chatAttach || []).slice();
+  if ((!q && !files.length) || App.aiBusy) return;
   LOCAL.chat = LOCAL.chat || [];
-  LOCAL.chat.push({ role: 'user', content: q }); saveLocal();
+  LOCAL.chat.push({ role: 'user', content: q, files: files.map(f => ({ name: f.name, thumb: f.thumb || '' })) });
+  App.chatAttach = [];
+  saveLocal();
   App.aiBusy = true; App.render();
   try {
-    const ans = await AI.chat(LOCAL.chat.slice(-20));
-    LOCAL.chat.push({ role: 'assistant', content: ans });
+    const hist = LOCAL.chat.slice(-16).map(m => ({ role: m.role, content: m.content || '' }));
+    hist[hist.length - 1].files = files;
+    const res = await AI.tutor(hist);
+    const plan = interpretCalls(res.calls);
+    let text = res.text || '';
+    if (plan.asks.length) text = [text, ...plan.asks].filter(Boolean).join('\n---\n');
+    if (!text && plan.items.length) text = 'เช็คให้หน่อย\n---\nกดยืนยันถ้าโอเค';
+    const proposal = plan.items.length ? { id: uid(), status: 'pending', items: plan.items, lines: plan.lines } : null;
+    LOCAL.chat.push({ role: 'assistant', content: text, proposal });
   } catch (e) { LOCAL.chat.push({ role: 'assistant', content: '⚠️ ' + e.message }); }
   App.aiBusy = false; saveLocal(); if (App.tab === 'ai') App.render();
 }
@@ -989,6 +1336,11 @@ const Actions = {
 
   // files
   'files': el => openFilesModal(el.dataset.sid),
+  'file-dest': el => {
+    LOCAL.fileDest = el.dataset.dest === 'local' ? 'local' : 'drive';
+    saveLocal();
+    filesRender();
+  },
   'file-open': async el => {
     const r = await FileStore.get(el.dataset.id); if (!r) return;
     window.open(URL.createObjectURL(r.blob), '_blank');
@@ -1001,6 +1353,55 @@ const Actions = {
     if (!confirm('ลบไฟล์นี้?')) return;
     await FileStore.del(el.dataset.id, App.filesSid);
     filesRender();
+  },
+  'file-drive-open': el => {
+    const id = safeDriveId(el.dataset.id || '');
+    if (!id) return;
+    const w = window.open('https://drive.google.com/file/d/' + id + '/view', '_blank', 'noopener');
+    if (!w) App.toast('เปิดหน้าต่างไม่สำเร็จ อนุญาตป๊อปอัปแล้วลองใหม่');
+  },
+  'file-drive-del': async el => {
+    if (App._uploading) return App.toast('กำลังอัปโหลดอยู่ รอสักครู่');
+    const id = safeDriveId(el.dataset.id || '');
+    if (!id) return;
+    if (!Sync.user) return App.toast('ล็อกอินก่อน เพื่อลบไฟล์บน Drive');
+    try {
+      if (!(Drive.token && Date.now() < Drive.expires - 60000)) await Drive.ensureToken();
+      if (!confirm('ลบไฟล์นี้จาก Google Drive?')) return;
+      await Drive.deleteFile(id);
+      const s = subjectById(App.filesSid);
+      if (s) { s.driveFiles = (s.driveFiles || []).filter(f => f && f.id !== id); save({ silent: true }); }
+      await FileStore.delDriveCache(App.filesSid, id);
+      App.toast('ลบออกจาก Drive แล้ว');
+    } catch (e) { App.toast((e && e.message) || 'ลบไฟล์บน Drive ไม่สำเร็จ', 6000); }
+    filesRender();
+  },
+  'file-migrate': async el => {
+    if (App._uploading) return App.toast('กำลังอัปโหลดอยู่ รอสักครู่');
+    if (!Sync.user) return App.toast('ล็อกอินก่อน เพื่อย้ายไฟล์ขึ้น Google Drive');
+    const pending = Drive.ensureToken();
+    App._uploading = true;
+    try {
+      const rec = await FileStore.get(el.dataset.id);
+      if (!rec || !rec.blob || rec.driveId) { pending.catch(() => { }); return; }
+      await runDriveUploads(App.filesSid, [new File([rec.blob], rec.name || 'ไฟล์', { type: rec.type || '' })], [rec.id], pending);
+    } catch (e) { pending.catch(() => { }); App.toast((e && e.message) || 'ย้ายขึ้น Drive ไม่สำเร็จ', 6000); }
+    finally { App._uploading = false; filesRender(); }
+  },
+  'file-migrate-all': async () => {
+    if (App._uploading) return App.toast('กำลังอัปโหลดอยู่ รอสักครู่');
+    if (!Sync.user) return App.toast('ล็อกอินก่อน เพื่อย้ายไฟล์ขึ้น Google Drive');
+    const pending = Drive.ensureToken();
+    const sid = App.filesSid;
+    App._uploading = true;
+    try {
+      const all = await FileStore.list(sid);
+      const local = (all || []).filter(f => f && !f.driveId && f.blob);
+      if (!local.length) { pending.catch(() => { }); App.toast('ไม่มีไฟล์ในเครื่องให้ย้าย'); return; }
+      const files = local.map(r => new File([r.blob], r.name || 'ไฟล์', { type: r.type || '' }));
+      await runDriveUploads(sid, files, local.map(r => r.id), pending);
+    } catch (e) { pending.catch(() => { }); App.toast((e && e.message) || 'ย้ายขึ้น Drive ไม่สำเร็จ', 6000); }
+    finally { App._uploading = false; filesRender(); }
   },
   'link-del': el => {
     const s = subjectById(App.filesSid); if (!s) return;
@@ -1037,7 +1438,27 @@ const Actions = {
     App.go('subjects');
   },
   'quick-ask': el => sendChat(el.dataset.q),
-  'clear-chat': () => { if (confirm('ล้างประวัติแชท?')) { LOCAL.chat = []; saveLocal(); App.render(); } },
+  'clear-chat': () => { if (confirm('ล้างประวัติแชท?')) { LOCAL.chat = []; App.chatAttach = []; saveLocal(); App.render(); } },
+  'chat-attach': () => document.getElementById('chatFile')?.click(),
+  'chat-cam': () => document.getElementById('chatCam')?.click(),
+  'chat-unchip': el => {
+    const i = Number(el.dataset.i);
+    if (App.chatAttach) App.chatAttach.splice(i, 1);
+    const box = document.getElementById('chatChips');
+    if (box) box.innerHTML = chatChipsHTML();
+  },
+  'chat-apply': el => {
+    const p = findProposal(el.dataset.id);
+    if (!p || p.status !== 'pending') return;
+    applyChatProposal(p);
+  },
+  'chat-cancel': el => {
+    const p = findProposal(el.dataset.id);
+    if (!p || p.status !== 'pending') return;
+    p.status = 'cancelled';
+    saveLocal();
+    App.render();
+  },
   'ai-explain': el => { const { s, c } = getSC(el); if (c) sendChat(`ช่วยอธิบายเนื้อหาบท "${c.title}" วิชา ${s.name} ให้เข้าใจง่ายๆ พร้อมยกตัวอย่าง และบอกจุดที่มักออกสอบ`); },
   'ai-summary': async el => {
     const { s, c } = getSC(el); if (!c) return;
@@ -1305,12 +1726,27 @@ const Changes = {
     if (c.provider === 'gemini') c.geminiModel = el.value; else c.openaiModel = el.value;
     saveAICfg(); if (!DB.ai?.sync) App.render();
   },
-  'file-upload': async el => {
-    const files = [...(el.files || [])]; if (!files.length || !App.filesSid) return;
-    for (const f of files) await FileStore.add(App.filesSid, f);
+  'chat-file': el => {
+    const files = [...(el.files || [])];
     el.value = '';
-    App.toast(`บันทึก ${files.length} ไฟล์แล้ว 📎`);
-    filesRender();
+    if (files.length) addChatFiles(files);
+  },
+  'file-upload': async el => {
+    const files = [...(el.files || [])];
+    el.value = '';
+    const sid = App.filesSid;
+    if (!files.length || !sid || App._uploading) return;
+    if (!fileGoesToDrive()) {
+      const n = await saveLocalFiles(sid, files);
+      const tail = Sync.user ? `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว` : `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว — ล็อกอินเพื่ออัปโหลดขึ้น Drive`;
+      App.toast(n ? tail : 'บันทึกไฟล์ในเครื่องไม่สำเร็จ');
+      filesRender();
+      return;
+    }
+    const pending = Drive.ensureToken();
+    App._uploading = true;
+    try { await runDriveUploads(sid, files, null, pending); }
+    finally { App._uploading = false; filesRender(); }
   },
   'exam-img': el => {
     const file = el.files?.[0]; if (!file) return;

@@ -30,6 +30,7 @@ const defaultLocal = () => ({
   geminiKey: '', geminiModel: 'gemini-3.8-flash',
   openaiKey: '', openaiModel: 'gpt-4o-mini',
   firebaseConfig: '',
+  fileDest: 'drive',
   lastNotify: {},
   chat: [],
 });
@@ -101,6 +102,14 @@ const weekStart = s => { const d = parseDate(s); const dow = (d.getDay() + 6) % 
 
 /* ===== Misc helpers ===== */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function safeDriveId(id) {
+  const s = String(id || '').trim();
+  return /^[A-Za-z0-9_-]{8,}$/.test(s) ? s : '';
+}
+function driveFolderLabel(name) {
+  const s = String(name || '').replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  return s || 'วิชา';
+}
 const subjectById = id => DB.subjects.find(s => s.id === id);
 function safeColor(c) {
   const s = String(c || '').trim();
@@ -163,28 +172,48 @@ const FileStore = {
   async refreshCounts() {
     const all = await this._tx('readonly', s => s.getAll());
     const c = {};
-    (all || []).forEach(f => { c[f.subjectId] = (c[f.subjectId] || 0) + 1; });
+    (all || []).forEach(f => { if (f && !f.driveId) c[f.subjectId] = (c[f.subjectId] || 0) + 1; });
     this._counts = c;
     return c;
   },
   count(sid) {
     const sub = subjectById(sid);
-    return (this._counts[sid] || 0) + ((sub?.links || []).length);
+    const driveN = (sub?.driveFiles || []).filter(f => f && safeDriveId(f.id)).length;
+    return (this._counts[sid] || 0) + driveN + ((sub?.links || []).length);
   },
   async list(sid) {
     const list = await this._tx('readonly', s => s.index('subjectId').getAll(sid));
     return (list || []).sort((a, b) => b.addedAt - a.addedAt);
   },
-  async add(sid, file) {
-    const rec = { id: uid(), subjectId: sid, name: file.name, type: file.type || '', size: file.size || 0, blob: file, addedAt: Date.now() };
+  async add(sid, file, extra) {
+    const driveId = safeDriveId(extra && extra.driveId);
+    const rec = { id: uid(), subjectId: sid, name: file.name, type: file.type || '', size: file.size || 0, blob: file, addedAt: Date.now(), driveId };
     await this._tx('readwrite', s => s.put(rec));
-    this._counts[sid] = (this._counts[sid] || 0) + 1;
+    if (!driveId) this._counts[sid] = (this._counts[sid] || 0) + 1;
     return rec;
   },
   async get(id) { return this._tx('readonly', s => s.get(id)); },
+  async markDrive(id, sid, driveId) {
+    const rec = await this.get(id);
+    const next = safeDriveId(driveId);
+    if (!rec || !next || rec.driveId === next) return;
+    const wasLocal = !rec.driveId;
+    rec.driveId = next;
+    await this._tx('readwrite', s => s.put(rec));
+    if (wasLocal && sid && this._counts[sid]) this._counts[sid]--;
+  },
   async del(id, sid) {
+    const rec = await this.get(id);
     await this._tx('readwrite', s => s.delete(id));
-    if (sid && this._counts[sid]) this._counts[sid]--;
+    if (sid && rec && !rec.driveId && this._counts[sid]) this._counts[sid]--;
+  },
+  async delDriveCache(sid, driveId) {
+    const id = safeDriveId(driveId);
+    if (!id) return;
+    const list = await this.list(sid);
+    const hit = (list || []).filter(f => f && f.driveId === id);
+    if (!hit.length) return;
+    await this._tx('readwrite', s => { hit.forEach(f => s.delete(f.id)); return {}; });
   },
   async delSubject(sid) {
     const list = await this.list(sid);
@@ -266,11 +295,31 @@ function removeDemoData() {
   save();
   removed.forEach(id => FileStore.delSubject(id).catch(() => { }));
 }
+function sanitizeDriveFile(f) {
+  if (!f || typeof f !== 'object') return null;
+  const id = safeDriveId(f.id);
+  if (!id) return null;
+  let size = Number(f.size);
+  if (!Number.isFinite(size) || size < 0) size = 0;
+  const modified = String(f.modifiedTime || '');
+  return {
+    id,
+    name: String(f.name || 'ไฟล์').replace(/[\u0000-\u001f]/g, '').slice(0, 300) || 'ไฟล์',
+    size,
+    mimeType: String(f.mimeType || '').slice(0, 150),
+    modifiedTime: /^\d{4}-\d{2}-\d{2}T/.test(modified) ? modified.slice(0, 40) : '',
+  };
+}
 function sanitizeIncoming(data) {
   if (!data || typeof data !== 'object') return data;
+  const rootId = safeDriveId(data.drive && data.drive.rootId);
+  if (data.drive && typeof data.drive === 'object') data.drive = rootId ? { rootId } : {};
   (data.subjects || []).forEach(s => {
     if (!s || typeof s !== 'object') return;
     s.color = safeColor(s.color);
+    const folder = safeDriveId(s.driveFolderId);
+    if (folder) s.driveFolderId = folder; else delete s.driveFolderId;
+    s.driveFiles = Array.isArray(s.driveFiles) ? s.driveFiles.map(sanitizeDriveFile).filter(Boolean) : [];
     if (!Array.isArray(s.links) || typeof normalizeLink !== 'function') return;
     s.links = s.links.map(l => {
       if (!l) return null;

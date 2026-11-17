@@ -1,11 +1,12 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v10';
+const CACHE = 'study-planner-v12';
 const SHELL = ['./', './index.html', './styles.css', './manifest.json',
   './icon-16.png', './icon-32.png', './icon-180.png', './icon-192.png', './icon-512.png',
   './assets/bg-blue.webp', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
   './assets/coach-hero-real.webp', './assets/coach-action.webp', './assets/coach-moto.webp',
   './assets/sticker-pencil.webp', './assets/sticker-book.webp', './assets/sticker-rocket.webp', './assets/sticker-sakura.webp',
-  './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/services.js', './js/app.js'];
+  './assets/ooo-chat.webp',
+  './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/drive.js', './js/services.js', './js/app.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
@@ -13,7 +14,10 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (e.request.method !== 'GET') return;
+  // Drive API and Google sign-in must always hit the network (never the app-shell cache).
+  if (/(^|\.)googleapis\.com$/.test(url.hostname) || url.hostname === 'accounts.google.com') return;
+  if (url.origin !== location.origin) return;
   e.respondWith(
     fetch(e.request).then(r => {
       if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
