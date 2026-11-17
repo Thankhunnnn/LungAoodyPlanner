@@ -6,6 +6,8 @@ const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(3
 
 const defaultData = () => ({
   name: '',
+  term: 'เทอม 1',
+  terms: {},      // { [termName]: { subjects, classes, plan, tasks } }
   subjects: [],   // {id,name,color,examDate,examTime,room,chapters:[{id,title,done,doneAt,note}]}
   tasks: [],      // {id,title,date,time,subjectId,type:'homework'|'event',done}
   plan: [],       // {id,date,subjectId,chapterId,title,kind:'read'|'review'|'custom',done,auto}
@@ -327,6 +329,8 @@ function sanitizeDriveFile(f) {
 }
 function sanitizeIncoming(data) {
   if (!data || typeof data !== 'object') return data;
+  if (typeof data.term !== 'string' || !data.term.trim()) data.term = 'เทอม 1';
+  if (!data.terms || typeof data.terms !== 'object' || Array.isArray(data.terms)) data.terms = {};
   const rootId = safeDriveId(data.drive && data.drive.rootId);
   if (data.drive && typeof data.drive === 'object') data.drive = rootId ? { rootId } : {};
   (data.subjects || []).forEach(s => {

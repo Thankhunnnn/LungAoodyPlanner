@@ -98,6 +98,34 @@ function classesOnDate(d) {
   return (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
 }
 
+function allTermNames() {
+  const cur = (DB.term || 'เทอม 1').trim() || 'เทอม 1';
+  return [cur, ...Object.keys(DB.terms || {}).filter(k => k && k !== cur)];
+}
+function switchTerm(targetName) {
+  const cur = (DB.term || 'เทอม 1').trim() || 'เทอม 1';
+  const nextName = String(targetName || '').trim().slice(0, 40);
+  if (!nextName || nextName === cur) return;
+  DB.terms = DB.terms || {};
+  DB.terms[cur] = {
+    subjects: DB.subjects || [],
+    classes: DB.classes || [],
+    plan: DB.plan || [],
+    tasks: DB.tasks || [],
+  };
+  const next = DB.terms[nextName] || { subjects: [], classes: [], plan: [], tasks: [] };
+  DB.subjects = Array.isArray(next.subjects) ? next.subjects : [];
+  DB.classes = Array.isArray(next.classes) ? next.classes : [];
+  DB.plan = Array.isArray(next.plan) ? next.plan : [];
+  DB.tasks = Array.isArray(next.tasks) ? next.tasks : [];
+  delete DB.terms[nextName];
+  DB.term = nextName;
+  App.todoSub = '';
+  autoLinkClassesToSubjects();
+  save();
+  App.toast(`สลับไป ${nextName} แล้ว 🎓`);
+}
+
 const App = {
   tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
   aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
@@ -154,6 +182,12 @@ const App = {
     const isMono = isMinimalTheme(theme);
     document.getElementById('nav').innerHTML = `
       <div class="side-brand"><span class="side-logo">${isFootball ? '<img src="assets/madrid-crest.png" alt="Real Madrid" class="side-logo-img">' : isManU ? '<img src="assets/manutd-crest.png" alt="Man Utd" class="side-logo-img">' : isMono ? ico('layers', 18) : '🐃'}</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
+      <div class="side-term">
+        <select class="side-term-sel" data-chg="switch-term" aria-label="เลือกเทอม">
+          ${allTermNames().map(t => `<option value="${esc(t)}" ${t === (DB.term || 'เทอม 1') ? 'selected' : ''}>🎓 ${esc(t)}</option>`).join('')}
+        </select>
+        <button type="button" class="mini-btn" data-act="new-term" title="เริ่มเทอมใหม่ (เก็บเทอมเดิมเป็นประวัติ)">+ เทอม</button>
+      </div>
       <div class="side-tabs">${ALL_TABS.map(([id, ic, label]) =>
         `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${id === 'ai' ? aiTabLabel() : label}</span></button>`).join('')}</div>
       ${isFootball ? '<div class="side-hala" aria-hidden="true">Hala Madrid</div>' : isManU ? '<div class="side-hala" aria-hidden="true">Glory Glory Man United</div>' : ''}`;
@@ -1352,6 +1386,21 @@ function dayModal(d, opts = {}) {
     <h3>📝 งาน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
     <div class="row wrap"><button class="btn small" data-act="add-todo" data-date="${d}">+ สิ่งที่ต้องทำ</button></div>`, false, opts);
 }
+function openNewTermModal() {
+  const existing = new Set(allTermNames());
+  const presets = ['เทอม 1', 'เทอม 2', 'ซัมเมอร์'];
+  const suggest = presets.find(p => !existing.has(p)) || `เทอม ${existing.size + 1}`;
+  openModal('🎓 เริ่มเทอมใหม่', `
+    <p class="muted small" style="margin-top:0">ระบบจะเก็บวิชา ตารางเรียน วันสอบ ไฟล์แนบ และงานของ <b>${esc(DB.term || 'เทอม 1')}</b> ไว้เป็นประวัติให้สลับกลับมาดูได้ตลอด โดยสถิติเวลาอ่านรวมทั้งหมดยังคงอยู่</p>
+    <div class="pills" style="margin-bottom:12px">
+      ${presets.map(p => `<button type="button" class="pill" data-act="pick-term-preset" data-v="${esc(p)}">${esc(p)}${existing.has(p) ? ' ✓' : ''}</button>`).join('')}
+    </div>
+    <form data-form="new-term">
+      <label class="field">ชื่อเทอม (เช่น เทอม 2, เทอม 2/2569, ซัมเมอร์)<input id="newTermName" name="termName" required maxlength="40" value="${esc(suggest)}"></label>
+      <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">สร้าง / สลับเทอม</button></div>
+    </form>
+  `);
+}
 function openTagColorsModal(opts = {}) {
   const defs = [
     ['plan', '📖 อ่านหนังสือ', '#3b82f6'],
@@ -2374,6 +2423,8 @@ const Actions = {
 
   // tasks & unified todo
   'open-pending': () => openPendingModal(),
+  'new-term': () => openNewTermModal(),
+  'pick-term-preset': el => { const inp = document.getElementById('newTermName'); if (inp) { inp.value = el.dataset.v || ''; inp.focus(); } },
   'tag-colors': () => openTagColorsModal(),
   'tag-color-pick': el => {
     DB.prefs.tagColors = DB.prefs.tagColors || {};
@@ -2772,6 +2823,12 @@ const Forms = {
     titles.forEach(title => s.chapters.push({ id: uid(), title, done: false, note: '' }));
     closeModal(); save(); App.toast(`เพิ่ม ${titles.length} บทแล้ว`);
   },
+  'new-term'(d) {
+    const nm = (d.termName || '').trim().slice(0, 40);
+    if (!nm) return App.toast('ใส่ชื่อเทอมก่อนนะ');
+    closeModal();
+    switchTerm(nm);
+  },
   todo(d, f) {
     const kind = d.todoKind || 'homework';
     if (kind === 'plan') {
@@ -2925,6 +2982,7 @@ const Forms = {
 /* ===== Change handlers ===== */
 const Changes = {
   'home-stat-week': el => { App.statWeek = el.value; App.render(); },
+  'switch-term': el => { switchTerm(el.value); },
   'tag-color-custom': el => {
     DB.prefs.tagColors = DB.prefs.tagColors || {};
     DB.prefs.tagColors[el.dataset.k] = safeColor(el.value);

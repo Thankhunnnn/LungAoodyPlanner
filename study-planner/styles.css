@@ -1473,3 +1473,13 @@ html:is([data-theme="mono"], [data-theme="pink"], [data-theme="lavender"], [data
 .bento-mascot.ronaldo-hero { z-index: 1; right: 24px !important; opacity: 1 !important; }
 .side-cards { margin-top: auto !important; }
 .ref-banner .bento-mascot:not(.ronaldo-hero) { position: absolute; right: 16px; bottom: 4px; opacity: 1 !important; pointer-events: none; z-index: 1; }
+
+.side-term {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 0 10px; padding: 0 2px;
+}
+.side-term-sel {
+  flex: 1; min-width: 0; padding: 6px 8px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--soft); color: var(--text);
+  font: inherit; font-size: .82rem; font-weight: 500;
+}
