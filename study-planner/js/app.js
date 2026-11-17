@@ -392,8 +392,9 @@ const Views = {
     <div class="ref-row1">
       <section class="card ref-banner ${isFootball ? 'is-football' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
         ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true">` : ''}
+        <div class="banner-ic" aria-hidden="true">${ico('target', 24)}</div>
         <div class="ref-banner-body">
-          <div class="ref-banner-title"><span class="ref-target">${ico('target', 16)}</span> <span>เป้าหมายหลักของคุณ</span></div>
+          <div class="ref-banner-title"><span>เป้าหมายหลักของคุณ</span></div>
           <h2>${nextEx ? `${esc(nextEx.name)} · อีก ${nextDays} วันสอบ` : 'อ่านหนังสือให้ครบตามเป้า'}</h2>
           <p class="banner-sub">${DB.subjects.length} วิชา · อ่านจบแล้ว ${doneCh}/${totCh} บท (${overallPct}%)</p>
           <button class="btn small ref-cta" data-act="go" data-tab="plan">ดูแผนทั้งหมด →</button>

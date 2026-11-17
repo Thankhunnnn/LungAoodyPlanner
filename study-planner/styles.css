@@ -777,23 +777,37 @@ select option { background: #fff; color: #1a2840; }
 .ref-row1 > .card { margin-bottom: 0; }
 .ref-banner {
   position: relative;
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  padding: 16px 20px; overflow: hidden;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 18px 22px; overflow: hidden; min-height: 152px;
   background:
-    radial-gradient(circle at 86% 50%, color-mix(in srgb, #6366f1 34%, transparent) 0%, transparent 52%),
-    linear-gradient(125deg, #252b6b, #162244);
+    radial-gradient(circle at 72% 45%, rgba(99, 102, 241, .42) 0%, transparent 48%),
+    linear-gradient(125deg, #323ca8 0%, #1f2b70 55%, #121c47 100%);
   color: #f4f8ff;
 }
 .ref-banner > * { position: relative; z-index: 1; }
+.banner-ic {
+  width: 50px; height: 50px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #a855f7, #4f46e5);
+  box-shadow: 0 0 22px rgba(139, 92, 246, .55), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
 .banner-crest {
-  position: absolute !important; right: 16px; top: 50%; transform: translateY(-50%);
-  height: 128px; width: auto; opacity: .16; pointer-events: none; z-index: 0 !important;
-  filter: drop-shadow(0 0 12px rgba(255, 255, 255, .15));
+  position: absolute !important; right: -8px; top: 50%; transform: translateY(-50%);
+  height: 185px; width: auto; opacity: .26; pointer-events: none; z-index: 0 !important;
+  filter: drop-shadow(0 0 16px rgba(147, 197, 253, .28));
 }
 .bento-mascot.ronaldo-hero {
-  height: 138px; width: auto; max-width: 150px; object-fit: contain; object-position: bottom;
-  margin: -12px -4px -16px 0;
-  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .5));
+  position: absolute !important; right: 54px; bottom: -18px;
+  height: 196px; width: auto; max-width: none; object-fit: contain; object-position: top center;
+  margin: 0; pointer-events: none;
+  filter: drop-shadow(0 8px 22px rgba(0, 0, 0, .55));
+}
+.ref-banner.is-football .ref-banner-body { padding-right: 175px; }
+@media (max-width: 600px) {
+  .bento-mascot.ronaldo-hero { right: 6px; height: 154px; bottom: -12px; opacity: .92; }
+  .banner-crest { height: 140px; right: -10px; }
+  .ref-banner.is-football .ref-banner-body { padding-right: 110px; }
+  .banner-ic { display: none; }
 }
 :root:not([data-dark="1"]):not([data-theme="navy"]) .ref-banner {
   background: linear-gradient(125deg, color-mix(in srgb, var(--accent) 22%, #fff), color-mix(in srgb, var(--accent) 8%, var(--card)));
