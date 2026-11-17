@@ -1466,8 +1466,10 @@ button.color-dot.sel span { border-color: var(--text); }
 .ref-pending-top .ref-todo-list { max-height: 108px; }
 .side-tabs .tab span:last-child { font-size: .88rem; line-height: 1.25; text-align: left; }
 
-.ref-banner-body { position: relative; z-index: 2; padding-right: 0 !important; }
-.bento-mascot.ronaldo-hero { z-index: 1; right: 14px !important; opacity: .42; }
+.ref-banner-body { position: relative; z-index: 2; }
+.ref-banner:is(.is-football, .is-manutd) .ref-banner-body { padding-right: 165px; }
+.ref-banner:not(.is-football):not(.is-manutd) .ref-banner-body { padding-right: 115px; }
+html:is([data-theme="mono"], [data-theme="pink"], [data-theme="lavender"], [data-theme="mint"], [data-theme="peach"]) .ref-banner-body { padding-right: 0; }
+.bento-mascot.ronaldo-hero { z-index: 1; right: 24px !important; opacity: 1 !important; }
 .side-cards { margin-top: auto !important; }
-
-.ref-banner .bento-mascot:not(.ronaldo-hero) { position: absolute; right: 16px; bottom: 4px; opacity: .38; pointer-events: none; z-index: 1; }
+.ref-banner .bento-mascot:not(.ronaldo-hero) { position: absolute; right: 16px; bottom: 4px; opacity: 1 !important; pointer-events: none; z-index: 1; }
