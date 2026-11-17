@@ -230,6 +230,15 @@ function smartActionData() {
         attrs: `data-act="smart-focus" data-sid="${esc(ex.id)}"`
       };
     }
+    if (totCh === 0) {
+      return {
+        badge: 'เริ่มต้น',
+        kind: 'idle',
+        text: 'เพิ่มบทเรียนหรือกำหนดวันสอบเพื่อเริ่มวางแผนกันเลย',
+        btn: '+ เพิ่มวิชา',
+        attrs: 'data-act="add-subject"'
+      };
+    }
     return {
       badge: 'ทบทวน',
       kind: 'study',
@@ -323,7 +332,7 @@ const App = {
     if (ring) ring.style.setProperty('--p', (1 - sec / Timer.dur()) * 100);
     const btn = document.getElementById('timerStartBtn');
     if (btn) {
-      btn.innerHTML = btn.dataset.mini ? (Timer.running ? ico('pause', 13) : ico('play', 13)) : (Timer.running ? `${ico('pause')} หยุดชั่วคราว` : `${ico('play')} เริ่ม`);
+      btn.innerHTML = btn.dataset.mini ? (Timer.running ? ico('pause', 13) : ico('play', 13)) : (Timer.running ? `${ico('pause')} พัก` : `${ico('play')} เริ่ม`);
       btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start';
     }
     const clk = document.getElementById('liveClock');
@@ -361,7 +370,7 @@ const App = {
         <span id="liveClock" class="chip date-pill live-clock" aria-label="เวลาปัจจุบัน">${ico('clock', 14)} ${liveTimeStr()}</span>
         ${this.syncBadgeHTML()}
         <button class="chip theme-pick-btn" data-act="open-themes" style="--th-c:${thMeta[2]}" title="คลิกเพื่อเปลี่ยนธีม"><span class="theme-pick-dot"></span><span>ธีม: ${esc(thMeta[1])}</span><span class="theme-pick-caret">▾</span></button>
-        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
+        <button class="icon-btn head-settings-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
         <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? ico('sun', 17) : ico('moon', 17)}</button>
       </div>`;
   },
@@ -850,7 +859,7 @@ const Views = {
             </div>`),
             ...today.map(p => planItemHTML(p, false, '<span class="todo-cat cat-plan">อ่านหนังสือ</span>')),
             ...todayTasks.map(x => taskItemHTML(x, x.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">งาน</span>'))
-          ].join('') : empty(isFootball || isManU || isMono ? ico('check', 30) : '', 'วันนี้ยังไม่มีรายการ', `<button class="btn small" data-act="add-todo" data-date="${t}">${ico('plus', 14)} เพิ่มสิ่งที่ต้องทำ</button>`, isFootball || isManU || isMono ? '' : 'assets/coach-action.webp')}
+          ].join('') : empty(isFootball || isManU || isMono ? ico('check', 30) : '', 'วันนี้ยังไม่มีรายการ', '', isFootball || isManU || isMono ? '' : 'assets/coach-action.webp')}
         </div>
         <div class="ref-todo-foot">
           <button class="btn ghost full" data-act="go" data-tab="plan">ดูทั้งหมด →</button>
@@ -1135,7 +1144,7 @@ const Views = {
               </span>
               <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวันสอบ ${esc(s.name)}">✎</button>
             </div>`;
-          }).join('') : empty('🎯', 'ยังไม่มีวิชาที่กำหนดวันสอบ', `<button class="btn small" data-act="go" data-tab="subjects">ไปเพิ่มวิชา</button>`);
+          }).join('') : empty('🎯', 'ยังไม่มีวิชาที่กำหนดวันสอบ', `<button class="btn small" data-act="go" data-tab="subjects">${DB.subjects.length ? 'กำหนดวันสอบ' : 'ไปเพิ่มวิชา'}</button>`);
         })()}
       </section>`;
     }
@@ -1287,7 +1296,7 @@ const Views = {
     if (!AI.ready()) {
       const th = DB.prefs.theme || 'sky';
       return `<section class="card welcome"><h2>${th === 'sky' ? '🐃' : ico('sparkles', 20)} ${aiTabLabel()}</h2>
-        <p>ต้องใส่ API key ก่อนนะ เลือกได้ทั้ง <b>Google Gemini</b> (มีโควตาฟรี) หรือ <b>OpenAI</b></p>
+        <p>ต้องใส่ API key ก่อนนะ เลือกได้ทั้ง <b>Google Gemini</b> (มีโควตาฟรี), <b>DeepSeek</b> หรือ <b>OpenAI</b></p>
         <button class="btn" data-act="go" data-tab="settings">ไปที่ตั้งค่า AI →</button></section>`;
     }
     const chat = LOCAL.chat || [];
