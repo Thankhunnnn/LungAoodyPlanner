@@ -874,6 +874,9 @@ select option { background: #fff; color: #1a2840; }
 }
 .ch-file-tag.more { color: var(--accent); border-color: var(--accent); cursor: pointer; font-family: inherit; }
 .ch-file-scroll { max-height: 320px; overflow-y: auto; padding-right: 4px; }
+.chapters .item { flex-wrap: wrap; gap: 6px 8px; }
+.chapters .item .grow { flex: 1 1 150px; min-width: min(150px, 100%); }
+.chapters .item .item-actions { margin-left: auto; flex-wrap: wrap; gap: 4px; }
 .ch-round-bar {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   padding: 10px 14px; border-radius: 14px; background: var(--soft); border: 1px solid var(--border);

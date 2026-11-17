@@ -44,7 +44,7 @@ const ico = (name, size = 16) => `<svg class="svg-ic" width="${size}" height="${
 
 const THEMES = [
   ['pink', 'ชมพูพาสเทล', '#ec6a9c'], ['lavender', 'ลาเวนเดอร์', '#9b7ede'], ['mint', 'มิ้นต์', '#3fb68b'],
-  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
+  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'ฟุตบอล', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
   ['home', ico('home'), 'หน้าแรก'], ['plan', ico('book'), 'ตารางอ่าน'], ['subjects', ico('layers'), 'วิชา'], ['calendar', ico('calendar'), 'ปฏิทิน'],
