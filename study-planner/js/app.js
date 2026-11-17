@@ -921,11 +921,11 @@ function fmtStamp(v) {
 }
 function fileGoesToDrive() { return !!Sync.user && LOCAL.fileDest !== 'local'; }
 function driveNote(s) {
-  if (!Sync.user) return 'ยังไม่ล็อกอิน — ไฟล์จะเก็บในเครื่องนี้ กด "ล็อกอินเพื่อ sync" แล้วกด "ย้ายขึ้น Drive" เพื่อให้เห็นบนเครื่องอื่น';
-  if (!fileGoesToDrive()) return 'ไฟล์ใหม่จะเก็บในเครื่องนี้ เลือก "ขึ้น Drive" ถ้าอยากอัปโหลดขึ้น Google Drive';
+  if (!Sync.user) return 'เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น (เปิดไว ไม่ต้องใช้เน็ต) — ล็อกอินเพื่ออัปโหลดขึ้น Drive และซิงก์ข้ามเครื่อง';
+  if (!fileGoesToDrive()) return 'เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น (เปิดไว ไม่เปลืองพื้นที่ Drive แต่ไม่ซิงก์ข้ามเครื่อง)';
   if (!driveClientId()) return 'ยังไม่ได้ตั้งค่า Google Client ID — ไฟล์จะเก็บในเครื่องนี้ก่อน (วิธีตั้งอยู่ใน README)';
   const who = Sync.user.email || Sync.user.displayName || 'บัญชีนี้';
-  return `อัปโหลดขึ้น Google Drive ของ ${who} ในโฟลเดอร์ ${DRIVE_ROOT_NAME} / ${driveFolderLabel(s.name)}`;
+  return `อัปโหลดไฟล์จริงเข้า Google Drive ของ ${who} (${DRIVE_ROOT_NAME} / ${driveFolderLabel(s.name)}) เพื่อซิงก์เปิดดูข้ามเครื่องได้`;
 }
 function driveFailToast(e, savedLocal) {
   const code = e && e.code;
