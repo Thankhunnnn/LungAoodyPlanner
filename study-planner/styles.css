@@ -21,6 +21,7 @@
   --gutter: 0px;
 }
 [data-dark="1"] {
+  color-scheme: dark;
   --bg1: #1b181d; --bg2: color-mix(in srgb, var(--accent) 14%, #1b181d);
   --card: rgba(40, 35, 42, .94);
   --text: #f6eef2; --muted: #c4b3bb;

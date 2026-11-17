@@ -1100,9 +1100,9 @@ async function filesRender() {
 
     ${signed || driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>
       ${driveFiles.length ? driveFiles.map(driveRow).join('') : '<p class="muted small">ยังไม่มีไฟล์บน Drive ในหมวดนี้</p>'}` : ''}
-    ${local.length || !driveFiles.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
-      ${local.length ? '<button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button>' : ''}</div>
-      ${local.length ? local.map(localRow).join('') : `<p class="muted small">${signed ? 'ยังไม่มีไฟล์ในเครื่องในหมวดนี้' : 'ยังไม่มีไฟล์ในหมวดนี้'}</p>`}` : ''}
+    ${local.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
+      <button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button></div>
+      ${local.map(localRow).join('')}` : ''}
     <h3>🔗 ลิงก์เอกสาร (${links.length})</h3>
     ${links.length ? links.map(linkRow).join('') : '<p class="muted small">ยังไม่มีลิงก์ในหมวดนี้</p>'}`);
 }
