@@ -957,8 +957,10 @@ const Views = {
         <label class="field">Gemini API key <input type="password" data-ai="geminiKey" value="${esc(C.geminiKey)}" placeholder="AIza..."></label>
         <p class="muted small" style="margin-top:-6px">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : C.provider === 'deepseek' ? `
         <label class="field">DeepSeek API key <input type="password" data-ai="deepseekKey" value="${esc(C.deepseekKey || '')}" placeholder="sk-..."></label>
-        <label class="field">CORS Proxy URL (Cloudflare Worker)<input type="url" data-ai="deepseekProxy" value="${esc(C.deepseekProxy || 'https://lungaoody-deepseek.pkgztv6.workers.dev')}" placeholder="https://...workers.dev"></label>
-        <p class="muted small" style="margin-top:-6px">สร้าง key ได้ที่ <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com/api_keys</a> (คิดเงินตามการใช้งาน · ส่งผ่าน Cloudflare Worker ที่ตั้งค่าไว้)</p>` : `
+        <p class="muted small" style="margin-top:-6px">สร้าง key ได้ที่ <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com/api_keys</a> (คิดเงินตามการใช้งาน)</p>
+        <details style="margin:6px 0 10px"><summary>ตั้งค่า CORS Proxy URL (ไม่บังคับ)</summary>
+          <label class="field" style="margin-top:6px">CORS Proxy URL (Cloudflare Worker)<input type="url" data-ai="deepseekProxy" value="${esc(C.deepseekProxy || 'https://lungaoody-deepseek.lungaoody.workers.dev')}" placeholder="https://...workers.dev"></label>
+        </details>` : `
         <label class="field">OpenAI API key <input type="password" data-ai="openaiKey" value="${esc(C.openaiKey)}" placeholder="sk-..."></label>
         <p class="muted small" style="margin-top:-6px">สร้าง key ที่ <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> (คิดเงินตามการใช้งาน)</p>`}
       <label class="field">รุ่นโมเดล

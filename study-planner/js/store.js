@@ -22,7 +22,7 @@ const defaultData = () => ({
     sync: true, provider: 'gemini',
     geminiKey: '', geminiModel: 'gemini-3.8-flash',
     openaiKey: '', openaiModel: 'gpt-4o-mini',
-    deepseekKey: '', deepseekModel: 'deepseek-chat', deepseekProxy: 'https://lungaoody-deepseek.pkgztv6.workers.dev',
+    deepseekKey: '', deepseekModel: 'deepseek-chat', deepseekProxy: 'https://lungaoody-deepseek.lungaoody.workers.dev',
   },
   updatedAt: 0,
 });
@@ -31,7 +31,7 @@ const defaultLocal = () => ({
   aiProvider: 'gemini',
   geminiKey: '', geminiModel: 'gemini-3.8-flash',
   openaiKey: '', openaiModel: 'gpt-4o-mini',
-  deepseekKey: '', deepseekModel: 'deepseek-chat', deepseekProxy: 'https://lungaoody-deepseek.pkgztv6.workers.dev',
+  deepseekKey: '', deepseekModel: 'deepseek-chat', deepseekProxy: 'https://lungaoody-deepseek.lungaoody.workers.dev',
   firebaseConfig: '',
   fileDest: 'drive',
   lastNotify: {},
@@ -61,9 +61,11 @@ if (DB.ai?.sync && !DB.ai.geminiKey && !DB.ai.openaiKey && !DB.ai.deepseekKey &&
     geminiKey: LOCAL.geminiKey || '', geminiModel: LOCAL.geminiModel || 'gemini-3.8-flash',
     openaiKey: LOCAL.openaiKey || '', openaiModel: LOCAL.openaiModel || 'gpt-4o-mini',
     deepseekKey: LOCAL.deepseekKey || '', deepseekModel: LOCAL.deepseekModel || 'deepseek-chat',
-    deepseekProxy: LOCAL.deepseekProxy || 'https://lungaoody-deepseek.pkgztv6.workers.dev',
+    deepseekProxy: LOCAL.deepseekProxy || 'https://lungaoody-deepseek.lungaoody.workers.dev',
   });
 }
+if (DB.ai?.deepseekProxy === 'https://lungaoody-deepseek.pkgztv6.workers.dev') DB.ai.deepseekProxy = 'https://lungaoody-deepseek.lungaoody.workers.dev';
+if (LOCAL.deepseekProxy === 'https://lungaoody-deepseek.pkgztv6.workers.dev') LOCAL.deepseekProxy = 'https://lungaoody-deepseek.lungaoody.workers.dev';
 function aiCfg() {
   if (DB.ai?.sync) return DB.ai;
   return {

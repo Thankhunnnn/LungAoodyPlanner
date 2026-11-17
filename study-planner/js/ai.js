@@ -1,5 +1,5 @@
 /* ===== AI (Gemini / OpenAI / DeepSeek) ===== */
-const DEEPSEEK_DEFAULT_PROXY = 'https://lungaoody-deepseek.pkgztv6.workers.dev';
+const DEEPSEEK_DEFAULT_PROXY = 'https://lungaoody-deepseek.lungaoody.workers.dev';
 function deepseekEndpoint(raw) {
   const base = String(raw || DEEPSEEK_DEFAULT_PROXY).trim().replace(/\/+$/, '');
   if (!/^https:\/\//i.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(base)) {
