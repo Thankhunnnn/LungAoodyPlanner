@@ -1466,5 +1466,8 @@ button.color-dot.sel span { border-color: var(--text); }
 .ref-pending-top .ref-todo-list { max-height: 108px; }
 .side-tabs .tab span:last-child { font-size: .88rem; line-height: 1.25; text-align: left; }
 
-.ref-banner-body { position: relative; z-index: 2; }
-.bento-mascot.ronaldo-hero { z-index: 1; }
+.ref-banner-body { position: relative; z-index: 2; padding-right: 0 !important; }
+.bento-mascot.ronaldo-hero { z-index: 1; right: 14px !important; opacity: .42; }
+.side-cards { margin-top: auto !important; }
+
+.ref-banner .bento-mascot:not(.ronaldo-hero) { position: absolute; right: 16px; bottom: 4px; opacity: .38; pointer-events: none; z-index: 1; }
