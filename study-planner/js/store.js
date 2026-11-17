@@ -325,6 +325,7 @@ function sanitizeDriveFile(f) {
     size,
     mimeType: String(f.mimeType || '').slice(0, 150),
     modifiedTime: /^\d{4}-\d{2}-\d{2}T/.test(modified) ? modified.slice(0, 40) : '',
+    folder: String(f.folder || '').replace(/[\u0000-\u001f]/g, '').slice(0, 100),
   };
 }
 function sanitizeIncoming(data) {
