@@ -39,7 +39,11 @@ const App = {
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', DB.prefs.dark ? '#1d1a1f' : c);
   },
 
-  go(tab) { location.hash = tab; this.tab = tab; this.render(); window.scrollTo({ top: 0 }); },
+  go(tab) {
+    location.hash = tab; this.tab = tab; this.render(); window.scrollTo({ top: 0 });
+    const main = document.getElementById('main');
+    if (main) { main.classList.remove('view-active'); void main.offsetWidth; main.classList.add('view-active'); }
+  },
 
   render() {
     const hdr = document.getElementById('header');
@@ -136,10 +140,10 @@ function closeModal() {
 
 /* ===== Small UI pieces ===== */
 const tag = id => `<span class="tag" style="--c:${subjectColor(id)}">${esc(subjectName(id))}</span>`;
-const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, Number(pct) || 0))}%;${color ? 'background:' + safeColor(color) : ''}"></div></div>`;
+const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, Number(pct) || 0))}%;${color ? '--c:' + safeColor(color) : ''}"></div></div>`;
 const subjectOptions = (sel, allowNone = true) =>
   (allowNone ? `<option value="">— ทั่วไป —</option>` : '') + DB.subjects.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
-const empty = (icon, text, btn = '') => `<div class="empty"><div class="empty-ic">${icon}</div><p>${text}</p>${btn}</div>`;
+const empty = (icon, text, btn = '', img = '') => `<div class="empty">${img ? `<img src="${img}" alt="" class="empty-mascot">` : `<div class="empty-ic">${icon}</div>`}<p>${text}</p>${btn}</div>`;
 
 function planItemHTML(p, showDate = false) {
   return `<div class="item ${p.done ? 'done' : ''}">
@@ -280,12 +284,12 @@ const Views = {
       <section class="card today">
         <div class="card-head"><h2>📌 ตารางวันนี้ <small class="muted">(${fmtDateLong(t)})</small></h2>
           <span class="chip">${doneToday}/${today.length}</span></div>
-        ${today.length ? today.map(p => planItemHTML(p)).join('') : empty('📖', 'วันนี้ยังไม่มีแผนอ่าน', `<button class="btn" data-act="add-plan" data-date="${t}">+ เพิ่มแผนอ่านวันนี้</button>`)}
+        ${today.length ? today.map(p => planItemHTML(p)).join('') : empty('📖', 'วันนี้ยังไม่มีแผนอ่าน — เพิ่มแผนหรือคุยกับอู๊ดได้เลย', `<button class="btn" data-act="add-plan" data-date="${t}">+ เพิ่มแผนอ่านวันนี้</button>`, 'assets/coach-moto.webp')}
         ${overdue.length ? `<div class="warn-box">มีรายการค้าง ${overdue.length} อย่าง <button class="link" data-act="go" data-tab="plan">ดูในตารางอ่าน</button></div>` : ''}
       </section>
       <section class="card">
         <div class="card-head"><h2>📝 การบ้าน / งานใกล้ถึง</h2><button class="mini-btn" data-act="add-task">+ เพิ่ม</button></div>
-        ${soonTasks.length ? soonTasks.map(taskItemHTML).join('') : empty('☕', 'ไม่มีงานใน 7 วันนี้')}
+        ${soonTasks.length ? soonTasks.map(taskItemHTML).join('') : empty('☕', 'ไม่มีงานใน 7 วันนี้ พักผ่อนได้สบายเลย!', '', 'assets/ooo-chat.webp')}
       </section>
     </div>
 
