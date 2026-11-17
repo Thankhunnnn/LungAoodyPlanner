@@ -601,50 +601,31 @@ const Views = {
         <p>ต้องใส่ API key ก่อนนะ เลือกได้ทั้ง <b>Google Gemini</b> (มีโควตาฟรี) หรือ <b>OpenAI</b></p>
         <button class="btn" data-act="go" data-tab="settings">ไปที่ตั้งค่า AI →</button></section>`;
     }
-    const sub = subjectById(App.aiSub) || DB.subjects[0];
-    if (sub) App.aiSub = sub.id;
-    const chs = sub ? sub.chapters : [];
-    if (!chs.find(c => c.id === App.aiCh)) App.aiCh = chs[0]?.id || '';
     const chat = LOCAL.chat || [];
-    const quick = ['วันนี้ควรอ่านอะไรก่อนดี?', 'ช่วยให้กำลังใจหน่อย 🥺', 'มีเทคนิคจำเนื้อหาเยอะๆ ไหม', 'ประเมินหน่อยว่าอ่านทันไหม'];
+    const quick = ['วันนี้ควรอ่านอะไรก่อนดี?', 'ช่วยจัดตารางอ่านให้หน่อย', 'ช่วยให้กำลังใจหน่อย 🥺', 'ประเมินหน่อยว่าอ่านทันไหม'];
 
     return `
-    <div class="ai-layout">
       <section class="card chat-card">
         <div class="card-head"><h2>💬 คุยกับอออ</h2><span class="chip">${esc(AI.providerLabel())}</span>
           <button class="mini-btn" data-act="clear-chat">ล้างแชท</button></div>
         <div id="chatBox" class="chat-box">
-          ${chat.length ? chat.map(chatRowHTML).join('') : chatRowHTML({ role: 'assistant', content: 'ว่าไง\n---\nถามเนื้อหา หรือบอกวันสอบมาได้เลย' })}
+          ${chat.length ? chat.map(chatRowHTML).join('') : chatRowHTML({ role: 'assistant', content: 'ว่าไง\n---\nถามเนื้อหา บอกวันสอบ หรือแนบรูปตารางผ่านปุ่ม 📎 มาให้ช่วยจัดการได้เลย' })}
           ${App.aiBusy ? `<div class="msg-row ai"><img class="ooo-av" src="assets/ooo-chat.webp" alt="" width="36" height="36"><div class="msg-col"><div class="ooo-name">อออ</div><div class="msg assistant typing"><span></span><span></span><span></span></div></div></div>` : ''}
         </div>
         <div class="quick">${quick.map(q => `<button class="chip" data-act="quick-ask" data-q="${esc(q)}">${q}</button>`).join('')}</div>
+        <p class="muted small" style="margin:0 0 6px">💡 อยากให้ช่วยจัดตาราง เพิ่มวิชา หรือสรุปบทเรียน แนบรูป/ไฟล์ผ่านปุ่ม <b>📎</b> แล้วพิมพ์บอกอออได้เลย</p>
         <form data-form="chat" class="chat-form">
           <div id="chatChips" class="chat-chips">${chatChipsHTML()}</div>
           <div class="chat-input">
-            <button type="button" class="icon-btn" data-act="chat-attach" title="แนบไฟล์" ${App.aiBusy ? 'disabled' : ''}>📎</button>
-            <button type="button" class="icon-btn chat-cam" data-act="chat-cam" title="ถ่ายรูป" ${App.aiBusy ? 'disabled' : ''}>📷</button>
+            <button type="button" class="icon-btn" data-act="chat-attach" title="แนบไฟล์" aria-label="แนบไฟล์" ${App.aiBusy ? 'disabled' : ''}>📎</button>
+            <button type="button" class="icon-btn chat-cam" data-act="chat-cam" title="ถ่ายรูป" aria-label="ถ่ายรูป" ${App.aiBusy ? 'disabled' : ''}>📷</button>
             <textarea name="q" rows="2" placeholder="พิมพ์หาอออ… (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)" ${App.aiBusy ? 'disabled' : ''}></textarea>
             <button class="btn" ${App.aiBusy ? 'disabled' : ''}>ส่ง</button>
           </div>
           <input id="chatFile" type="file" hidden multiple accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,.txt,.pdf,.jpg,.jpeg,.png,.webp" data-chg="chat-file">
           <input id="chatCam" type="file" hidden accept="image/*" capture="environment" data-chg="chat-file">
         </form>
-      </section>
-      <section class="card tools-card">
-        <h2>🧰 เครื่องมือ AI</h2>
-        ${sub ? `
-        <label class="field">วิชา<select data-chg="ai-sub">${subjectOptions(App.aiSub, false)}</select></label>
-        <label class="field">บท<select data-chg="ai-ch">${chs.map(c => `<option value="${c.id}" ${c.id === App.aiCh ? 'selected' : ''}>${esc(c.title)}${c.note ? ' 📝' : ''}</option>`).join('') || '<option value="">(ยังไม่มีบท)</option>'}</select></label>
-        <div class="tool-btns">
-          <button class="btn ghost" data-act="ai-summary" ${App.aiCh ? '' : 'disabled'}>📝 สรุปโน้ต</button>
-          <button class="btn ghost" data-act="ai-flash" ${App.aiCh ? '' : 'disabled'}>🃏 สร้างแฟลชการ์ด</button>
-          <button class="btn ghost" data-act="ai-quiz" ${App.aiCh ? '' : 'disabled'}>❓ ทำข้อสอบ</button>
-          <button class="btn ghost" data-act="ai-explain" ${App.aiCh ? '' : 'disabled'}>💡 อธิบายบทนี้</button>
-        </div>
-        <p class="muted small">ถ้ามีโน้ตในบทนั้น AI จะใช้โน้ตของคุณเป็นหลัก</p>` : empty('📚', 'เพิ่มวิชาก่อนนะ', `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
-      </section>
-    </div>
-    ${coachActionHTML()}`;
+      </section>`;
   },
 
   settings() {
