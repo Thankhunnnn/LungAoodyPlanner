@@ -1069,47 +1069,65 @@ async function filesRender() {
     </div>`;
   };
   const dest = fileGoesToDrive() ? 'drive' : 'local';
-  setModalBody(`
-    <div class="folder-bar">
-      <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${countIn(() => true)})</button>
-      ${folders.map(fn => `<span class="folder-chip"><button type="button" class="chip ${curFolder === fn ? 'accent' : ''}" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="mini-btn" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
-      ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
-      <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
-    </div>
-    <div class="row wrap" style="margin-bottom:8px">
-      ${signed ? `<div class="pills file-dest" style="margin:0">
-        <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
-        <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
-      </div>` : '<button class="btn small" data-act="login">ล็อกอินเพื่อ sync / ขึ้น Drive</button>'}
-    </div>
-    <label class="upload-box">
-      <input type="file" multiple data-chg="file-upload" hidden>
-      <div>📤 <b>เลือกไฟล์จากเครื่อง</b>${curFolder && curFolder !== '__none__' ? ` → ใส่ในโฟลเดอร์ <b>${esc(curFolder)}</b>` : ''}</div>
-      <div class="muted small">${esc(driveNote(s))}</div>
-    </label>
-    <div id="upProg" class="up-prog" role="status" hidden></div>
+  const ftab = App.fileTab || 'list';
+  const totalN = countIn(() => true);
+  const topTabs = `<div class="pills" style="margin-bottom:12px">
+    <button type="button" class="pill ${ftab === 'list' ? 'active' : ''}" data-act="file-tab" data-t="list">📂 ไฟล์และโฟลเดอร์ (${totalN})</button>
+    <button type="button" class="pill ${ftab === 'upload' ? 'active' : ''}" data-act="file-tab" data-t="upload">📤 อัปโหลด / เพิ่มลิงก์</button>
+  </div>`;
 
-    <details class="link-add-box">
-      <summary>+ 🔗 เพิ่มลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</summary>
+  if (ftab === 'upload') {
+    const upFolder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
+    setModalBody(`${topTabs}
+      <div class="row wrap" style="margin-bottom:10px">
+        ${signed ? `<div class="pills file-dest" style="margin:0">
+          <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
+          <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
+        </div>` : '<button class="btn small" data-act="login">ล็อกอินเพื่อ sync / ขึ้น Drive</button>'}
+        <label class="inline" style="margin-left:auto">โฟลเดอร์:
+          <select class="folder-sel" data-chg="upload-folder" aria-label="เลือกโฟลเดอร์ที่จะใส่">
+            <option value="" ${!upFolder ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
+            ${folders.map(fn => `<option value="${esc(fn)}" ${upFolder === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
+          </select>
+        </label>
+        <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
+      </div>
+      <label class="upload-box">
+        <input type="file" multiple data-chg="file-upload" hidden>
+        <div>📤 <b>เลือกไฟล์จากเครื่อง</b>${upFolder ? ` → ใส่ในโฟลเดอร์ <b>${esc(upFolder)}</b>` : ''}</div>
+        <div class="muted small">${esc(driveNote(s))}</div>
+      </label>
+      <div id="upProg" class="up-prog" role="status" hidden></div>
+      <hr>
+      <h3>🔗 เพิ่มลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
       <form data-form="link-add" class="link-form" novalidate>
         <div class="grid2-sm">
           <label class="field"><span>ชื่อเอกสาร</span><input name="title" maxlength="200" placeholder="เช่น สไลด์บท 1" required></label>
           <label class="field"><span>ลิงก์ URL</span><input name="url" type="text" inputmode="url" maxlength="500" placeholder="https://..." autocomplete="url" required><small class="field-error" data-url-error hidden></small></label>
         </div>
-        <button class="btn small">+ เพิ่มลิงก์${curFolder && curFolder !== '__none__' ? `ลง "${esc(curFolder)}"` : ''}</button>
-      </form>
-    </details>
+        <button class="btn small">+ เพิ่มลิงก์${upFolder ? `ลง "${esc(upFolder)}"` : ''}</button>
+      </form>`);
+    return;
+  }
 
-    ${signed || driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>
-      ${driveFiles.length ? driveFiles.map(driveRow).join('') : '<p class="muted small">ยังไม่มีไฟล์บน Drive ในหมวดนี้</p>'}` : ''}
-    ${local.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
-      <button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button></div>
-      ${local.map(localRow).join('')}` : ''}
-    <h3>🔗 ลิงก์เอกสาร (${links.length})</h3>
-    ${links.length ? links.map(linkRow).join('') : '<p class="muted small">ยังไม่มีลิงก์ในหมวดนี้</p>'}`);
+  const hasAny = driveFiles.length || local.length || links.length;
+  setModalBody(`${topTabs}
+    <div class="folder-bar">
+      <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
+      ${folders.map(fn => `<span class="folder-chip"><button type="button" class="chip ${curFolder === fn ? 'accent' : ''}" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="mini-btn" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
+      ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
+      <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
+    </div>
+    ${!hasAny ? empty('📁', 'ยังไม่มีไฟล์หรือลิงก์ในหมวดนี้', `<button class="btn small" data-act="file-tab" data-t="upload">📤 อัปโหลด / เพิ่มลิงก์</button>`) : `
+      ${driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>${driveFiles.map(driveRow).join('')}` : ''}
+      ${local.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
+        <button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button></div>
+        ${local.map(localRow).join('')}` : ''}
+      ${links.length ? `<h3>🔗 ลิงก์เอกสาร (${links.length})</h3>${links.map(linkRow).join('')}` : ''}
+    `}`);
 }
 function openFilesModal(sid) {
-  App.filesSid = sid; App.fileFolder = '';
+  App.filesSid = sid; App.fileFolder = ''; App.fileTab = 'list';
   openModal(`📎 ไฟล์และเอกสาร — ${esc(subjectName(sid))}`, '<p class="muted">กำลังโหลด…</p>', true);
   if (typeof Drive !== 'undefined') Drive.preload();
   filesRender();
@@ -1684,6 +1702,7 @@ const Actions = {
     saveLocal();
     filesRender();
   },
+  'file-tab': el => { App.fileTab = el.dataset.t || 'list'; filesRender(); },
   'file-folder': el => { App.fileFolder = el.dataset.f || ''; filesRender(); },
   'file-folder-add': () => {
     const s = subjectById(App.filesSid); if (!s) return;
@@ -2047,7 +2066,7 @@ const Forms = {
     s.links = s.links || [];
     const folder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
     s.links.unshift({ id: uid(), title, url: parsed.url, folder, addedAt: Date.now() });
-    f.reset(); save({ silent: true }); filesRender();
+    f.reset(); App.fileTab = 'list'; save({ silent: true }); filesRender();
   },
   async 'ai-exams'(d) {
     if (!d.text.trim() && !App._examImg) return App.toast('พิมพ์ข้อความหรือแนบรูปตารางสอบก่อนนะ');
@@ -2124,6 +2143,7 @@ const Changes = {
     el.value = '';
     if (files.length) addChatFiles(files);
   },
+  'upload-folder': el => { App.fileFolder = el.value || ''; filesRender(); },
   'move-file-folder': async el => {
     const s = subjectById(App.filesSid); if (!s) return;
     const { kind, id } = el.dataset, folder = el.value || '';
@@ -2148,13 +2168,13 @@ const Changes = {
       const n = await saveLocalFiles(sid, files);
       const tail = Sync.user ? `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว` : `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว — ล็อกอินเพื่ออัปโหลดขึ้น Drive`;
       App.toast(n ? tail : 'บันทึกไฟล์ในเครื่องไม่สำเร็จ');
-      filesRender();
+      App.fileTab = 'list'; filesRender();
       return;
     }
     const pending = Drive.ensureToken();
     App._uploading = true;
     try { await runDriveUploads(sid, files, null, pending); }
-    finally { App._uploading = false; filesRender(); }
+    finally { App._uploading = false; App.fileTab = 'list'; filesRender(); }
   },
   'exam-img': el => {
     const file = el.files?.[0]; if (!file) return;
