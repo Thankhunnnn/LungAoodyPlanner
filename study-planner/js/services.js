@@ -72,8 +72,11 @@ const Timer = {
   tick() { if (this.running && this.left() <= 0) this.finish(); App.renderTimerBits(); },
 };
 function logSession(subjectId, minutes, date = todayStr()) {
-  DB.sessions.push({ id: uid(), subjectId: subjectId || '', date, minutes: Math.round(minutes), at: Date.now() });
+  const m = Math.round(Number(minutes));
+  if (!(m > 0) || m > 1440) return false;
+  DB.sessions.push({ id: uid(), subjectId: subjectId || '', date, minutes: m, at: Date.now() });
   save();
+  return true;
 }
 function beep() {
   try {

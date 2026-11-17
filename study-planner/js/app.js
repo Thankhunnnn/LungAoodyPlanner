@@ -123,7 +123,7 @@ function closeModal() {
 
 /* ===== Small UI pieces ===== */
 const tag = id => `<span class="tag" style="--c:${subjectColor(id)}">${esc(subjectName(id))}</span>`;
-const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${pct}%;${color ? 'background:' + color : ''}"></div></div>`;
+const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, Number(pct) || 0))}%;${color ? 'background:' + safeColor(color) : ''}"></div></div>`;
 const subjectOptions = (sel, allowNone = true) =>
   (allowNone ? `<option value="">— ทั่วไป —</option>` : '') + DB.subjects.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 const empty = (icon, text, btn = '') => `<div class="empty"><div class="empty-ic">${icon}</div><p>${text}</p>${btn}</div>`;
@@ -139,7 +139,7 @@ function planItemHTML(p, showDate = false) {
 }
 function countdownCard(s) {
   const n = daysBetween(todayStr(), s.examDate);
-  return `<div class="cd-card ${n <= 3 ? 'urgent' : ''}" style="--c:${s.color}" data-act="open-subject" data-id="${s.id}">
+  return `<div class="cd-card ${n <= 3 ? 'urgent' : ''}" style="--c:${safeColor(s.color)}" data-act="open-subject" data-id="${s.id}">
     <div class="cd-days">${n === 0 ? 'วันนี้!' : n + ' <small>วัน</small>'}</div>
     <div class="cd-name">${esc(s.name)}</div>
     <div class="cd-meta">${fmtDate(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''}</div>
@@ -163,10 +163,18 @@ function roomText(room) {
 }
 function dateField(label, name, value, required) {
   const v = value || '';
-  return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
+  const now = new Date().getFullYear();
+  return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" min="${now - 1}-01-01" max="${now + 5}-12-31" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
 }
 function avatarImg() {
-  return `<img class="avatar-img" src="assets/avatar-profile.webp" alt="อู๊ด" width="46" height="46" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='assets/avatar-profile.png'}">`;
+  return `<img class="avatar-img" src="assets/avatar-profile.webp" alt="อู๊ด" width="46" height="46" loading="eager" fetchpriority="high" decoding="sync" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='assets/avatar-profile.png'}">`;
+}
+function examYearOk(s) {
+  if (!s) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const y = Number(s.slice(0, 4));
+  const now = new Date().getFullYear();
+  return y >= now - 1 && y <= now + 5;
 }
 function coachBubble(kind) {
   const name = esc(DB.name || 'เพื่อน');
@@ -177,7 +185,7 @@ function coachBubble(kind) {
   return `<div class="coach-bubble"><b>อู๊ด:</b> เฮ้ ${name}! วันนี้เราลุยวิชาไหนกันดี?<br><span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span></div>`;
 }
 function coachHeroHTML() {
-  return `<section class="coach-hero">${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด" class="coach-hero-img" width="117" height="210"></section>`;
+  return `<section class="coach-hero">${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด" class="coach-hero-img" width="117" height="210" onload="this.dataset.ready='1'"></section>`;
 }
 function coachActionHTML() {
   return `<section class="coach-footer">${coachBubble('action')}<img src="assets/coach-action.webp" alt="อู๊ด" class="coach-action-img" width="139" height="180"></section>`;
@@ -260,7 +268,7 @@ const Views = {
       <section class="card">
         <h2>📊 ความคืบหน้าแต่ละวิชา</h2>
         ${DB.subjects.map(s => { const p = subjectProgress(s); return `<div class="prog-row" data-act="open-subject" data-id="${s.id}">
-          <div class="prog-top"><span style="color:${s.color}">${esc(s.name)}</span><span class="muted">${p.done}/${p.total}</span></div>
+          <div class="prog-top"><span style="color:${safeColor(s.color)}">${esc(s.name)}</span><span class="muted">${p.done}/${p.total}</span></div>
           ${progressBar(p.pct, s.color)}</div>`; }).join('')}
       </section>
       <section class="card">
@@ -284,7 +292,7 @@ const Views = {
       const n = daysBetween(t, d);
       return `<div class="day-group ${d === t ? 'is-today' : ''}">
         <div class="day-head"><b>${fmtDateLong(d)}</b> ${n === 0 ? '<span class="chip accent">วันนี้</span>' : n === 1 ? '<span class="chip">พรุ่งนี้</span>' : ''}
-          ${exams.map(s => `<span class="exam-badge" style="--c:${s.color}">🎯 สอบ ${esc(s.name)} ${s.examTime || ''}</span>`).join('')}
+          ${exams.map(s => `<span class="exam-badge" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')}</span>`).join('')}
           <button class="mini-btn right" data-act="add-plan" data-date="${d}">+</button></div>
         ${items.map(p => planItemHTML(p)).join('')}
       </div>`;
@@ -321,7 +329,7 @@ const Views = {
       const p = subjectProgress(s), n = s.examDate ? daysBetween(todayStr(), s.examDate) : null;
       const fcN = DB.flashcards.filter(f => f.subjectId === s.id).length;
       const fileN = FileStore.count(s.id);
-      return `<section class="card subj" id="subj-${s.id}" style="--c:${s.color}">
+      return `<section class="card subj" id="subj-${s.id}" style="--c:${safeColor(s.color)}">
         <div class="subj-head">
           <div class="grow"><h3>${esc(s.name)}</h3>
             <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
@@ -362,7 +370,7 @@ const Views = {
       const plan = DB.plan.filter(p => p.date === d);
       html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''}" data-act="cal-day" data-date="${d}">
         <div class="cal-num">${parseDate(d).getDate()}</div>
-        ${exams.map(s => `<div class="cal-chip exam" style="--c:${s.color}">🎯 ${esc(s.name)}</div>`).join('')}
+        ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
         ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
         ${plan.length ? `<div class="cal-chip plan">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
       </div>`;
@@ -426,8 +434,8 @@ const Views = {
         <form data-form="session" class="session-form">
           <label class="field">วิชา<select name="subjectId">${subjectOptions('')}</select></label>
           <div class="grid2-sm">
-            <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" placeholder="เช่น 45" required></label>
-            <label class="field"><span>วันที่ <small class="muted">(${fmtDateBE(t)})</small></span><input name="date" type="date" value="${t}" data-chg="be-hint"></label>
+            <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" max="1440" placeholder="เช่น 45" required></label>
+            <label class="field"><span>วันที่ <small class="muted">(${fmtDateBE(t)})</small></span><input name="date" type="date" value="${t}" min="${new Date().getFullYear() - 1}-01-01" max="${new Date().getFullYear() + 5}-12-31" data-chg="be-hint"></label>
           </div>
           <button class="btn small full">💾 บันทึกเวลา</button>
         </form>
@@ -471,7 +479,7 @@ const Views = {
     </section>
     <div class="grid2">
       <section class="card"><h2>แยกตามวิชา (สัปดาห์นี้)</h2>
-        ${perSub.map(({ s, m }) => `<div class="prog-row"><div class="prog-top"><span style="color:${s.color}">${esc(s.name)}</span><span class="muted">${fmtMin(m)}</span></div>${progressBar(m / maxSub * 100, s.color)}</div>`).join('')}
+        ${perSub.map(({ s, m }) => `<div class="prog-row"><div class="prog-top"><span style="color:${safeColor(s.color)}">${esc(s.name)}</span><span class="muted">${fmtMin(m)}</span></div>${progressBar(m / maxSub * 100, s.color)}</div>`).join('')}
         ${other ? `<div class="prog-row"><div class="prog-top"><span>ทั่วไป</span><span class="muted">${fmtMin(other)}</span></div>${progressBar(other / maxSub * 100, '#aaa')}</div>` : ''}
         ${!DB.subjects.length ? empty('📊', 'ยังไม่มีข้อมูล') : ''}
       </section>
@@ -654,7 +662,7 @@ function taskItemHTML(x) {
     <input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''}>
     <span>${x.type === 'event' ? '📌' : '📝'}</span>
     ${x.subjectId ? tag(x.subjectId) : ''}
-    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + x.time : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
+    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
     <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}">✎</button>
     <button class="mini-btn" data-act="del-task" data-id="${x.id}">✕</button></span>
   </div>`;
@@ -664,10 +672,10 @@ function taskItemHTML(x) {
 function subjectForm(s = {}) {
   const color = s.color || SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length];
   return `<form data-form="subject" data-id="${s.id || ''}">
-    <label class="field">ชื่อวิชา<input name="name" required value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
+    <label class="field">ชื่อวิชา<input name="name" required maxlength="120" value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
     <div class="row wrap">
       ${dateField('วันสอบ', 'examDate', s.examDate || '')}
-      <label class="field">เวลา<input type="time" name="examTime" value="${s.examTime || ''}"></label>
+      <label class="field">เวลา<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
       <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น อ่านเอง, ห้อง 301"></label>
     </div>
     <div class="field">สี<div class="colors">${SUBJECT_COLORS.map(c => `<label class="color-dot" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''}><span></span></label>`).join('')}
@@ -678,11 +686,11 @@ function subjectForm(s = {}) {
 }
 function taskForm(x = {}) {
   return `<form data-form="task" data-id="${x.id || ''}">
-    <label class="field">ชื่องาน<input name="title" required value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
+    <label class="field">ชื่องาน<input name="title" required maxlength="200" value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
     <div class="row wrap">
       <label class="field">ประเภท<select name="type"><option value="homework" ${x.type !== 'event' ? 'selected' : ''}>📝 การบ้าน</option><option value="event" ${x.type === 'event' ? 'selected' : ''}>📌 กิจกรรม</option></select></label>
       ${dateField('วันที่', 'date', x.date || todayStr(), true)}
-      <label class="field">เวลา<input type="time" name="time" value="${x.time || ''}"></label>
+      <label class="field">เวลา<input type="time" name="time" value="${esc(x.time || '')}"></label>
     </div>
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
@@ -718,7 +726,7 @@ function noteModal(s, c) {
 function dayModal(d) {
   const exams = DB.subjects.filter(s => s.examDate === d), tasks = DB.tasks.filter(x => x.date === d), plan = planForDate(d);
   openModal(`📅 ${fmtDateLong(d)}`, `
-    ${exams.map(s => `<div class="exam-badge big" style="--c:${s.color}">🎯 สอบ ${esc(s.name)} ${s.examTime || ''} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
+    ${exams.map(s => `<div class="exam-badge big" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
     <h3>📖 แผนอ่าน</h3>${plan.length ? plan.map(p => planItemHTML(p)).join('') : '<p class="muted small">ไม่มี</p>'}
     <h3>📝 การบ้าน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
     <div class="row wrap"><button class="btn small" data-act="add-task" data-date="${d}">+ การบ้าน/กิจกรรม</button><button class="btn small ghost" data-act="add-plan" data-date="${d}">+ แผนอ่าน</button></div>`);
@@ -734,7 +742,7 @@ function fcRender() {
     setModalBody(`
       <div class="row wrap"><button class="btn small" data-act="fc-mode" data-m="review">▶ เริ่มทบทวน</button>
       <label class="inline"><input type="checkbox" data-act="fc-unknown" ${f.onlyUnknown ? 'checked' : ''}> เฉพาะที่ยังจำไม่ได้</label></div>
-      <form data-form="fc-add" class="fc-add"><input name="q" placeholder="คำถาม / คำศัพท์" required><input name="a" placeholder="คำตอบ" required><button class="btn small">+ เพิ่ม</button></form>
+      <form data-form="fc-add" class="fc-add"><input name="q" maxlength="300" placeholder="คำถาม / คำศัพท์" required><input name="a" maxlength="300" placeholder="คำตอบ" required><button class="btn small">+ เพิ่ม</button></form>
       ${cards.map(x => `<div class="item ${x.known ? 'done' : ''}"><span class="grow"><b>${esc(x.q)}</b><br><small class="muted">${esc(x.a)}</small></span>
         <button class="mini-btn" data-act="fc-del" data-id="${x.id}">✕</button></div>`).join('') || '<p class="muted">ยังไม่มีการ์ด — เพิ่มเอง หรือให้ AI สร้างจากโน้ต (แท็บ AI ติว / ปุ่มในโน้ต)</p>'}`);
     return;
@@ -744,7 +752,7 @@ function fcRender() {
   const c = cards[f.idx];
   setModalBody(`
     <div class="row"><span class="muted grow">${f.idx + 1} / ${cards.length}</span><button class="link" data-act="fc-mode" data-m="list">ดูรายการ</button></div>
-    <div class="flash ${f.flipped ? 'flipped' : ''}" data-act="fc-flip" style="--c:${s?.color}">
+    <div class="flash ${f.flipped ? 'flipped' : ''}" data-act="fc-flip" style="--c:${safeColor(s?.color)}">
       <div class="flash-inner"><div class="flash-front">${esc(c.q)}</div><div class="flash-back">${esc(c.a)}</div></div>
     </div>
     <p class="muted small center">แตะการ์ดเพื่อพลิก</p>
@@ -809,10 +817,10 @@ async function filesRender() {
     <h3>🔗 ลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
     <form data-form="link-add" class="link-form" novalidate>
       <label class="field">ชื่อเอกสาร
-        <input name="title" placeholder="ชื่อเอกสาร" required>
+        <input name="title" maxlength="200" placeholder="ชื่อเอกสาร" required>
       </label>
       <label class="field">ลิงก์
-        <input name="url" type="text" inputmode="url" placeholder="ลิงก์ เช่น https://drive.google.com/..." autocomplete="url" required>
+        <input name="url" type="text" inputmode="url" maxlength="500" placeholder="ลิงก์ เช่น https://drive.google.com/..." autocomplete="url" required>
         <small class="field-error" data-url-error hidden></small>
       </label>
       <button class="btn small">+ เพิ่ม</button>
@@ -1148,33 +1156,43 @@ const Forms = {
     closeModal(); replaceDB(defaultData()); App.go('home'); App.toast('ล้างข้อมูลทั้งหมดแล้ว');
   },
   subject(d, f) {
-    const color = d.color || d.customColor;
+    const name = (d.name || '').trim();
+    if (!name) return App.toast('ใส่ชื่อวิชาก่อนนะ');
+    if (d.examDate && !examYearOk(d.examDate)) return App.toast('วันสอบควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
+    const color = safeColor(d.color || d.customColor || SUBJECT_COLORS[0]);
     let s = subjectById(f.dataset.id);
     if (!s) {
       s = { id: uid(), chapters: [] }; DB.subjects.push(s);
-      (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title, done: false, note: '' }));
+      (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title: title.slice(0, 200), done: false, note: '' }));
     }
-    Object.assign(s, { name: d.name.trim(), examDate: d.examDate, examTime: d.examTime, room: d.room.trim(), color: color || SUBJECT_COLORS[0] });
+    Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
     closeModal(); save();
   },
   chapters(d, f) {
     const s = subjectById(f.dataset.sid);
-    const titles = d.list.split('\n').map(x => x.trim()).filter(Boolean);
-    const n = parseInt(d.count) || 0, start = s.chapters.length;
-    for (let i = 1; i <= n; i++) titles.push(`${d.prefix}${start + i}`);
+    const titles = (d.list || '').split('\n').map(x => x.trim()).filter(Boolean).map(t => t.slice(0, 200));
+    const raw = parseInt(d.count, 10);
+    const n = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 100) : 0;
+    if (!titles.length && !n) return App.toast('ใส่ชื่อบทอย่างน้อย 1 บทนะ');
+    const start = s.chapters.length;
+    for (let i = 1; i <= n; i++) titles.push(`${(d.prefix || '').trim() || 'บทที่ '}${start + i}`);
     titles.forEach(title => s.chapters.push({ id: uid(), title, done: false, note: '' }));
     closeModal(); save(); App.toast(`เพิ่ม ${titles.length} บทแล้ว`);
   },
   task(d, f) {
+    const title = (d.title || '').trim();
+    if (!title) return App.toast('ใส่ชื่องานก่อนนะ');
+    if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
-    Object.assign(x, { title: d.title.trim(), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId });
+    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId });
     closeModal(); save();
   },
   plan(d, f) {
     const s = subjectById(d.subjectId), c = s?.chapters.find(c => c.id === d.chapterId);
     const title = d.title.trim() || c?.title;
     if (!title) return App.toast('เลือกบทหรือพิมพ์รายละเอียดด้วยนะ');
+    if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let p = DB.plan.find(x => x.id === f.dataset.id);
     if (!p) { p = { id: uid(), done: false }; DB.plan.push(p); }
     Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, kind: c ? 'read' : 'custom', auto: false });
@@ -1184,9 +1202,20 @@ const Forms = {
     const s = subjectById(f.dataset.sid), c = s.chapters.find(c => c.id === f.dataset.id);
     c.note = d.note; save(); App.toast('บันทึกโน้ตแล้ว 📝');
   },
-  session(d) { logSession(d.subjectId, Number(d.minutes), d.date); App.toast('บันทึกแล้ว'); },
+  session(d) {
+    const m = Math.round(Number(d.minutes));
+    if (!(m > 0) || m > 1440) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
+    if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
+    if (!logSession(d.subjectId, m, d.date)) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
+    App.toast('บันทึกแล้ว');
+  },
   chat(d) { sendChat(d.q); },
-  'fc-add'(d) { DB.flashcards.push({ id: uid(), subjectId: App.fc.sid, chapterId: null, q: d.q.trim(), a: d.a.trim(), known: false }); save({ silent: true }); fcRender(); },
+  'fc-add'(d) {
+    const q = (d.q || '').trim(), a = (d.a || '').trim();
+    if (!q || !a) return App.toast('ใส่ทั้งคำถามและคำตอบนะ');
+    DB.flashcards.push({ id: uid(), subjectId: App.fc.sid, chapterId: null, q: q.slice(0, 300), a: a.slice(0, 300), known: false });
+    save({ silent: true }); fcRender();
+  },
   'link-add'(d, f) {
     const s = subjectById(App.filesSid); if (!s) return;
     const err = f.querySelector('[data-url-error]');
@@ -1293,7 +1322,7 @@ const Changes = {
       const data = JSON.parse(txt);
       if (!Array.isArray(data.subjects)) throw new Error('ไฟล์ไม่ถูกต้อง');
       if (!confirm('นำเข้าข้อมูลนี้แทนข้อมูลปัจจุบัน?')) return;
-      data.updatedAt = Date.now(); replaceDB(data); App.toast('นำเข้าข้อมูลเรียบร้อย ✓');
+      data.updatedAt = Date.now(); replaceDB(sanitizeIncoming(data)); App.toast('นำเข้าข้อมูลเรียบร้อย ✓');
     }).catch(e => App.toast('นำเข้าไม่สำเร็จ: ' + e.message));
   },
 };

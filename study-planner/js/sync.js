@@ -84,7 +84,7 @@ const Sync = {
       if (!snap.exists) { this.pushNow(); return; }
       const d = snap.data();
       if ((d.updatedAt || 0) > (DB.updatedAt || 0)) {
-        try { replaceDB(JSON.parse(d.data), true); } catch (e) { console.error(e); }
+        try { replaceDB(sanitizeIncoming(JSON.parse(d.data)), true); } catch (e) { console.error(e); }
       } else if ((d.updatedAt || 0) < (DB.updatedAt || 0)) {
         this.pushNow(); return;
       }

@@ -102,7 +102,11 @@ const weekStart = s => { const d = parseDate(s); const dow = (d.getDay() + 6) % 
 /* ===== Misc helpers ===== */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const subjectById = id => DB.subjects.find(s => s.id === id);
-const subjectColor = id => (subjectById(id) || {}).color || '#bbb';
+function safeColor(c) {
+  const s = String(c || '').trim();
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s) ? s : '#9a8790';
+}
+const subjectColor = id => safeColor((subjectById(id) || {}).color);
 const subjectName = id => (subjectById(id) || {}).name || 'ทั่วไป';
 const SUBJECT_COLORS = ['#ec6a9c', '#9b7ede', '#4a9be8', '#3fb68b', '#f0a04b', '#e85d5d', '#5cc5c5', '#c77dd1', '#8a9a5b', '#f27fb2'];
 
@@ -226,12 +230,38 @@ function loadDemoData() {
   return true;
 }
 function removeDemoData() {
-  const ids = new Set(DB.subjects.filter(s => s.demo).map(s => s.id));
-  const keep = x => x && !x.demo && !ids.has(x.subjectId);
-  DB.subjects = DB.subjects.filter(s => !s.demo);
-  DB.tasks = DB.tasks.filter(keep);
-  DB.plan = DB.plan.filter(keep);
-  DB.sessions = DB.sessions.filter(keep);
-  DB.flashcards = DB.flashcards.filter(keep);
+  const userTied = sid => {
+    const s = DB.subjects.find(x => x.id === sid);
+    if (s && (s.chapters || []).some(c => c && !c.demo)) return true;
+    if (s && (s.links || []).some(l => l && !l.demo)) return true;
+    return [DB.tasks, DB.plan, DB.sessions, DB.flashcards].some(list => (list || []).some(x => x && !x.demo && x.subjectId === sid));
+  };
+  const removed = DB.subjects.filter(s => s.demo && !userTied(s.id)).map(s => s.id);
+  DB.subjects = DB.subjects.filter(s => !s.demo || userTied(s.id)).map(s => s.demo ? {
+    ...s,
+    chapters: (s.chapters || []).filter(c => c && !c.demo),
+    links: (s.links || []).filter(l => l && !l.demo),
+  } : s);
+  const own = x => x && !x.demo;
+  DB.tasks = (DB.tasks || []).filter(own);
+  DB.plan = (DB.plan || []).filter(own);
+  DB.sessions = (DB.sessions || []).filter(own);
+  DB.flashcards = (DB.flashcards || []).filter(own);
   save();
+  removed.forEach(id => FileStore.delSubject(id).catch(() => { }));
+}
+function sanitizeIncoming(data) {
+  if (!data || typeof data !== 'object') return data;
+  (data.subjects || []).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    s.color = safeColor(s.color);
+    if (!Array.isArray(s.links) || typeof normalizeLink !== 'function') return;
+    s.links = s.links.map(l => {
+      if (!l) return null;
+      const n = normalizeLink(l.url);
+      if (!n.url) return null;
+      return { ...l, url: n.url, title: String(l.title || '').slice(0, 200) };
+    }).filter(Boolean);
+  });
+  return data;
 }
