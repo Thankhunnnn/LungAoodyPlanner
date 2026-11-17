@@ -82,6 +82,22 @@ function autoLinkClassesToSubjects() {
   if (changed) save({ silent: true });
 }
 
+function examCutoffDate() {
+  const dates = DB.subjects.map(s => s.examDate).filter(Boolean).sort();
+  return dates.length ? weekStart(dates[0]) : '';
+}
+function lastExamDate() {
+  const dates = DB.subjects.map(s => s.examDate).filter(Boolean).sort();
+  return dates.length ? dates[dates.length - 1] : '';
+}
+function classesOnDate(d) {
+  if (!d) return [];
+  const cut = examCutoffDate();
+  if (cut && d >= cut && DB.prefs.hideClassesInExam !== false) return [];
+  const dow = parseDate(d).getDay();
+  return (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
+}
+
 const App = {
   tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
   aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
@@ -428,7 +444,7 @@ const Views = {
     const week = [...Array(7)].map((_, i) => { const d = addDays(ws, i); return { label: TH_DAYS[parseDate(d).getDay()], value: minutesOn(d), hl: d === t }; });
     const weekTotal = week.reduce((a, d) => a + d.value, 0);
     const dow = new Date().getDay();
-    const todayClasses = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
+    const todayClasses = classesOnDate(t);
     const todayExams = DB.subjects.filter(s => s.examDate === t);
     const todayTasks = DB.tasks.filter(x => x.date === t).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     const pendingTasks = DB.tasks.filter(x => !x.done).sort((a, b) => (a.date || '9999-99-99').localeCompare(b.date || '9999-99-99') || (a.time || '').localeCompare(b.time || ''));
@@ -784,7 +800,12 @@ const Views = {
     </div></section>`;
 
     if (view === 'timetable') {
-      const classes = DB.classes || [];
+      const t = todayStr();
+      const lastEx = lastExamDate();
+      const cut = examCutoffDate();
+      const autoHiddenAfterExam = !!(lastEx && t > lastEx && DB.prefs.hideClassesInExam !== false);
+      const classes = autoHiddenAfterExam ? [] : (DB.classes || []);
+      const inExamPeriod = !!(cut && t >= cut && !autoHiddenAfterExam && DB.prefs.hideClassesInExam !== false);
       const toMin = s => { const [h, m] = (s || '08:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
       let minH = 8, maxH = 25;
       classes.forEach(c => {
@@ -801,7 +822,7 @@ const Views = {
       return `
       <section class="card">
         ${switcher}
-        <div class="tt-wrap">
+        ${autoHiddenAfterExam ? empty('🎉', 'สอบครบทุกวิชาแล้ว — ตารางเรียนเทอมนี้ถูกซ่อนอัตโนมัติ', `<button class="btn small ghost" data-act="toggle-exam-classes">แสดงตารางเรียนเดิม</button>`) : `${inExamPeriod ? `<div class="muted small" style="margin-bottom:8px">📚 เข้าสู่สัปดาห์สอบแล้ว — ซ่อนคาบเรียนบนปฏิทินและ Today list อัตโนมัติ</div>` : ''}<div class="tt-wrap">
           <div class="tt-table" style="--cols:${hours.length}">
             <div class="tt-hdr">
               <div class="tt-corner">Day/Time</div>
@@ -834,7 +855,7 @@ const Views = {
           <button class="btn small" data-act="add-class">+ เพิ่มคาบเรียน</button>
           <span class="grow"></span>
           <span class="muted small">รวมในตาราง: <b>${classes.length} คาบ</b> · ${uniqueSubs} วิชา</span>
-        </div>
+        </div>`}
       </section>
       <section class="card">
         <div class="card-head"><h2>${ico('target', 18)} ตารางสอบ</h2></div>
@@ -868,7 +889,7 @@ const Views = {
       const exams = DB.subjects.filter(s => s.examDate === d);
       const tasks = DB.tasks.filter(x => x.date === d);
       const plan = DB.plan.filter(p => p.date === d);
-      const dayClasses = (DB.classes || []).filter(c => c.day === parseDate(d).getDay()).sort((a, b) => a.start.localeCompare(b.start));
+      const dayClasses = classesOnDate(d);
       html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''}" data-act="cal-day" data-date="${d}">
         <div class="cal-num">${parseDate(d).getDate()}</div>
         ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
@@ -1323,8 +1344,7 @@ function noteModal(s, c) {
 }
 function dayModal(d, opts = {}) {
   const exams = DB.subjects.filter(s => s.examDate === d), tasks = DB.tasks.filter(x => x.date === d), plan = planForDate(d);
-  const dow = parseDate(d).getDay();
-  const cls = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
+  const cls = classesOnDate(d);
   openModal(`📅 ${fmtDateLong(d)}`, `
     ${exams.map(s => `<div class="exam-badge big" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
     ${cls.length ? `<h3>🗓️ ตารางเรียน</h3>${cls.map(c => `<div class="item"><span class="tag" style="--c:${classColor(c)}">${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</span><span class="grow">${esc(className(c))}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</span></div>`).join('')}` : ''}
@@ -2179,6 +2199,7 @@ const Actions = {
   'go-timetable': () => { App.tab = 'calendar'; App.calView = 'timetable'; location.hash = 'calendar'; App.render(); window.scrollTo({ top: 0 }); },
   'cal-view': el => { App.calView = el.dataset.v; App.render(); },
   'add-class': el => openModal('+ เพิ่มคาบเรียน', classForm({ day: el.dataset.day != null ? Number(el.dataset.day) : 1, start: el.dataset.start || '08:30' })),
+  'toggle-exam-classes': () => { DB.prefs.hideClassesInExam = DB.prefs.hideClassesInExam === false; save(); },
   'edit-class': el => { const c = (DB.classes || []).find(x => x.id === el.dataset.id); if (c) openModal('✎ แก้ไขคาบเรียน', classForm(c)); },
   'del-class': el => { DB.classes = (DB.classes || []).filter(x => x.id !== el.dataset.id); closeModal(); save(); },
   'tt-png': () => {
@@ -3002,8 +3023,7 @@ function calHoverHTML(iso) {
   const exams = DB.subjects.filter(s => s.examDate === iso);
   const tasks = DB.tasks.filter(x => x.date === iso);
   const plan = planForDate(iso);
-  const dow = parseDate(iso).getDay();
-  const cls = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
+  const cls = classesOnDate(iso);
   const rows = [];
   exams.forEach(s => rows.push(`<div class="cht-row"><span class="cht-tag cht-exam">สอบ</span><span><b>${esc(s.name)}</b>${s.examTime ? ` · ${esc(s.examTime)}` : ''}</span></div>`));
   cls.forEach(c => rows.push(`<div class="cht-row"><span class="cht-tag cht-cls" style="--c:${classColor(c)}">เรียน</span><span>${esc(c.start)} ${esc(className(c))}</span></div>`));
