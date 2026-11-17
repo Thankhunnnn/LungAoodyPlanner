@@ -1362,10 +1362,17 @@ const Actions = {
   'go': el => { closeModal(); App.go(el.dataset.tab); },
   'close-modal': () => closeModal(),
   'toggle-dark': () => {
-    if (DB.prefs.theme === 'navy') { DB.prefs.theme = 'sky'; DB.prefs.dark = false; save(); App.toast('สลับเป็นธีมฟ้าใส (โหมดสว่าง) ☀️'); return; }
-    DB.prefs.dark = !DB.prefs.dark; save();
+    if (DB.prefs.theme === 'navy') {
+      App._fromNavy = true; DB.prefs.theme = 'sky'; DB.prefs.dark = false; save();
+      App.toast('สลับเป็นโหมดสว่าง (ฟ้าใส) ☀️'); return;
+    }
+    if (App._fromNavy && !DB.prefs.dark) {
+      App._fromNavy = false; DB.prefs.theme = 'navy'; DB.prefs.dark = true; save();
+      App.toast('กลับเป็นธีมน้ำเงินเข้ม 🌙'); return;
+    }
+    App._fromNavy = false; DB.prefs.dark = !DB.prefs.dark; save();
   },
-  'theme': el => { DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; save(); },
+  'theme': el => { App._fromNavy = false; DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; save(); },
   'toggle-past': () => { App.showPast = !App.showPast; App.render(); },
 
   // plan
