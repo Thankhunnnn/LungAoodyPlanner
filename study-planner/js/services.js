@@ -25,12 +25,26 @@ const Notifier = {
     return parts.join('\n');
   },
   check() {
-    const t = todayStr(), now = new Date();
+    const t = todayStr(), tm = addDays(t, 1), now = new Date();
     const hm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
     if (DB.prefs.notify && hm >= (DB.prefs.notifyTime || '08:00') && LOCAL.lastNotify.daily !== t) {
       LOCAL.lastNotify.daily = t; saveLocal();
       this.show('วันนี้ต้องอ่านอะไรบ้าง 📖', this.dailyText());
     }
+    // แจ้งเตือนล่วงหน้า 1 วัน: สอบ + การบ้าน/กิจกรรม
+    DB.subjects.filter(s => s.examDate === tm).forEach(s => {
+      const k = 'eve_exam_' + s.id;
+      if (LOCAL.lastNotify[k] === t) return;
+      LOCAL.lastNotify[k] = t; saveLocal();
+      this.show(`⚠️ พรุ่งนี้สอบ ${s.name}!`, `${fmtDateLong(s.examDate)}${s.examTime ? ' เวลา ' + s.examTime : ''}${s.room ? ' · ' + s.room : ''} เตรียมตัวให้พร้อมนะ 💪`);
+    });
+    DB.tasks.filter(x => !x.done && x.date === tm && x.remind !== false).forEach(x => {
+      const k = 'eve_task_' + x.id;
+      if (LOCAL.lastNotify[k] === t) return;
+      LOCAL.lastNotify[k] = t; saveLocal();
+      this.show(`⏰ พรุ่งนี้ครบกำหนด: ${x.title}`, `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${x.type === 'event' ? 'กิจกรรม' : 'การบ้าน'}${x.time ? ' เวลา ' + x.time : ''}`);
+    });
+    // แจ้งเตือนตรงเวลาวันนี้: ตารางอ่าน + การบ้าน/กิจกรรม
     DB.plan.filter(p => !p.done && p.date === t && p.time && p.remind !== false && hm >= p.time).forEach(p => {
       const k = 'plan_' + p.id;
       if (LOCAL.lastNotify[k] === t) return;

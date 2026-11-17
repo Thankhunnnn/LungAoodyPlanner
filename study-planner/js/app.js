@@ -1906,6 +1906,7 @@ const Forms = {
     }
     Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
     (DB.classes || []).forEach(c => { if (c.subjectId === s.id) c.color = color; });
+    if (d.examDate) Notifier.ask();
     closeModal(); save();
   },
   chapters(d, f) {
@@ -1926,7 +1927,7 @@ const Forms = {
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
     Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind });
-    if (d.remind && d.time) Notifier.ask();
+    if (d.remind) Notifier.ask();
     closeModal(); save();
   },
   plan(d, f) {
