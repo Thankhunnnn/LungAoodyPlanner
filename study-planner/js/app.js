@@ -2579,7 +2579,6 @@ const Actions = {
   'file-folder-del': async el => {
     const s = subjectById(App.filesSid); if (!s) return;
     const f = el.dataset.f;
-    if (!confirm(`ลบโฟลเดอร์ "${f}"? (ไฟล์ข้างในจะยังอยู่ แค่ย้ายออกเป็นยังไม่จัดหมวด)`)) return;
     s.folders = (s.folders || []).filter(x => x !== f);
     (s.driveFiles || []).forEach(x => { if (x.folder === f) x.folder = ''; });
     (s.links || []).forEach(x => { if (x.folder === f) x.folder = ''; });
