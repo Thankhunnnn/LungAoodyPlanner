@@ -169,6 +169,8 @@ function barChart(data, fmt = v => v) {
 }
 
 
+const classColor = c => safeColor(c.color || (c.subjectId ? subjectColor(c.subjectId) : '#4a9be8'));
+const className = c => c.title || subjectName(c.subjectId);
 function roomText(room) {
   const r = String(room || '').trim();
   if (!r || /^\d{1,2}:\d{2}(\s*[-–]\s*\d{1,2}:\d{2})?$/.test(r)) return '';
@@ -263,8 +265,7 @@ const Views = {
     ${todayClasses.length ? `<section class="card">
       <div class="card-head"><h2>🗓️ ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go-timetable">ดูทั้งหมด</button></div>
       <div class="tt-strip">${todayClasses.map(c => {
-        const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
-        const nm = c.title || subjectName(c.subjectId);
+        const col = classColor(c), nm = className(c);
         return `<div class="tt-pill" style="--c:${col}"><b>${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</b> ${esc(nm)}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</div>`;
       }).join('')}</div>
     </section>` : ''}
@@ -425,8 +426,7 @@ const Views = {
                     const em = Math.min(maxH * 60, Math.max(sm + 30, toMin(c.end) || sm + 60));
                     const left = ((sm - minH * 60) / totalMin * 100).toFixed(3);
                     const width = ((em - sm) / totalMin * 100).toFixed(3);
-                    const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
-                    const nm = c.title || subjectName(c.subjectId);
+                    const col = classColor(c), nm = className(c);
                     return `<button type="button" class="tt-block" data-act="edit-class" data-id="${c.id}" style="left:${left}%;width:${width}%;--c:${col}" title="${esc(nm)} (${esc(c.start)}–${esc(c.end || '')})">
                       <span class="tt-bname">${esc(nm)}</span>
                       <span class="tt-broom">${esc(c.room || `${c.start}${c.end ? '–' + c.end : ''}`)}</span>
@@ -473,11 +473,11 @@ const Views = {
       const exams = DB.subjects.filter(s => s.examDate === d);
       const tasks = DB.tasks.filter(x => x.date === d);
       const plan = DB.plan.filter(p => p.date === d);
-      const clsN = (DB.classes || []).filter(c => c.day === parseDate(d).getDay()).length;
+      const dayClasses = (DB.classes || []).filter(c => c.day === parseDate(d).getDay()).sort((a, b) => a.start.localeCompare(b.start));
       html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''}" data-act="cal-day" data-date="${d}">
         <div class="cal-num">${parseDate(d).getDate()}</div>
         ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
-        ${clsN ? `<div class="cal-chip tt">🗓️ ${clsN} คาบ</div>` : ''}
+        ${dayClasses.map(c => `<div class="cal-chip exam" style="--c:${classColor(c)}">${esc(c.start)} ${esc(className(c))}</div>`).join('')}
         ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
         ${plan.length ? `<div class="cal-chip plan">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
       </div>`;
@@ -832,6 +832,7 @@ function classForm(c = {}) {
   const day = c.day != null ? Number(c.day) : 1;
   const start = c.start || '08:30';
   const end = c.end || (start.slice(0, 2) ? `${pad(Math.min(23, Number(start.slice(0, 2)) + 2))}:${start.slice(3, 5) || '00'}` : '');
+  const color = c.color || (c.subjectId ? subjectColor(c.subjectId) : SUBJECT_COLORS[(DB.classes || []).length % SUBJECT_COLORS.length]);
   return `<form data-form="class" data-id="${c.id || ''}">
     <div class="row wrap">
       <label class="field">วัน<select name="day">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>วัน${TH_DAYS_FULL[d]}</option>`).join('')}</select></label>
@@ -841,6 +842,8 @@ function classForm(c = {}) {
     <label class="field">วิชา (เลือกจากรายการ หรือพิมพ์ชื่อเองด้านล่าง)<select name="subjectId">${subjectOptions(c.subjectId || '')}</select></label>
     <label class="field">ชื่อวิชา / หมายเหตุ (ถ้าไม่ได้เลือกด้านบน)<input name="title" value="${esc(c.title || '')}" placeholder="เช่น Gen Ed / สัมมนา"></label>
     <label class="field">ห้องเรียน / Sec<input name="room" value="${esc(c.room || '')}" placeholder="เช่น MAHIT 401 | Sec 1"></label>
+    <div class="field">สี<div class="colors">${SUBJECT_COLORS.map((col, i) => `<label class="color-dot" style="--c:${col}" aria-label="เลือกสีที่ ${i + 1}"><input type="radio" name="color" value="${col}" ${col === color ? 'checked' : ''} aria-label="เลือกสีที่ ${i + 1}"><span></span></label>`).join('')}
+      <input type="color" name="customColor" value="${esc(color)}" title="สีอื่น" data-chg="custom-color"></div></div>
     <div class="row end">${c.id ? `<button type="button" class="btn danger" data-act="del-class" data-id="${c.id}" style="margin-right:auto">🗑 ลบ</button>` : ''}<button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -863,7 +866,7 @@ function dayModal(d) {
   const cls = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
   openModal(`📅 ${fmtDateLong(d)}`, `
     ${exams.map(s => `<div class="exam-badge big" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
-    ${cls.length ? `<h3>🗓️ ตารางเรียน</h3>${cls.map(c => `<div class="item"><span class="tag" style="--c:${safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'))}">${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</span><span class="grow">${esc(c.title || subjectName(c.subjectId))}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</span></div>`).join('')}` : ''}
+    ${cls.length ? `<h3>🗓️ ตารางเรียน</h3>${cls.map(c => `<div class="item"><span class="tag" style="--c:${classColor(c)}">${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</span><span class="grow">${esc(className(c))}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</span></div>`).join('')}` : ''}
     <h3>📖 แผนอ่าน</h3>${plan.length ? plan.map(p => planItemHTML(p)).join('') : '<p class="muted small">ไม่มี</p>'}
     <h3>📝 การบ้าน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
     <div class="row wrap"><button class="btn small" data-act="add-task" data-date="${d}">+ การบ้าน/กิจกรรม</button><button class="btn small ghost" data-act="add-plan" data-date="${d}">+ แผนอ่าน</button></div>`);
@@ -1545,7 +1548,7 @@ const Actions = {
       classes.filter(c => c.day === d).forEach(c => {
         const sm = Math.max(minH * 60, toMin(c.start)), em = Math.min(maxH * 60, Math.max(sm + 30, toMin(c.end) || sm + 60));
         const bx = padX + dayW + ((sm - minH * 60) / 60) * colW + 2, bw = ((em - sm) / 60) * colW - 4;
-        const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
+        const col = classColor(c);
         ctx.fillStyle = col + '26'; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.roundRect(bx, y + 4, bw, rowH - 8, 8); ctx.fill(); ctx.stroke();
         ctx.fillStyle = col; ctx.font = '600 12px sans-serif'; ctx.textAlign = 'center';
@@ -1902,6 +1905,7 @@ const Forms = {
       (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title: title.slice(0, 200), done: false, note: '' }));
     }
     Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
+    (DB.classes || []).forEach(c => { if (c.subjectId === s.id) c.color = color; });
     closeModal(); save();
   },
   chapters(d, f) {
@@ -1942,9 +1946,16 @@ const Forms = {
     DB.classes = DB.classes || [];
     let c = DB.classes.find(x => x.id === f.dataset.id);
     if (!c) { c = { id: uid() }; DB.classes.push(c); }
+    const pickedColor = safeColor(d.color || d.customColor || SUBJECT_COLORS[0]);
+    if (d.subjectId) {
+      const sub = subjectById(d.subjectId);
+      if (sub) sub.color = pickedColor;
+      DB.classes.forEach(x => { if (x.subjectId === d.subjectId) x.color = pickedColor; });
+    }
     Object.assign(c, {
       day: Number(d.day), start: d.start || '08:30', end: d.end || '',
       subjectId: d.subjectId || '', title: title.slice(0, 120), room: (d.room || '').trim().slice(0, 80),
+      color: pickedColor,
     });
     closeModal(); save();
   },
