@@ -12,7 +12,7 @@ const defaultData = () => ({
   sessions: [],   // {id,subjectId,date,minutes,at}
   flashcards: [], // {id,subjectId,chapterId,q,a,known}
   prefs: {
-    theme: 'pink', dark: false,
+    theme: 'navy', dark: false,
     chaptersPerDay: 3, reviewDayBefore: true,
     pomo: { work: 25, short: 5, long: 15, every: 4 },
     notify: false, notifyTime: '08:00',
@@ -190,10 +190,10 @@ const FileStore = {
 
 function loadDemoData() {
   const t = todayStr();
-  const s1 = { id: uid(), name: '5500111 EXP ENG I', color: '#9b7ede', examDate: addDays(t, 6), examTime: '08:30', room: '08:30 - 10:30', chapters: ['Essay Structure & Thesis', 'Academic Vocabulary', 'Reading Comprehension', 'Grammar Review', 'Mock Test'].map((c, i) => ({ id: uid(), title: c, done: i < 2, doneAt: i < 2 ? addDays(t, -2 + i) : null, note: i === 0 ? 'Topic sentence ต้องชัด + มี supporting details 2-3 ข้อ' : '' })) };
-  const s2 = { id: uid(), name: '2301119 CAL BUS', color: '#3fb68b', examDate: addDays(t, 8), examTime: '08:30', room: '08:30 - 11:30', chapters: ['Limits & Continuity', 'Derivatives & Rules', 'Optimization Problems', 'Marginal Analysis', 'Integrals'].map((c, i) => ({ id: uid(), title: c, done: i === 0, doneAt: i === 0 ? addDays(t, -1) : null, note: '' })) };
-  const s3 = { id: uid(), name: '2900112 ECONOMICS II', color: '#f0a04b', examDate: addDays(t, 10), examTime: '08:30', room: '08:30 - 11:30', chapters: ['GDP & National Income', 'Inflation & Unemployment', 'Fiscal Policy', 'Monetary Policy', 'International Trade'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
-  const s4 = { id: uid(), name: '2601113 PRIN ACCTG', color: '#4a9be8', examDate: addDays(t, 14), examTime: '08:30', room: '08:30 - 11:30', chapters: ['Accounting Equation', 'Journal & Ledger', 'Adjusting Entries', 'Financial Statements', 'Cash Flow'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
+  const s1 = { id: uid(), name: '5500111 EXP ENG I', color: '#9b7ede', examDate: addDays(t, 6), examTime: '08:30', room: '301', chapters: ['Essay Structure & Thesis', 'Academic Vocabulary', 'Reading Comprehension', 'Grammar Review', 'Mock Test'].map((c, i) => ({ id: uid(), title: c, done: i < 2, doneAt: i < 2 ? addDays(t, -2 + i) : null, note: i === 0 ? 'Topic sentence ต้องชัด + มี supporting details 2-3 ข้อ' : '' })) };
+  const s2 = { id: uid(), name: '2301119 CAL BUS', color: '#3fb68b', examDate: addDays(t, 8), examTime: '08:30', room: '204', chapters: ['Limits & Continuity', 'Derivatives & Rules', 'Optimization Problems', 'Marginal Analysis', 'Integrals'].map((c, i) => ({ id: uid(), title: c, done: i === 0, doneAt: i === 0 ? addDays(t, -1) : null, note: '' })) };
+  const s3 = { id: uid(), name: '2900112 ECONOMICS II', color: '#f0a04b', examDate: addDays(t, 10), examTime: '08:30', room: '110', chapters: ['GDP & National Income', 'Inflation & Unemployment', 'Fiscal Policy', 'Monetary Policy', 'International Trade'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
+  const s4 = { id: uid(), name: '2601113 PRIN ACCTG', color: '#4a9be8', examDate: addDays(t, 14), examTime: '08:30', room: '', chapters: ['Accounting Equation', 'Journal & Ledger', 'Adjusting Entries', 'Financial Statements', 'Cash Flow'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
   DB.subjects = [s1, s2, s3, s4];
   DB.tasks = [
     { id: uid(), title: 'ส่งแบบฝึกหัด Cal บท 2', date: addDays(t, 1), time: '16:00', subjectId: s2.id, type: 'homework', done: false },

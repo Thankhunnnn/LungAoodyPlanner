@@ -8,7 +8,6 @@ const TABS = [
   ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🤖', 'AI ติว'],
 ];
 const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
-const MOBILE_PRIMARY = new Set(['home', 'plan', 'subjects', 'ai']);
 
 const App = {
   tab: 'home', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
@@ -29,7 +28,7 @@ const App = {
   },
 
   applyTheme() {
-    document.documentElement.dataset.theme = DB.prefs.theme || 'pink';
+    document.documentElement.dataset.theme = DB.prefs.theme || 'navy';
     document.documentElement.dataset.dark = DB.prefs.dark ? '1' : '0';
     const c = (THEMES.find(t => t[0] === DB.prefs.theme) || THEMES[0])[2];
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', DB.prefs.dark ? '#1d1a1f' : c);
@@ -41,10 +40,8 @@ const App = {
     const hdr = document.getElementById('header');
     hdr.classList.toggle('compact', this.tab !== 'home');
     hdr.innerHTML = this.headerHTML();
-    const moreActive = !MOBILE_PRIMARY.has(this.tab);
-    document.getElementById('nav').innerHTML = TABS.map(([id, ic, label]) =>
-      `<button class="tab ${this.tab === id ? 'active' : ''} ${MOBILE_PRIMARY.has(id) ? '' : 'desk-only'}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('') +
-      `<button class="tab mob-only ${moreActive ? 'active' : ''}" data-act="more-menu"><span class="ic">⋯</span><span>เพิ่มเติม</span></button>`;
+    document.getElementById('nav').innerHTML = ALL_TABS.map(([id, ic, label]) =>
+      `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('');
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
     if (this.tab === 'ai') { const box = document.getElementById('chatBox'); if (box) box.scrollTop = box.scrollHeight; }
@@ -72,7 +69,7 @@ const App = {
         sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
       }
       const greet = DB.prefs.theme === 'navy' ? 'หวัดดีค้าบ' : 'หวัดดีค่า';
-      const av = DB.prefs.theme === 'navy' ? `<img src="assets/coach-hero.png" alt="" class="avatar-img">` : '😊';
+      const av = `<img src="assets/avatar.png" alt="" class="avatar-img" width="56" height="56">`;
       left = `<div class="hello">
         <div class="avatar">${av}</div>
         <div><h1>${greet}${DB.name ? ' ' + esc(DB.name) : ''}</h1><p>${sub}</p></div>
@@ -135,8 +132,8 @@ function planItemHTML(p, showDate = false) {
     <input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''}>
     ${tag(p.subjectId)}
     <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
-    <button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข">✎</button>
-    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ">✕</button>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข">✎</button>
+    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ">✕</button></span>
   </div>`;
 }
 function countdownCard(s) {
@@ -144,7 +141,7 @@ function countdownCard(s) {
   return `<div class="cd-card ${n <= 3 ? 'urgent' : ''}" style="--c:${s.color}" data-act="open-subject" data-id="${s.id}">
     <div class="cd-days">${n === 0 ? 'วันนี้!' : n + ' <small>วัน</small>'}</div>
     <div class="cd-name">${esc(s.name)}</div>
-    <div class="cd-meta">${fmtDate(s.examDate)}${s.examTime ? ' · ' + s.examTime : ''}${s.room ? ' · ' + esc(s.room) : ''}</div>
+    <div class="cd-meta">${fmtDate(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''}</div>
   </div>`;
 }
 function barChart(data, fmt = v => v) {
@@ -157,12 +154,44 @@ function barChart(data, fmt = v => v) {
     <div class="bar-label">${d.label}</div></div>`).join('')}</div>`;
 }
 
+
+function roomText(room) {
+  const r = String(room || '').trim();
+  if (!r || /^\d{1,2}:\d{2}(\s*[-–]\s*\d{1,2}:\d{2})?$/.test(r)) return '';
+  return r;
+}
+function dateField(label, name, value, required) {
+  const v = value || '';
+  return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
+}
+function coachHeroHTML() {
+  if (DB.prefs.theme !== 'navy') return '';
+  return `<section class="coach-hero">
+      <div class="coach-bubble">
+        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
+        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
+      </div>
+      <img src="assets/coach-hero-real.webp" alt="" class="coach-hero-img" width="117" height="210">
+    </section>`;
+}
+function coachActionHTML() {
+  if (DB.prefs.theme !== 'navy') return '';
+  const nextEx = upcomingExams()[0];
+  return `<section class="coach-footer">
+      <div class="coach-bubble warn">
+        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
+        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
+      </div>
+      <img src="assets/coach-action.webp" alt="" class="coach-action-img" width="139" height="180">
+    </section>`;
+}
+
 /* ===== Views ===== */
 const Views = {
   home() {
     const t = todayStr();
     if (!DB.subjects.length) {
-      return `<section class="card welcome">
+      return `${coachHeroHTML()}<section class="card welcome">
         <h2>ยินดีต้อนรับสู่ Study Planner 🌷</h2>
         <p class="muted">เริ่มจาก 3 ขั้นง่ายๆ</p>
         <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>กด "จัดตารางอัตโนมัติ" แล้วอ่านตามได้เลย</li></ol>
@@ -171,7 +200,7 @@ const Views = {
           <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
           <button class="btn ghost" data-act="load-demo">✨ โหลดข้อมูลตัวอย่าง (Demo)</button>
         </div>
-      </section>`;
+      </section>${coachActionHTML()}`;
     }
     const exams = upcomingExams();
     const today = planForDate(t);
@@ -182,26 +211,10 @@ const Views = {
     const weekTotal = week.reduce((a, d) => a + d.value, 0);
     const doneToday = today.filter(p => p.done).length;
 
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = exams[0];
-    const coachHero = isNavy ? `<section class="coach-hero">
-      <img src="assets/coach-moto.png" alt="" class="coach-moto">
-      <div class="coach-bubble">
-        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
-        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
-      </div>
-      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
-    </section>` : '';
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
 
     return `
-    ${coachHero}
+    ${coachHeroHTML()}
     <section class="card">
       <h2>⏰ นับถอยหลังสอบ</h2>
       ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty('🎉', 'ไม่มีสอบที่กำลังจะมาถึง')}
@@ -233,7 +246,7 @@ const Views = {
         <button class="btn ghost full" data-act="go" data-tab="timer">เริ่มจับเวลาอ่าน ▶</button>
       </section>
     </div>
-    ${coachFooter}`;
+    ${coachActionHTML()}`;
   },
 
   plan() {
@@ -254,27 +267,10 @@ const Views = {
         ${items.map(p => planItemHTML(p)).join('')}
       </div>`;
     };
-    const exams = upcomingExams();
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = exams[0];
-    const coachHero = isNavy ? `<section class="coach-hero">
-      <img src="assets/coach-moto.png" alt="" class="coach-moto">
-      <div class="coach-bubble">
-        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
-        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
-      </div>
-      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
-    </section>` : '';
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
 
     return `
-    ${coachHero}
+    
     <section class="card">
       <div class="toolbar">
         <button class="btn" data-act="auto-plan">✨ จัดตารางอัตโนมัติ</button>
@@ -295,7 +291,7 @@ const Views = {
 
   subjects() {
     return `
-    <div class="toolbar"><h2 class="grow">📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
+    <div class="toolbar subjects-bar"><h2>📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
       <button class="btn ghost" data-act="ai-add-exams">✨ เพิ่มตารางสอบด้วย AI</button>
       <button class="btn" data-act="add-subject">+ เพิ่มวิชา</button></div>
     ${DB.subjects.length ? '' : empty('📚', 'ยังไม่มีวิชา เพิ่มวิชาแรกกันเลย')}
@@ -306,7 +302,7 @@ const Views = {
       return `<section class="card subj" id="subj-${s.id}" style="--c:${s.color}">
         <div class="subj-head">
           <div class="grow"><h3>${esc(s.name)}</h3>
-            <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + s.examTime : ''}${s.room ? ' · ห้อง ' + esc(s.room) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
+            <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
           <button class="mini-btn" data-act="edit-subject" data-id="${s.id}">✎ แก้ไข</button>
           <button class="mini-btn" data-act="del-subject" data-id="${s.id}">🗑</button>
         </div>
@@ -315,10 +311,12 @@ const Views = {
         <div class="chapters">${s.chapters.map((c, i) => `<div class="item ${c.done ? 'done' : ''}">
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''}>
             <span class="grow">${esc(c.title)}</span>
+            <span class="item-actions">
             <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต">📝${c.note ? '' : '+'}</button>
             <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}">✎</button>
             <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}">✕</button>
+            </span>
           </div>`).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
         <div class="row wrap">
           <button class="btn small" data-act="add-chapters" data-sid="${s.id}">+ เพิ่มบท</button>
@@ -348,27 +346,10 @@ const Views = {
       </div>`;
     }
     const upcoming = DB.tasks.filter(x => !x.done && x.date >= t).sort((a, b) => a.date.localeCompare(b.date));
-    const exams = upcomingExams();
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = exams[0];
-    const coachHero = isNavy ? `<section class="coach-hero">
-      <img src="assets/coach-moto.png" alt="" class="coach-moto">
-      <div class="coach-bubble">
-        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
-        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
-      </div>
-      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
-    </section>` : '';
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
 
     return `
-    ${coachHero}
+    
     <section class="card">
       <div class="toolbar">
         <button class="icon-btn" data-act="cal-nav" data-dir="-1">‹</button>
@@ -392,15 +373,7 @@ const Views = {
     const total = sessions.reduce((a, x) => a + x.minutes, 0);
     const modes = [['work', '🎯 โฟกัส'], ['short', '☕ พักสั้น'], ['long', '🌙 พักยาว']];
     setTimeout(() => App.renderTimerBits(), 0);
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = upcomingExams()[0];
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
     return `
     <div class="grid2">
       <section class="card timer-card">
@@ -438,7 +411,7 @@ const Views = {
         </form>
       </section>
     </div>
-    ${coachFooter}`;
+    ${coachActionHTML()}`;
   },
 
   stats() {
@@ -455,27 +428,10 @@ const Views = {
     const maxSub = Math.max(1, ...perSub.map(x => x.m), other);
     const weeks = [...Array(8)].map((_, i) => { const w = addDays(weekStart(t), -7 * (7 - i)); let m = 0; for (let j = 0; j < 7; j++) m += minutesOn(addDays(w, j)); return { label: fmtDate(w), value: m, hl: w === ws }; });
     const allCh = DB.subjects.reduce((a, s) => a + s.chapters.length, 0), allDone = DB.subjects.reduce((a, s) => a + s.chapters.filter(c => c.done).length, 0);
-    const exams = upcomingExams();
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = exams[0];
-    const coachHero = isNavy ? `<section class="coach-hero">
-      <img src="assets/coach-moto.png" alt="" class="coach-moto">
-      <div class="coach-bubble">
-        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
-        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
-      </div>
-      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
-    </section>` : '';
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
 
     return `
-    ${coachHero}
+    
     <section class="card">
       <div class="toolbar">
         <button class="icon-btn" data-act="week-nav" data-dir="-1">‹</button>
@@ -503,7 +459,7 @@ const Views = {
         ${progressBar(allCh ? allDone / allCh * 100 : 0)}
       </section>
     </div>
-    ${coachFooter}`;
+    ${coachActionHTML()}`;
   },
 
   ai() {
@@ -518,15 +474,7 @@ const Views = {
     if (!chs.find(c => c.id === App.aiCh)) App.aiCh = chs[0]?.id || '';
     const chat = LOCAL.chat || [];
     const quick = ['วันนี้ควรอ่านอะไรก่อนดี?', 'ช่วยให้กำลังใจหน่อย 🥺', 'มีเทคนิคจำเนื้อหาเยอะๆ ไหม', 'ประเมินหน่อยว่าอ่านทันไหม'];
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = upcomingExams()[0];
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
     return `
     <div class="ai-layout">
       <section class="card chat-card">
@@ -564,7 +512,7 @@ const Views = {
         </form>` : empty('📚', 'เพิ่มวิชาก่อนนะ', `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
       </section>
     </div>
-    ${coachFooter}`;
+    ${coachActionHTML()}`;
   },
 
   settings() {
@@ -592,27 +540,10 @@ const Views = {
     const presets = C.provider === 'gemini' ? gemPresets : oaPresets;
     const curModel = C.provider === 'gemini' ? C.geminiModel : C.openaiModel;
     const isCustom = App._customModel || !presets.some(([v]) => v === curModel);
-    const exams = upcomingExams();
-    const isNavy = DB.prefs.theme === 'navy';
-    const nextEx = exams[0];
-    const coachHero = isNavy ? `<section class="coach-hero">
-      <img src="assets/coach-moto.png" alt="" class="coach-moto">
-      <div class="coach-bubble">
-        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
-        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
-      </div>
-      <img src="assets/coach-hero.png" alt="" class="coach-hero-img">
-    </section>` : '';
-    const coachFooter = isNavy ? `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.png" alt="" class="coach-action-img">
-    </section>` : '';
+
 
     return `
-    ${coachHero}
+    
     <section class="card"><h2>👤 ทั่วไป</h2>
       <form data-form="name" class="row"><input name="name" placeholder="ชื่อเล่น" value="${esc(DB.name)}"><button class="btn small">บันทึก</button></form>
     </section>
@@ -702,8 +633,8 @@ function taskItemHTML(x) {
     <span>${x.type === 'event' ? '📌' : '📝'}</span>
     ${x.subjectId ? tag(x.subjectId) : ''}
     <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + x.time : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
-    <button class="mini-btn" data-act="edit-task" data-id="${x.id}">✎</button>
-    <button class="mini-btn" data-act="del-task" data-id="${x.id}">✕</button>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}">✎</button>
+    <button class="mini-btn" data-act="del-task" data-id="${x.id}">✕</button></span>
   </div>`;
 }
 
@@ -713,7 +644,7 @@ function subjectForm(s = {}) {
   return `<form data-form="subject" data-id="${s.id || ''}">
     <label class="field">ชื่อวิชา<input name="name" required value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
     <div class="row wrap">
-      <label class="field">วันสอบ<input type="date" name="examDate" value="${s.examDate || ''}"></label>
+      ${dateField('วันสอบ', 'examDate', s.examDate || '')}
       <label class="field">เวลา<input type="time" name="examTime" value="${s.examTime || ''}"></label>
       <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น อ่านเอง, ห้อง 301"></label>
     </div>
@@ -728,7 +659,7 @@ function taskForm(x = {}) {
     <label class="field">ชื่องาน<input name="title" required value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
     <div class="row wrap">
       <label class="field">ประเภท<select name="type"><option value="homework" ${x.type !== 'event' ? 'selected' : ''}>📝 การบ้าน</option><option value="event" ${x.type === 'event' ? 'selected' : ''}>📌 กิจกรรม</option></select></label>
-      <label class="field">วันที่<input type="date" name="date" required value="${x.date || todayStr()}"></label>
+      ${dateField('วันที่', 'date', x.date || todayStr(), true)}
       <label class="field">เวลา<input type="time" name="time" value="${x.time || ''}"></label>
     </div>
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
@@ -741,7 +672,7 @@ function planForm(p = {}) {
     <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
     <label class="field">บท (เลือก หรือพิมพ์เองด้านล่าง)<select name="chapterId" id="planCh">${planChapterOptions(sid, p.chapterId)}</select></label>
     <label class="field">รายละเอียด<input name="title" value="${esc(p.chapterId ? '' : (p.title || ''))}" placeholder="เช่น ทำแบบฝึกหัดบท 3"></label>
-    <label class="field">วันที่<input type="date" name="date" required value="${p.date || todayStr()}"></label>
+    ${dateField('วันที่', 'date', p.date || todayStr(), true)}
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -764,8 +695,8 @@ function noteModal(s, c) {
 }
 function dayModal(d) {
   const exams = DB.subjects.filter(s => s.examDate === d), tasks = DB.tasks.filter(x => x.date === d), plan = planForDate(d);
-  openModal(`📅 ${fmtDateLong(d)} ${parseDate(d).getFullYear() + 543}`, `
-    ${exams.map(s => `<div class="exam-badge big" style="--c:${s.color}">🎯 สอบ ${esc(s.name)} ${s.examTime || ''} ${s.room ? '· ' + esc(s.room) : ''}</div>`).join('')}
+  openModal(`📅 ${fmtDateLong(d)}`, `
+    ${exams.map(s => `<div class="exam-badge big" style="--c:${s.color}">🎯 สอบ ${esc(s.name)} ${s.examTime || ''} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
     <h3>📖 แผนอ่าน</h3>${plan.length ? plan.map(p => planItemHTML(p)).join('') : '<p class="muted small">ไม่มี</p>'}
     <h3>📝 การบ้าน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
     <div class="row wrap"><button class="btn small" data-act="add-task" data-date="${d}">+ การบ้าน/กิจกรรม</button><button class="btn small ghost" data-act="add-plan" data-date="${d}">+ แผนอ่าน</button></div>`);
@@ -1231,13 +1162,18 @@ const Forms = {
     if (!d.text.trim() && !App._examImg) return App.toast('พิมพ์ข้อความหรือแนบรูปตารางสอบก่อนนะ');
     const r = await aiRun('AI กำลังอ่านตารางสอบ', () => AI.parseExams(d.text, App._examImg));
     if (!Array.isArray(r) || !r.length) return App.toast('ไม่พบข้อมูลวิชา ลองพิมพ์ให้ชัดเจนขึ้นนะ');
-    const items = r.filter(x => x && x.name).map(x => ({
-      name: String(x.name).trim(),
-      examDate: /^\d{4}-\d{2}-\d{2}$/.test(x.examDate || '') ? x.examDate : '',
-      examTime: String(x.examTime || '').slice(0, 5),
-      room: String(x.room || '').trim(),
-      chapters: Array.isArray(x.chapters) ? x.chapters.map(c => String(c).trim()).filter(Boolean) : [],
-    }));
+    const items = r.filter(x => x && x.name).map(x => {
+      let examTime = String(x.examTime || '').trim();
+      let room = String(x.room || '').trim();
+      if (room && !roomText(room)) { if (!examTime || examTime.length <= 5) examTime = room; room = ''; }
+      return {
+        name: String(x.name).trim(),
+        examDate: /^\d{4}-\d{2}-\d{2}$/.test(x.examDate || '') ? x.examDate : '',
+        examTime: examTime.slice(0, 20),
+        room,
+        chapters: Array.isArray(x.chapters) ? x.chapters.map(c => String(c).trim()).filter(Boolean) : [],
+      };
+    });
     if (!items.length) return App.toast('ไม่พบข้อมูลวิชา');
     App._examPreview = items;
     setModalBody(`
@@ -1245,7 +1181,7 @@ const Forms = {
       ${items.map((x, i) => `<label class="item" style="cursor:pointer">
         <input type="checkbox" class="cb" data-exam-idx="${i}" checked>
         <div class="grow"><b>${esc(x.name)}</b><br>
-          <small class="muted">${x.examDate ? `🎯 ${fmtDateLong(x.examDate)} (${x.examDate})` : 'ยังไม่ระบุวัน'}${x.examTime ? ' · ' + esc(x.examTime) : ''}${x.room ? ' · ' + esc(x.room) : ''}${x.chapters.length ? ` · ${x.chapters.length} บท` : ''}</small>
+          <small class="muted">${x.examDate ? `🎯 ${fmtDateLong(x.examDate)} (${x.examDate})` : 'ยังไม่ระบุวัน'}${x.examTime ? ' · ' + esc(x.examTime) : ''}${roomText(x.room) ? ' · ห้อง ' + esc(roomText(x.room)) : ''}${x.chapters.length ? ` · ${x.chapters.length} บท` : ''}</small>
         </div>
       </label>`).join('')}
       <div class="row end">
