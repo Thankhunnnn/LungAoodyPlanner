@@ -510,7 +510,7 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
 .link-form { display: grid; gap: 8px; margin: 8px 0 12px; }
 /* timetable */
 .tt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
-.tt-table { min-width: 720px; }
+.tt-table { min-width: 960px; }
 .tt-hdr, .tt-row { display: grid; grid-template-columns: 76px 1fr; border-bottom: 1px solid var(--border); }
 .tt-row:last-child { border-bottom: none; }
 .tt-row.today .tt-day-lbl { color: var(--accent); font-weight: 700; background: var(--soft); }

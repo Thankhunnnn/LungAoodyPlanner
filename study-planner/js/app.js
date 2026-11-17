@@ -393,11 +393,10 @@ const Views = {
     if (view === 'timetable') {
       const classes = DB.classes || [];
       const toMin = s => { const [h, m] = (s || '08:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
-      let minH = 8, maxH = 18;
+      let minH = 8, maxH = 25;
       classes.forEach(c => {
-        const s = Math.floor(toMin(c.start) / 60), e = Math.ceil(toMin(c.end || c.start) / 60);
+        const s = Math.floor(toMin(c.start) / 60);
         if (s < minH) minH = s;
-        if (e > maxH) maxH = Math.min(23, Math.max(e, s + 1));
       });
       const hours = []; for (let h = minH; h < maxH; h++) hours.push(h);
       const totalMin = hours.length * 60;
@@ -1520,11 +1519,11 @@ const Actions = {
   'tt-png': () => {
     const classes = DB.classes || [];
     const toMin = s => { const [h, m] = (s || '08:00').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
-    let minH = 8, maxH = 18;
-    classes.forEach(c => { const s = Math.floor(toMin(c.start) / 60), e = Math.ceil(toMin(c.end || c.start) / 60); if (s < minH) minH = s; if (e > maxH) maxH = Math.min(23, Math.max(e, s + 1)); });
+    let minH = 8, maxH = 25;
+    classes.forEach(c => { const s = Math.floor(toMin(c.start) / 60); if (s < minH) minH = s; });
     const cols = maxH - minH, daysOrder = [1, 2, 3, 4, 5, ...(classes.some(c => c.day === 6) ? [6] : []), ...(classes.some(c => c.day === 0) ? [0] : [])];
     const EN = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const dayW = 86, colW = 88, hdrH = 44, rowH = 74, padX = 24, padY = 24;
+    const dayW = 86, colW = 64, hdrH = 44, rowH = 74, padX = 24, padY = 24;
     const W = padX * 2 + dayW + cols * colW, H = padY * 2 + hdrH + daysOrder.length * rowH;
     const cv = document.createElement('canvas'); cv.width = W * 2; cv.height = H * 2;
     const ctx = cv.getContext('2d'); ctx.scale(2, 2);
