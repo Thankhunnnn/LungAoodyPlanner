@@ -776,12 +776,24 @@ select option { background: #fff; color: #1a2840; }
 }
 .ref-row1 > .card { margin-bottom: 0; }
 .ref-banner {
+  position: relative;
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
   padding: 16px 20px; overflow: hidden;
   background:
     radial-gradient(circle at 86% 50%, color-mix(in srgb, #6366f1 34%, transparent) 0%, transparent 52%),
     linear-gradient(125deg, #252b6b, #162244);
   color: #f4f8ff;
+}
+.ref-banner > * { position: relative; z-index: 1; }
+.banner-crest {
+  position: absolute !important; right: 16px; top: 50%; transform: translateY(-50%);
+  height: 128px; width: auto; opacity: .16; pointer-events: none; z-index: 0 !important;
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, .15));
+}
+.bento-mascot.ronaldo-hero {
+  height: 138px; width: auto; max-width: 150px; object-fit: contain; object-position: bottom;
+  margin: -12px -4px -16px 0;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .5));
 }
 :root:not([data-dark="1"]):not([data-theme="navy"]) .ref-banner {
   background: linear-gradient(125deg, color-mix(in srgb, var(--accent) 22%, #fff), color-mix(in srgb, var(--accent) 8%, var(--card)));
@@ -864,6 +876,19 @@ select option { background: #fff; color: #1a2840; }
 }
 .round-chip:hover { border-color: var(--accent); color: var(--accent); }
 .round-chip.has { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.round-ticker {
+  display: inline-flex; align-items: center; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--soft); overflow: hidden; min-height: 28px;
+}
+.round-ticker.has { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.rt-btn {
+  background: transparent; border: none; color: var(--text); font: inherit; font-size: .85rem; font-weight: 600;
+  width: 26px; height: 26px; display: grid; place-items: center; cursor: pointer; transition: .12s; padding: 0;
+}
+.rt-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.rt-btn:disabled { opacity: .35; cursor: not-allowed; }
+.rt-val { font-size: .74rem; padding: 0 6px; color: var(--muted); white-space: nowrap; }
+.round-ticker.has .rt-val { color: var(--accent); font-weight: 600; }
 .ch-fc { font-size: .68rem; font-weight: 700; margin-left: 2px; }
 .ch-files-mini { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .ch-file-tag {

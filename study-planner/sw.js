@@ -1,8 +1,8 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v23';
+const CACHE = 'study-planner-v24';
 const SHELL = ['./', './index.html', './styles.css', './manifest.json',
   './icon-16.png', './icon-32.png', './icon-180.png', './icon-192.png', './icon-512.png',
-  './assets/bg-blue.webp', './assets/bg-stadium.jpg', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
+  './assets/bg-blue.webp', './assets/bg-stadium.jpg', './assets/ronaldo-cutout.png', './assets/madrid-crest.png', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
   './assets/coach-hero-real.webp', './assets/coach-action.webp', './assets/coach-moto.webp',
   './assets/sticker-pencil.webp', './assets/sticker-book.webp', './assets/sticker-rocket.webp', './assets/sticker-sakura.webp',
   './assets/ooo-chat.webp',

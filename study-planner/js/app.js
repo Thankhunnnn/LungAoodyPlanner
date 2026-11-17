@@ -387,16 +387,18 @@ const Views = {
     const timerPct = Math.round((1 - sec / Timer.dur()) * 100);
     const pomoCfg = DB.prefs.pomo || { work: 25, short: 5, long: 15 };
 
+    const isFootball = (DB.prefs.theme || 'navy') === 'navy';
     return `
     <div class="ref-row1">
-      <section class="card ref-banner" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
+      <section class="card ref-banner ${isFootball ? 'is-football' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
+        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true">` : ''}
         <div class="ref-banner-body">
           <div class="ref-banner-title"><span class="ref-target">${ico('target', 16)}</span> <span>เป้าหมายหลักของคุณ</span></div>
           <h2>${nextEx ? `${esc(nextEx.name)} · อีก ${nextDays} วันสอบ` : 'อ่านหนังสือให้ครบตามเป้า'}</h2>
           <p class="banner-sub">${DB.subjects.length} วิชา · อ่านจบแล้ว ${doneCh}/${totCh} บท (${overallPct}%)</p>
           <button class="btn small ref-cta" data-act="go" data-tab="plan">ดูแผนทั้งหมด →</button>
         </div>
-        <img class="bento-mascot" src="assets/coach-hero-real.webp" alt="อู๊ด">
+        <img class="${isFootball ? 'bento-mascot ronaldo-hero' : 'bento-mascot'}" src="${isFootball ? 'assets/ronaldo-cutout.png' : 'assets/coach-hero-real.webp'}" alt="${isFootball ? 'Cristiano Ronaldo' : 'อู๊ด'}">
       </section>
 
       <section class="card ref-kpi">
@@ -607,7 +609,11 @@ const Views = {
               <span>${esc(c.title)}</span>
             </span>
             <span class="item-actions">
-            <button type="button" class="round-chip ${rounds > 0 ? 'has' : ''}" data-act="chapter-round" data-sid="${s.id}" data-id="${c.id}" title="กดเพิ่มรอบที่เรียน/ทบทวน">${ico('reset', 12)} <span>${rounds} รอบ</span></button>
+            <span class="round-ticker ${rounds > 0 ? 'has' : ''}" role="group" aria-label="จำนวนรอบที่เรียน">
+              <button type="button" class="rt-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="-1" ${rounds <= 0 ? 'disabled' : ''} aria-label="ลดรอบ">−</button>
+              <span class="rt-val stat-num">${rounds} รอบ</span>
+              <button type="button" class="rt-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="1" aria-label="เพิ่มรอบ">+</button>
+            </span>
             <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
             <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">${ico('note', 15)}</button>
             <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">${ico('arrow-up', 14)}</button>
