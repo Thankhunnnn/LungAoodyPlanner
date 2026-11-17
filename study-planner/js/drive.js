@@ -1,9 +1,8 @@
 /* ===== Google Drive (user's own Drive, browser only) =====
-   GOOGLE_DRIVE_CLIENT_ID must be an OAuth Web client ID
-   (….apps.googleusercontent.com) from the same Google Cloud project.
-   It is NOT the Firebase apiKey. Leave '' until the owner pastes it.
+   OAuth Web client ID from Google Cloud project buddy-4a1c4.
+   It is NOT the Firebase apiKey.
    Scope is requested only when the user uploads, moves, or deletes a file. */
-const GOOGLE_DRIVE_CLIENT_ID = '';
+const GOOGLE_DRIVE_CLIENT_ID = '150965048225-8jkvs88rr39vqjrigh7v3nr786v38vgp.apps.googleusercontent.com';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_ROOT_NAME = 'LungAoodyPlanner';
 
