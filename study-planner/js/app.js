@@ -1,12 +1,13 @@
 /* ===== Main app: views, actions, forms ===== */
 const THEMES = [
   ['pink', 'ชมพูพาสเทล', '#ec6a9c'], ['lavender', 'ลาเวนเดอร์', '#9b7ede'], ['mint', 'มิ้นต์', '#3fb68b'],
-  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['mono', 'มินิมอล', '#555555'],
+  ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
   ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'แต่ละวิชา'], ['calendar', '📅', 'ปฏิทิน'],
-  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🤖', 'AI ติว'], ['settings', '⚙️', 'ตั้งค่า'],
+  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🤖', 'AI ติว'],
 ];
+const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
 
 const App = {
   tab: 'home', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
@@ -14,8 +15,8 @@ const App = {
 
   init() {
     this.applyTheme();
-    const h = location.hash.slice(1); if (TABS.some(t => t[0] === h)) this.tab = h;
-    window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
+    const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) this.tab = h;
+    window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (ALL_TABS.some(t => t[0] === h)) { this.tab = h; this.render(); } });
     changeListeners.push(() => { this.applyTheme(); this.render(); });
     bindEvents();
     this.render();
@@ -27,7 +28,8 @@ const App = {
   },
 
   applyTheme() {
-    document.documentElement.dataset.theme = DB.prefs.theme || 'pink';
+    document.documentElement.dataset.theme = DB.prefs.theme || 'navy';
+    document.documentElement.dataset.home = this.tab === 'home' ? '1' : '0';
     document.documentElement.dataset.dark = DB.prefs.dark ? '1' : '0';
     const c = (THEMES.find(t => t[0] === DB.prefs.theme) || THEMES[0])[2];
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', DB.prefs.dark ? '#1d1a1f' : c);
@@ -36,11 +38,14 @@ const App = {
   go(tab) { location.hash = tab; this.tab = tab; this.render(); window.scrollTo({ top: 0 }); },
 
   render() {
-    document.getElementById('header').innerHTML = this.headerHTML();
-    document.getElementById('nav').innerHTML = TABS.map(([id, ic, label]) =>
+    const hdr = document.getElementById('header');
+    hdr.classList.toggle('compact', this.tab !== 'home');
+    hdr.innerHTML = this.headerHTML();
+    document.getElementById('nav').innerHTML = ALL_TABS.map(([id, ic, label]) =>
       `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('');
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
+    syncGutters();
     if (this.tab === 'ai') { const box = document.getElementById('chatBox'); if (box) box.scrollTop = box.scrollHeight; }
   },
 
@@ -53,23 +58,32 @@ const App = {
     if (btn) { btn.textContent = Timer.running ? '⏸ หยุดชั่วคราว' : '▶ เริ่ม'; btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start'; }
     const mini = document.getElementById('timerMini');
     if (mini) { mini.textContent = `⏱ ${txt}`; mini.style.display = Timer.running ? '' : 'none'; }
-    document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — Study Planner` : 'Study Planner 🌸';
+    document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
   },
 
   headerHTML() {
     const t = todayStr(), ex = upcomingExams()[0];
-    let sub = 'เพิ่มวิชาและวันสอบเพื่อเริ่มวางแผนกันเลย ✨';
-    if (ex) {
-      const n = daysBetween(t, ex.examDate);
-      sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
+    let left = '';
+    if (this.tab === 'home') {
+      let sub = 'เพิ่มวิชาและวันสอบเพื่อเริ่มวางแผนกันเลย ✨';
+      if (ex) {
+        const n = daysBetween(t, ex.examDate);
+        sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
+      }
+      const greet = DB.prefs.theme === 'navy' ? 'หวัดดีค้าบ' : 'หวัดดีค่า';
+      left = `<div class="hello">
+        <div class="avatar">${avatarImg()}</div>
+        <div><h1>${greet}${DB.name ? ' ' + esc(DB.name) : ''}</h1><p>${sub}</p></div>
+      </div>`;
+    } else {
+      const cur = ALL_TABS.find(x => x[0] === this.tab) || ALL_TABS[0];
+      left = `<div class="hello compact"><button class="avatar avatar-btn" data-act="go" data-tab="home" title="หน้าแรก">${avatarImg()}</button><h1>${cur[1]} ${cur[2]}</h1></div>`;
     }
-    return `<div class="hello">
-        <div class="avatar">😊</div>
-        <div><h1>หวัดดีค่า${DB.name ? ' ' + esc(DB.name) : ''} 🌸</h1><p>${sub}</p></div>
-      </div>
+    return `${left}
       <div class="head-actions">
         <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" style="display:${Timer.running ? '' : 'none'}">⏱</button>
         ${this.syncBadgeHTML()}
+        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า">⚙️</button>
         <button class="icon-btn" data-act="toggle-dark" title="โหมดมืด">${DB.prefs.dark ? '☀️' : '🌙'}</button>
       </div>`;
   },
@@ -109,7 +123,7 @@ function closeModal() {
 
 /* ===== Small UI pieces ===== */
 const tag = id => `<span class="tag" style="--c:${subjectColor(id)}">${esc(subjectName(id))}</span>`;
-const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${pct}%;${color ? 'background:' + color : ''}"></div></div>`;
+const progressBar = (pct, color) => `<div class="bar-bg"><div class="bar-fill" style="width:${Math.max(0, Math.min(100, Number(pct) || 0))}%;${color ? 'background:' + safeColor(color) : ''}"></div></div>`;
 const subjectOptions = (sel, allowNone = true) =>
   (allowNone ? `<option value="">— ทั่วไป —</option>` : '') + DB.subjects.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 const empty = (icon, text, btn = '') => `<div class="empty"><div class="empty-ic">${icon}</div><p>${text}</p>${btn}</div>`;
@@ -119,24 +133,88 @@ function planItemHTML(p, showDate = false) {
     <input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''}>
     ${tag(p.subjectId)}
     <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
-    <button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข">✎</button>
-    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ">✕</button>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข">✎</button>
+    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ">✕</button></span>
   </div>`;
 }
 function countdownCard(s) {
   const n = daysBetween(todayStr(), s.examDate);
-  return `<div class="cd-card ${n <= 3 ? 'urgent' : ''}" style="--c:${s.color}" data-act="open-subject" data-id="${s.id}">
+  return `<div class="cd-card ${n <= 3 ? 'urgent' : ''}" style="--c:${safeColor(s.color)}" data-act="open-subject" data-id="${s.id}">
     <div class="cd-days">${n === 0 ? 'วันนี้!' : n + ' <small>วัน</small>'}</div>
     <div class="cd-name">${esc(s.name)}</div>
-    <div class="cd-meta">${fmtDate(s.examDate)}${s.examTime ? ' · ' + s.examTime : ''}${s.room ? ' · ' + esc(s.room) : ''}</div>
+    <div class="cd-meta">${fmtDate(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''}</div>
   </div>`;
 }
 function barChart(data, fmt = v => v) {
   const max = Math.max(1, ...data.map(d => d.value));
-  return `<div class="bars">${data.map(d => `<div class="bar-col ${d.hl ? 'hl' : ''}">
+  const rainbow = DB.prefs.theme === 'navy';
+  const pal = ['#4a9be8', '#e85d5d', '#f0a04b', '#3fb68b', '#9b7ede', '#ec6a9c', '#5cc5c5'];
+  return `<div class="bars">${data.map((d, i) => `<div class="bar-col ${d.hl ? 'hl' : ''}">
     <div class="bar-val">${d.value ? fmt(d.value) : ''}</div>
-    <div class="bar-track"><div class="bar" style="height:${d.value / max * 100}%"></div></div>
+    <div class="bar-track"><div class="bar" style="height:${d.value / max * 100}%;${rainbow ? 'background:' + pal[i % pal.length] : ''}"></div></div>
     <div class="bar-label">${d.label}</div></div>`).join('')}</div>`;
+}
+
+
+function roomText(room) {
+  const r = String(room || '').trim();
+  if (!r || /^\d{1,2}:\d{2}(\s*[-–]\s*\d{1,2}:\d{2})?$/.test(r)) return '';
+  return r;
+}
+function dateField(label, name, value, required) {
+  const v = value || '';
+  const now = new Date().getFullYear();
+  return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" min="${now - 1}-01-01" max="${now + 5}-12-31" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
+}
+function avatarImg() {
+  return `<img class="avatar-img" src="assets/avatar-profile.webp" alt="อู๊ด" width="46" height="46" loading="eager" fetchpriority="high" decoding="sync" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='assets/avatar-profile.png'}">`;
+}
+function examYearOk(s) {
+  if (!s) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const y = Number(s.slice(0, 4));
+  const now = new Date().getFullYear();
+  return y >= now - 1 && y <= now + 5;
+}
+function coachBubble(kind) {
+  const name = esc(DB.name || 'เพื่อน');
+  const nextEx = upcomingExams()[0];
+  if (kind === 'action') {
+    return `<div class="coach-bubble warn"><b>อู๊ด:</b> อย่ามาอู้อ่านหนังสือนะ! 😤<br><span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปอ่านหนังสือกัน!'}</span></div>`;
+  }
+  return `<div class="coach-bubble"><b>อู๊ด:</b> เฮ้ ${name}! วันนี้เราลุยวิชาไหนกันดี?<br><span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span></div>`;
+}
+function coachHeroHTML() {
+  return `<section class="coach-hero">${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด" class="coach-hero-img" width="117" height="210" onload="this.dataset.ready='1'"></section>`;
+}
+function coachActionHTML() {
+  return `<section class="coach-footer">${coachBubble('action')}<img src="assets/coach-action.webp" alt="อู๊ด" class="coach-action-img" width="139" height="180"></section>`;
+}
+function syncGutters() {
+  const home = App.tab === 'home';
+  document.documentElement.dataset.home = home ? '1' : '0';
+  const right = document.getElementById('gutterRight');
+  if (!right) return;
+  if (!home) { right.innerHTML = ''; return; }
+  right.innerHTML = `${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด">`;
+}
+function normalizeLink(raw) {
+  let url = String(raw || '').trim();
+  if (!url) return { error: 'ใส่ลิงก์เอกสารด้วยนะ' };
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+    if (/^([\w-]+\.)+[a-z]{2,}([/?#].*)?$/i.test(url)) url = 'https://' + url;
+    else return { error: 'ลิงก์ไม่ถูกต้อง ใส่เช่น https://drive.google.com/...' };
+  }
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/i.test(u.protocol)) return { error: 'ใช้ลิงก์ที่ขึ้นต้นด้วย http หรือ https นะ' };
+    return { url: u.href };
+  } catch { return { error: 'ลิงก์ไม่ถูกต้อง ใส่เช่น https://drive.google.com/...' }; }
+}
+function demoButtonHTML() {
+  return hasDemo()
+    ? `<button class="btn danger" data-act="clear-demo">ลบข้อมูลทดลอง</button>`
+    : `<button class="btn ghost" data-act="load-demo">ใส่ข้อมูลทดลอง</button>`;
 }
 
 /* ===== Views ===== */
@@ -144,12 +222,15 @@ const Views = {
   home() {
     const t = todayStr();
     if (!DB.subjects.length) {
-      return `<section class="card welcome">
-        <h2>ยินดีต้อนรับสู่ Study Planner 🌷</h2>
+      return `${coachHeroHTML()}<section class="card welcome">
+        <h2>ยินดีต้อนรับสู่ LungAoodyPlanner 🐃</h2>
         <p class="muted">เริ่มจาก 3 ขั้นง่ายๆ</p>
         <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>กด "จัดตารางอัตโนมัติ" แล้วอ่านตามได้เลย</li></ol>
-        <form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value="${esc(DB.name)}"><button class="btn ghost">บันทึกชื่อ</button></form>
-        <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
+        ${!DB.name ? `<form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value=""><button class="btn ghost">บันทึกชื่อ</button></form>` : ''}
+        <div class="row center wrap">
+          <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
+          ${demoButtonHTML()}
+        </div>
       </section>`;
     }
     const exams = upcomingExams();
@@ -161,7 +242,10 @@ const Views = {
     const weekTotal = week.reduce((a, d) => a + d.value, 0);
     const doneToday = today.filter(p => p.done).length;
 
+
+
     return `
+    ${coachHeroHTML()}
     <section class="card">
       <h2>⏰ นับถอยหลังสอบ</h2>
       ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty('🎉', 'ไม่มีสอบที่กำลังจะมาถึง')}
@@ -184,7 +268,7 @@ const Views = {
       <section class="card">
         <h2>📊 ความคืบหน้าแต่ละวิชา</h2>
         ${DB.subjects.map(s => { const p = subjectProgress(s); return `<div class="prog-row" data-act="open-subject" data-id="${s.id}">
-          <div class="prog-top"><span style="color:${s.color}">${esc(s.name)}</span><span class="muted">${p.done}/${p.total}</span></div>
+          <div class="prog-top"><span style="color:${safeColor(s.color)}">${esc(s.name)}</span><span class="muted">${p.done}/${p.total}</span></div>
           ${progressBar(p.pct, s.color)}</div>`; }).join('')}
       </section>
       <section class="card">
@@ -208,12 +292,15 @@ const Views = {
       const n = daysBetween(t, d);
       return `<div class="day-group ${d === t ? 'is-today' : ''}">
         <div class="day-head"><b>${fmtDateLong(d)}</b> ${n === 0 ? '<span class="chip accent">วันนี้</span>' : n === 1 ? '<span class="chip">พรุ่งนี้</span>' : ''}
-          ${exams.map(s => `<span class="exam-badge" style="--c:${s.color}">🎯 สอบ ${esc(s.name)} ${s.examTime || ''}</span>`).join('')}
+          ${exams.map(s => `<span class="exam-badge" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')}</span>`).join('')}
           <button class="mini-btn right" data-act="add-plan" data-date="${d}">+</button></div>
         ${items.map(p => planItemHTML(p)).join('')}
       </div>`;
     };
+
+
     return `
+    
     <section class="card">
       <div class="toolbar">
         <button class="btn" data-act="auto-plan">✨ จัดตารางอัตโนมัติ</button>
@@ -234,7 +321,7 @@ const Views = {
 
   subjects() {
     return `
-    <div class="toolbar"><h2 class="grow">📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
+    <div class="toolbar subjects-bar"><h2>📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
       <button class="btn ghost" data-act="ai-add-exams">✨ เพิ่มตารางสอบด้วย AI</button>
       <button class="btn" data-act="add-subject">+ เพิ่มวิชา</button></div>
     ${DB.subjects.length ? '' : empty('📚', 'ยังไม่มีวิชา เพิ่มวิชาแรกกันเลย')}
@@ -242,10 +329,10 @@ const Views = {
       const p = subjectProgress(s), n = s.examDate ? daysBetween(todayStr(), s.examDate) : null;
       const fcN = DB.flashcards.filter(f => f.subjectId === s.id).length;
       const fileN = FileStore.count(s.id);
-      return `<section class="card subj" id="subj-${s.id}" style="--c:${s.color}">
+      return `<section class="card subj" id="subj-${s.id}" style="--c:${safeColor(s.color)}">
         <div class="subj-head">
           <div class="grow"><h3>${esc(s.name)}</h3>
-            <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + s.examTime : ''}${s.room ? ' · ห้อง ' + esc(s.room) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
+            <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
           <button class="mini-btn" data-act="edit-subject" data-id="${s.id}">✎ แก้ไข</button>
           <button class="mini-btn" data-act="del-subject" data-id="${s.id}">🗑</button>
         </div>
@@ -254,10 +341,12 @@ const Views = {
         <div class="chapters">${s.chapters.map((c, i) => `<div class="item ${c.done ? 'done' : ''}">
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''}>
             <span class="grow">${esc(c.title)}</span>
+            <span class="item-actions">
             <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต">📝${c.note ? '' : '+'}</button>
             <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}">✎</button>
             <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}">✕</button>
+            </span>
           </div>`).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
         <div class="row wrap">
           <button class="btn small" data-act="add-chapters" data-sid="${s.id}">+ เพิ่มบท</button>
@@ -281,13 +370,16 @@ const Views = {
       const plan = DB.plan.filter(p => p.date === d);
       html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''}" data-act="cal-day" data-date="${d}">
         <div class="cal-num">${parseDate(d).getDate()}</div>
-        ${exams.map(s => `<div class="cal-chip exam" style="--c:${s.color}">🎯 ${esc(s.name)}</div>`).join('')}
+        ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
         ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
         ${plan.length ? `<div class="cal-chip plan">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
       </div>`;
     }
     const upcoming = DB.tasks.filter(x => !x.done && x.date >= t).sort((a, b) => a.date.localeCompare(b.date));
+
+
     return `
+    
     <section class="card">
       <div class="toolbar">
         <button class="icon-btn" data-act="cal-nav" data-dir="-1">‹</button>
@@ -311,6 +403,7 @@ const Views = {
     const total = sessions.reduce((a, x) => a + x.minutes, 0);
     const modes = [['work', '🎯 โฟกัส'], ['short', '☕ พักสั้น'], ['long', '🌙 พักยาว']];
     setTimeout(() => App.renderTimerBits(), 0);
+
     return `
     <div class="grid2">
       <section class="card timer-card">
@@ -338,14 +431,17 @@ const Views = {
           <small class="muted">${new Date(x.at).toTimeString().slice(0, 5)}</small>
           <button class="mini-btn" data-act="del-session" data-id="${x.id}">✕</button></div>`).join('') : empty('⏳', 'ยังไม่มีบันทึกวันนี้')}
         <h3>+ บันทึกเวลาเอง</h3>
-        <form data-form="session" class="row wrap">
-          <select name="subjectId">${subjectOptions('')}</select>
-          <input name="minutes" type="number" min="1" placeholder="นาที" required class="num-lg">
-          <input name="date" type="date" value="${t}">
-          <button class="btn small">บันทึก</button>
+        <form data-form="session" class="session-form">
+          <label class="field">วิชา<select name="subjectId">${subjectOptions('')}</select></label>
+          <div class="grid2-sm">
+            <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" max="1440" placeholder="เช่น 45" required></label>
+            <label class="field"><span>วันที่ <small class="muted">(${fmtDateBE(t)})</small></span><input name="date" type="date" value="${t}" min="${new Date().getFullYear() - 1}-01-01" max="${new Date().getFullYear() + 5}-12-31" data-chg="be-hint"></label>
+          </div>
+          <button class="btn small full">💾 บันทึกเวลา</button>
         </form>
       </section>
-    </div>`;
+    </div>
+    ${coachActionHTML()}`;
   },
 
   stats() {
@@ -362,11 +458,14 @@ const Views = {
     const maxSub = Math.max(1, ...perSub.map(x => x.m), other);
     const weeks = [...Array(8)].map((_, i) => { const w = addDays(weekStart(t), -7 * (7 - i)); let m = 0; for (let j = 0; j < 7; j++) m += minutesOn(addDays(w, j)); return { label: fmtDate(w), value: m, hl: w === ws }; });
     const allCh = DB.subjects.reduce((a, s) => a + s.chapters.length, 0), allDone = DB.subjects.reduce((a, s) => a + s.chapters.filter(c => c.done).length, 0);
+
+
     return `
+    
     <section class="card">
       <div class="toolbar">
         <button class="icon-btn" data-act="week-nav" data-dir="-1">‹</button>
-        <h2>สัปดาห์ ${fmtDate(ws)} – ${fmtDate(days[6])}</h2>
+        <h2>สัปดาห์ ${fmtDateBE(ws)} – ${fmtDateBE(days[6])}</h2>
         <button class="icon-btn" data-act="week-nav" data-dir="1">›</button>
       </div>
       <div class="tiles">
@@ -380,7 +479,7 @@ const Views = {
     </section>
     <div class="grid2">
       <section class="card"><h2>แยกตามวิชา (สัปดาห์นี้)</h2>
-        ${perSub.map(({ s, m }) => `<div class="prog-row"><div class="prog-top"><span style="color:${s.color}">${esc(s.name)}</span><span class="muted">${fmtMin(m)}</span></div>${progressBar(m / maxSub * 100, s.color)}</div>`).join('')}
+        ${perSub.map(({ s, m }) => `<div class="prog-row"><div class="prog-top"><span style="color:${safeColor(s.color)}">${esc(s.name)}</span><span class="muted">${fmtMin(m)}</span></div>${progressBar(m / maxSub * 100, s.color)}</div>`).join('')}
         ${other ? `<div class="prog-row"><div class="prog-top"><span>ทั่วไป</span><span class="muted">${fmtMin(other)}</span></div>${progressBar(other / maxSub * 100, '#aaa')}</div>` : ''}
         ${!DB.subjects.length ? empty('📊', 'ยังไม่มีข้อมูล') : ''}
       </section>
@@ -389,7 +488,8 @@ const Views = {
         <p class="muted small">อ่านจบไปแล้วทั้งหมด ${allDone}/${allCh} บท</p>
         ${progressBar(allCh ? allDone / allCh * 100 : 0)}
       </section>
-    </div>`;
+    </div>
+    ${coachActionHTML()}`;
   },
 
   ai() {
@@ -404,6 +504,7 @@ const Views = {
     if (!chs.find(c => c.id === App.aiCh)) App.aiCh = chs[0]?.id || '';
     const chat = LOCAL.chat || [];
     const quick = ['วันนี้ควรอ่านอะไรก่อนดี?', 'ช่วยให้กำลังใจหน่อย 🥺', 'มีเทคนิคจำเนื้อหาเยอะๆ ไหม', 'ประเมินหน่อยว่าอ่านทันไหม'];
+
     return `
     <div class="ai-layout">
       <section class="card chat-card">
@@ -440,13 +541,39 @@ const Views = {
           <button class="btn full" ${App.aiBusy ? 'disabled' : ''}>✨ จัดตารางให้หน่อย</button>
         </form>` : empty('📚', 'เพิ่มวิชาก่อนนะ', `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
       </section>
-    </div>`;
+    </div>
+    ${coachActionHTML()}`;
   },
 
   settings() {
     const L = LOCAL;
     const sstat = { off: 'ยังไม่ได้ตั้งค่า', loading: 'กำลังเชื่อมต่อ…', signedout: 'ยังไม่ได้ล็อกอิน', syncing: 'กำลัง sync…', synced: 'sync เรียบร้อย ✓', error: 'ผิดพลาด: ' + Sync.message }[Sync.status];
+    const perm = Notifier.supported() ? Notification.permission : 'unsupported';
+    const permUI = {
+      default: '<span class="chip warn">ยังไม่เปิดสิทธิ์</span> <button class="btn small" data-act="ask-notify">🔔 ขออนุญาตแจ้งเตือน</button>',
+      granted: '<span class="chip ok">เปิดรับแจ้งเตือนแล้ว ✓</span>',
+      denied: '<span class="chip err">ถูกบล็อก — เปิดได้ที่ไอคอน 🔒 ข้างช่องเว็บ</span>',
+      unsupported: '<span class="chip">เบราว์เซอร์นี้ไม่รองรับ</span>',
+    }[perm];
+    const C = aiCfg();
+    const gemPresets = [
+      ['gemini-3.8-flash', 'gemini-3.8-flash (แนะนำ · ฉลาดสมดุล)'],
+      ['gemini-3.8-flash-lite', 'gemini-3.8-flash-lite (เร็วมาก)'],
+      ['gemini-3.8-pro', 'gemini-3.8-pro (วิเคราะห์ลึก)'],
+      ['gemini-2.5-flash', 'gemini-2.5-flash (สำหรับคีย์เดิม)'],
+    ];
+    const oaPresets = [
+      ['gpt-4o-mini', 'gpt-4o-mini (แนะนำ · ประหยัด)'],
+      ['gpt-4o', 'gpt-4o (ฉลาดขึ้น)'],
+      ['gpt-4.1-mini', 'gpt-4.1-mini'],
+    ];
+    const presets = C.provider === 'gemini' ? gemPresets : oaPresets;
+    const curModel = C.provider === 'gemini' ? C.geminiModel : C.openaiModel;
+    const isCustom = App._customModel || !presets.some(([v]) => v === curModel);
+
+
     return `
+    
     <section class="card"><h2>👤 ทั่วไป</h2>
       <form data-form="name" class="row"><input name="name" placeholder="ชื่อเล่น" value="${esc(DB.name)}"><button class="btn small">บันทึก</button></form>
     </section>
@@ -458,29 +585,40 @@ const Views = {
 
     <section class="card"><h2>🔔 การแจ้งเตือน</h2>
       <label class="switch"><input type="checkbox" data-act="toggle-notify" ${DB.prefs.notify ? 'checked' : ''}><span></span> แจ้งเตือนทุกวันว่าต้องอ่านอะไร</label>
-      <label class="inline">เวลา <input type="time" data-bind="prefs.notifyTime" value="${DB.prefs.notifyTime}"></label>
-      <button class="btn ghost small" data-act="test-notify">ทดสอบแจ้งเตือน</button>
-      <p class="muted small">สถานะสิทธิ์: ${Notifier.supported() ? Notification.permission : 'เบราว์เซอร์นี้ไม่รองรับ'} · ต้องเปิดแอปค้างไว้ หรือติดตั้งเป็นแอปบนหน้าจอโฮม (iPhone: Safari > แชร์ > เพิ่มไปยังหน้าจอโฮม)</p>
+      <div class="row wrap">
+        <label class="inline">เวลา <input type="time" data-bind="prefs.notifyTime" value="${DB.prefs.notifyTime}"></label>
+        <button class="btn ghost small" data-act="test-notify">ทดสอบแจ้งเตือน</button>
+      </div>
+      <div class="row wrap" style="margin-top:10px">สถานะ: ${permUI}</div>
+      <div class="guide-box">
+        <b>📲 วิธีติดตั้งเป็นแอปบนมือถือ (เพื่อให้แจ้งเตือนและเปิดใช้ง่าย)</b>
+        <div class="guide-cols">
+          <div><b>🍎 iPhone (Safari)</b><br>1. กดปุ่ม <b>แชร์</b> (⬆️) ด้านล่าง<br>2. เลือก <b>เพิ่มไปยังหน้าจอโฮม</b><br>3. กด <b>เพิ่ม</b></div>
+          <div><b>🤖 Android (Chrome)</b><br>1. กดเมนู <b>⋮</b> มุมขวาบน<br>2. เลือก <b>ติดตั้งแอป</b> หรือเพิ่มลงหน้าจอหลัก<br>3. กด <b>ติดตั้ง</b></div>
+        </div>
+      </div>
     </section>
 
     <section class="card"><h2>🤖 AI</h2>
-      ${(() => { const C = aiCfg(); return `
       <div class="pills">
         <button class="pill ${C.provider === 'gemini' ? 'active' : ''}" data-act="ai-provider" data-p="gemini">Google Gemini</button>
         <button class="pill ${C.provider === 'openai' ? 'active' : ''}" data-act="ai-provider" data-p="openai">OpenAI</button>
       </div>
       ${C.provider === 'gemini' ? `
         <label class="field">Gemini API key <input type="password" data-ai="geminiKey" value="${esc(C.geminiKey)}" placeholder="AIza..."></label>
-        <label class="field">รุ่นโมเดล <input data-ai="geminiModel" value="${esc(C.geminiModel)}" list="gemModels"></label>
-        <datalist id="gemModels"><option value="gemini-3.8-flash"><option value="gemini-3.8-pro"><option value="gemini-3.8-flash-lite"></datalist>
-        <p class="muted small">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : `
+        <p class="muted small" style="margin-top:-6px">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : `
         <label class="field">OpenAI API key <input type="password" data-ai="openaiKey" value="${esc(C.openaiKey)}" placeholder="sk-..."></label>
-        <label class="field">รุ่นโมเดล <input data-ai="openaiModel" value="${esc(C.openaiModel)}" list="oaModels"></label>
-        <datalist id="oaModels"><option value="gpt-4o-mini"><option value="gpt-4o"><option value="gpt-4.1-mini"></datalist>
-        <p class="muted small">สร้าง key ที่ <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> (คิดเงินตามการใช้งาน)</p>`}`; })()}
+        <p class="muted small" style="margin-top:-6px">สร้าง key ที่ <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> (คิดเงินตามการใช้งาน)</p>`}
+      <label class="field">รุ่นโมเดล
+        <select data-chg="ai-model-select">
+          ${presets.map(([v, lbl]) => `<option value="${v}" ${!isCustom && curModel === v ? 'selected' : ''}>${lbl}</option>`).join('')}
+          <option value="__custom__" ${isCustom ? 'selected' : ''}>✏️ พิมพ์ชื่อรุ่นเอง (Custom)…</option>
+        </select>
+      </label>
+      ${isCustom ? `<label class="field">ระบุชื่อรุ่นโมเดลเอง<input data-ai="${C.provider === 'gemini' ? 'geminiModel' : 'openaiModel'}" value="${esc(curModel)}" placeholder="เช่น gemini-3.8-flash"></label>` : ''}
       <button class="btn ghost small" data-act="test-ai">ทดสอบการเชื่อมต่อ</button>
       <label class="switch"><input type="checkbox" data-bind="ai.sync" ${DB.ai?.sync ? 'checked' : ''}><span></span> Sync API key ข้ามเครื่อง (เฉพาะในบัญชี Google ของคุณ)</label>
-      <p class="muted small">${DB.ai?.sync ? '☁️ API key จะ sync เฉพาะในบัญชี Google ของคุณ (ไม่ติดไปในไฟล์ Export)' : '🔒 API key เก็บไว้เฉพาะในเครื่องนี้ ไม่ถูก sync ขึ้น cloud'}</p>
+      <p class="muted small">🔐 <b>ความปลอดภัย:</b> API key ถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง (และเฉพาะในบัญชี Google ส่วนตัวหากเปิด Sync) ข้อมูลจะส่งตรงไปยัง Google / OpenAI โดยไม่ผ่านเซิร์ฟเวอร์กลาง และไม่ติดไปในไฟล์ Export</p>
     </section>
 
     <section class="card"><h2>☁️ Sync ข้ามเครื่อง (Firebase)</h2>
@@ -506,10 +644,15 @@ const firebaseConfig = {
       <div class="row wrap">
         <button class="btn ghost" data-act="export">⬇️ Export (สำรองไฟล์)</button>
         <label class="btn ghost">⬆️ Import<input type="file" accept=".json" data-chg="import" hidden></label>
-        <button class="btn danger" data-act="reset">ล้างข้อมูลทั้งหมด</button>
+        ${demoButtonHTML()}
       </div>
     </section>
-    <p class="muted small center">Study Planner 🌸 · ข้อมูลอัปเดตล่าสุด ${DB.updatedAt ? new Date(DB.updatedAt).toLocaleString('th-TH') : '-'}</p>`;
+
+    <section class="card danger-zone"><h2>⚠️ โซนอันตราย (Danger Zone)</h2>
+      <p class="muted small">การล้างข้อมูลจะลบวิชา วันสอบ ตารางอ่าน โน้ต และสถิติทั้งหมด (ไม่สามารถกู้คืนได้หากไม่ได้ Export ไว้)</p>
+      <button class="btn danger" data-act="reset">🗑️ ล้างข้อมูลทั้งหมด</button>
+    </section>
+    <p class="muted small center">LungAoodyPlanner 🐃 · ข้อมูลอัปเดตล่าสุด ${DB.updatedAt ? new Date(DB.updatedAt).toLocaleString('th-TH') : '-'}</p>`;
   },
 };
 
@@ -519,9 +662,9 @@ function taskItemHTML(x) {
     <input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''}>
     <span>${x.type === 'event' ? '📌' : '📝'}</span>
     ${x.subjectId ? tag(x.subjectId) : ''}
-    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + x.time : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
-    <button class="mini-btn" data-act="edit-task" data-id="${x.id}">✎</button>
-    <button class="mini-btn" data-act="del-task" data-id="${x.id}">✕</button>
+    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}">✎</button>
+    <button class="mini-btn" data-act="del-task" data-id="${x.id}">✕</button></span>
   </div>`;
 }
 
@@ -529,10 +672,10 @@ function taskItemHTML(x) {
 function subjectForm(s = {}) {
   const color = s.color || SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length];
   return `<form data-form="subject" data-id="${s.id || ''}">
-    <label class="field">ชื่อวิชา<input name="name" required value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
+    <label class="field">ชื่อวิชา<input name="name" required maxlength="120" value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
     <div class="row wrap">
-      <label class="field">วันสอบ<input type="date" name="examDate" value="${s.examDate || ''}"></label>
-      <label class="field">เวลา<input type="time" name="examTime" value="${s.examTime || ''}"></label>
+      ${dateField('วันสอบ', 'examDate', s.examDate || '')}
+      <label class="field">เวลา<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
       <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น อ่านเอง, ห้อง 301"></label>
     </div>
     <div class="field">สี<div class="colors">${SUBJECT_COLORS.map(c => `<label class="color-dot" style="--c:${c}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''}><span></span></label>`).join('')}
@@ -543,11 +686,11 @@ function subjectForm(s = {}) {
 }
 function taskForm(x = {}) {
   return `<form data-form="task" data-id="${x.id || ''}">
-    <label class="field">ชื่องาน<input name="title" required value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
+    <label class="field">ชื่องาน<input name="title" required maxlength="200" value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
     <div class="row wrap">
       <label class="field">ประเภท<select name="type"><option value="homework" ${x.type !== 'event' ? 'selected' : ''}>📝 การบ้าน</option><option value="event" ${x.type === 'event' ? 'selected' : ''}>📌 กิจกรรม</option></select></label>
-      <label class="field">วันที่<input type="date" name="date" required value="${x.date || todayStr()}"></label>
-      <label class="field">เวลา<input type="time" name="time" value="${x.time || ''}"></label>
+      ${dateField('วันที่', 'date', x.date || todayStr(), true)}
+      <label class="field">เวลา<input type="time" name="time" value="${esc(x.time || '')}"></label>
     </div>
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
@@ -559,7 +702,7 @@ function planForm(p = {}) {
     <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
     <label class="field">บท (เลือก หรือพิมพ์เองด้านล่าง)<select name="chapterId" id="planCh">${planChapterOptions(sid, p.chapterId)}</select></label>
     <label class="field">รายละเอียด<input name="title" value="${esc(p.chapterId ? '' : (p.title || ''))}" placeholder="เช่น ทำแบบฝึกหัดบท 3"></label>
-    <label class="field">วันที่<input type="date" name="date" required value="${p.date || todayStr()}"></label>
+    ${dateField('วันที่', 'date', p.date || todayStr(), true)}
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -582,8 +725,8 @@ function noteModal(s, c) {
 }
 function dayModal(d) {
   const exams = DB.subjects.filter(s => s.examDate === d), tasks = DB.tasks.filter(x => x.date === d), plan = planForDate(d);
-  openModal(`📅 ${fmtDateLong(d)} ${parseDate(d).getFullYear() + 543}`, `
-    ${exams.map(s => `<div class="exam-badge big" style="--c:${s.color}">🎯 สอบ ${esc(s.name)} ${s.examTime || ''} ${s.room ? '· ' + esc(s.room) : ''}</div>`).join('')}
+  openModal(`📅 ${fmtDateLong(d)}`, `
+    ${exams.map(s => `<div class="exam-badge big" style="--c:${safeColor(s.color)}">🎯 สอบ ${esc(s.name)} ${esc(s.examTime || '')} ${roomText(s.room) ? '· ห้อง ' + esc(roomText(s.room)) : ''}</div>`).join('')}
     <h3>📖 แผนอ่าน</h3>${plan.length ? plan.map(p => planItemHTML(p)).join('') : '<p class="muted small">ไม่มี</p>'}
     <h3>📝 การบ้าน / กิจกรรม</h3>${tasks.length ? tasks.map(taskItemHTML).join('') : '<p class="muted small">ไม่มี</p>'}
     <div class="row wrap"><button class="btn small" data-act="add-task" data-date="${d}">+ การบ้าน/กิจกรรม</button><button class="btn small ghost" data-act="add-plan" data-date="${d}">+ แผนอ่าน</button></div>`);
@@ -599,7 +742,7 @@ function fcRender() {
     setModalBody(`
       <div class="row wrap"><button class="btn small" data-act="fc-mode" data-m="review">▶ เริ่มทบทวน</button>
       <label class="inline"><input type="checkbox" data-act="fc-unknown" ${f.onlyUnknown ? 'checked' : ''}> เฉพาะที่ยังจำไม่ได้</label></div>
-      <form data-form="fc-add" class="fc-add"><input name="q" placeholder="คำถาม / คำศัพท์" required><input name="a" placeholder="คำตอบ" required><button class="btn small">+ เพิ่ม</button></form>
+      <form data-form="fc-add" class="fc-add"><input name="q" maxlength="300" placeholder="คำถาม / คำศัพท์" required><input name="a" maxlength="300" placeholder="คำตอบ" required><button class="btn small">+ เพิ่ม</button></form>
       ${cards.map(x => `<div class="item ${x.known ? 'done' : ''}"><span class="grow"><b>${esc(x.q)}</b><br><small class="muted">${esc(x.a)}</small></span>
         <button class="mini-btn" data-act="fc-del" data-id="${x.id}">✕</button></div>`).join('') || '<p class="muted">ยังไม่มีการ์ด — เพิ่มเอง หรือให้ AI สร้างจากโน้ต (แท็บ AI ติว / ปุ่มในโน้ต)</p>'}`);
     return;
@@ -609,7 +752,7 @@ function fcRender() {
   const c = cards[f.idx];
   setModalBody(`
     <div class="row"><span class="muted grow">${f.idx + 1} / ${cards.length}</span><button class="link" data-act="fc-mode" data-m="list">ดูรายการ</button></div>
-    <div class="flash ${f.flipped ? 'flipped' : ''}" data-act="fc-flip" style="--c:${s?.color}">
+    <div class="flash ${f.flipped ? 'flipped' : ''}" data-act="fc-flip" style="--c:${safeColor(s?.color)}">
       <div class="flash-inner"><div class="flash-front">${esc(c.q)}</div><div class="flash-back">${esc(c.a)}</div></div>
     </div>
     <p class="muted small center">แตะการ์ดเพื่อพลิก</p>
@@ -672,9 +815,14 @@ async function filesRender() {
     </div>`).join('') : '<p class="muted small">ยังไม่มีไฟล์</p>'}
     <hr>
     <h3>🔗 ลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
-    <form data-form="link-add" class="fc-add">
-      <input name="title" placeholder="ชื่อเอกสาร เช่น สไลด์บท 1" required>
-      <input name="url" type="url" placeholder="https://..." required>
+    <form data-form="link-add" class="link-form" novalidate>
+      <label class="field">ชื่อเอกสาร
+        <input name="title" maxlength="200" placeholder="ชื่อเอกสาร" required>
+      </label>
+      <label class="field">ลิงก์
+        <input name="url" type="text" inputmode="url" maxlength="500" placeholder="ลิงก์ เช่น https://drive.google.com/..." autocomplete="url" required>
+        <small class="field-error" data-url-error hidden></small>
+      </label>
       <button class="btn small">+ เพิ่ม</button>
     </form>
     ${links.length ? links.map(l => `<div class="item">
@@ -736,7 +884,7 @@ const Actions = {
   'go': el => { closeModal(); App.go(el.dataset.tab); },
   'close-modal': () => closeModal(),
   'toggle-dark': () => { DB.prefs.dark = !DB.prefs.dark; save(); },
-  'theme': el => { DB.prefs.theme = el.dataset.theme; save(); },
+  'theme': el => { DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; save(); },
   'toggle-past': () => { App.showPast = !App.showPast; App.render(); },
 
   // plan
@@ -931,7 +1079,30 @@ const Actions = {
   },
 
   // settings
-  'ai-provider': el => { aiCfg().provider = el.dataset.p; saveAICfg(); if (!DB.ai?.sync) App.render(); },
+  'more-menu': () => openModal('⋯ เมนูเพิ่มเติม', `<div class="more-grid">
+      <button class="more-item" data-act="go" data-tab="calendar"><span>📅</span><b>ปฏิทิน</b><small class="muted">วันสอบ &amp; การบ้าน</small></button>
+      <button class="more-item" data-act="go" data-tab="timer"><span>⏱️</span><b>จับเวลา</b><small class="muted">Pomodoro &amp; บันทึก</small></button>
+      <button class="more-item" data-act="go" data-tab="stats"><span>📊</span><b>สถิติ</b><small class="muted">กราฟ 8 สัปดาห์</small></button>
+      <button class="more-item" data-act="go" data-tab="settings"><span>⚙️</span><b>ตั้งค่า</b><small class="muted">ธีม, AI, Sync</small></button>
+    </div>`),
+  'load-demo': () => {
+    if (hasDemo()) return App.toast('มีข้อมูลทดลองอยู่แล้ว');
+    if (!loadDemoData()) return;
+    App.go('home'); App.toast('ใส่ข้อมูลทดลองแล้ว ✨');
+  },
+  'clear-demo': () => {
+    if (!hasDemo()) return;
+    if (!confirm('ลบข้อมูลทดลองออกทั้งหมดใช่ไหม? ข้อมูลที่คุณเพิ่มเองจะยังอยู่')) return;
+    removeDemoData();
+    App.toast('ลบข้อมูลทดลองแล้ว');
+    App.render();
+  },
+  'ask-notify': async () => {
+    const ok = await Notifier.ask();
+    if (ok) { DB.prefs.notify = true; save(); App.toast('เปิดรับแจ้งเตือนแล้ว 🔔'); }
+    else { App.toast('ไม่ได้รับสิทธิ์แจ้งเตือน', 3500); App.render(); }
+  },
+  'ai-provider': el => { App._customModel = false; aiCfg().provider = el.dataset.p; saveAICfg(); if (!DB.ai?.sync) App.render(); },
   'test-ai': async () => { const r = await aiRun('กำลังทดสอบ', () => AI.chat([{ role: 'user', content: 'ทักทายสั้นๆ 1 ประโยค' }], 'ตอบภาษาไทยสั้นๆ')); if (r) alert('เชื่อมต่อสำเร็จ ✓\n\n' + r); },
   'toggle-notify': async el => {
     if (el.checked) { const ok = await Notifier.ask(); if (!ok) { App.toast('ไม่ได้รับสิทธิ์แจ้งเตือน — เปิดในการตั้งค่าเบราว์เซอร์นะ', 5000); el.checked = false; return; } }
@@ -955,7 +1126,14 @@ const Actions = {
     const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `study-planner-${todayStr()}.json`; a.click();
   },
-  'reset': () => { if (confirm('ล้างข้อมูลทั้งหมด? (กู้คืนไม่ได้ ถ้าไม่ได้ export ไว้)') && confirm('แน่ใจนะ?')) { replaceDB(defaultData()); App.go('home'); } },
+  'reset': () => openModal('⚠️ ยืนยันการล้างข้อมูลทั้งหมด', `
+    <p>ข้อมูลวิชา วันสอบ ตารางอ่าน โน้ต และสถิติทั้งหมดจะถูกลบถาวร (ไม่สามารถกู้คืนได้หากไม่ได้ Export ไว้)</p>
+    <form data-form="reset-confirm">
+      <label class="field"><span>พิมพ์คำว่า <b>ลบทั้งหมด</b> เพื่อยืนยัน</span>
+        <input name="word" required placeholder="ลบทั้งหมด" autocomplete="off">
+      </label>
+      <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn danger">ยืนยันลบทั้งหมด</button></div>
+    </form>`),
 };
 
 function showSummaryResult(r) {
@@ -973,34 +1151,48 @@ function refreshDayModal() {
 /* ===== Forms ===== */
 const Forms = {
   name(d) { DB.name = d.name.trim(); save(); App.toast('บันทึกแล้ว 🌸'); },
+  'reset-confirm'(d) {
+    if (d.word.trim() !== 'ลบทั้งหมด') return App.toast('กรุณาพิมพ์คำว่า "ลบทั้งหมด" ให้ตรงกันนะ');
+    closeModal(); replaceDB(defaultData()); App.go('home'); App.toast('ล้างข้อมูลทั้งหมดแล้ว');
+  },
   subject(d, f) {
-    const color = d.color || d.customColor;
+    const name = (d.name || '').trim();
+    if (!name) return App.toast('ใส่ชื่อวิชาก่อนนะ');
+    if (d.examDate && !examYearOk(d.examDate)) return App.toast('วันสอบควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
+    const color = safeColor(d.color || d.customColor || SUBJECT_COLORS[0]);
     let s = subjectById(f.dataset.id);
     if (!s) {
       s = { id: uid(), chapters: [] }; DB.subjects.push(s);
-      (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title, done: false, note: '' }));
+      (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title: title.slice(0, 200), done: false, note: '' }));
     }
-    Object.assign(s, { name: d.name.trim(), examDate: d.examDate, examTime: d.examTime, room: d.room.trim(), color: color || SUBJECT_COLORS[0] });
+    Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
     closeModal(); save();
   },
   chapters(d, f) {
     const s = subjectById(f.dataset.sid);
-    const titles = d.list.split('\n').map(x => x.trim()).filter(Boolean);
-    const n = parseInt(d.count) || 0, start = s.chapters.length;
-    for (let i = 1; i <= n; i++) titles.push(`${d.prefix}${start + i}`);
+    const titles = (d.list || '').split('\n').map(x => x.trim()).filter(Boolean).map(t => t.slice(0, 200));
+    const raw = parseInt(d.count, 10);
+    const n = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 100) : 0;
+    if (!titles.length && !n) return App.toast('ใส่ชื่อบทอย่างน้อย 1 บทนะ');
+    const start = s.chapters.length;
+    for (let i = 1; i <= n; i++) titles.push(`${(d.prefix || '').trim() || 'บทที่ '}${start + i}`);
     titles.forEach(title => s.chapters.push({ id: uid(), title, done: false, note: '' }));
     closeModal(); save(); App.toast(`เพิ่ม ${titles.length} บทแล้ว`);
   },
   task(d, f) {
+    const title = (d.title || '').trim();
+    if (!title) return App.toast('ใส่ชื่องานก่อนนะ');
+    if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
-    Object.assign(x, { title: d.title.trim(), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId });
+    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId });
     closeModal(); save();
   },
   plan(d, f) {
     const s = subjectById(d.subjectId), c = s?.chapters.find(c => c.id === d.chapterId);
     const title = d.title.trim() || c?.title;
     if (!title) return App.toast('เลือกบทหรือพิมพ์รายละเอียดด้วยนะ');
+    if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let p = DB.plan.find(x => x.id === f.dataset.id);
     if (!p) { p = { id: uid(), done: false }; DB.plan.push(p); }
     Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, kind: c ? 'read' : 'custom', auto: false });
@@ -1010,26 +1202,48 @@ const Forms = {
     const s = subjectById(f.dataset.sid), c = s.chapters.find(c => c.id === f.dataset.id);
     c.note = d.note; save(); App.toast('บันทึกโน้ตแล้ว 📝');
   },
-  session(d) { logSession(d.subjectId, Number(d.minutes), d.date); App.toast('บันทึกแล้ว'); },
+  session(d) {
+    const m = Math.round(Number(d.minutes));
+    if (!(m > 0) || m > 1440) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
+    if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
+    if (!logSession(d.subjectId, m, d.date)) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
+    App.toast('บันทึกแล้ว');
+  },
   chat(d) { sendChat(d.q); },
-  'fc-add'(d) { DB.flashcards.push({ id: uid(), subjectId: App.fc.sid, chapterId: null, q: d.q.trim(), a: d.a.trim(), known: false }); save({ silent: true }); fcRender(); },
+  'fc-add'(d) {
+    const q = (d.q || '').trim(), a = (d.a || '').trim();
+    if (!q || !a) return App.toast('ใส่ทั้งคำถามและคำตอบนะ');
+    DB.flashcards.push({ id: uid(), subjectId: App.fc.sid, chapterId: null, q: q.slice(0, 300), a: a.slice(0, 300), known: false });
+    save({ silent: true }); fcRender();
+  },
   'link-add'(d, f) {
     const s = subjectById(App.filesSid); if (!s) return;
+    const err = f.querySelector('[data-url-error]');
+    if (err) { err.hidden = true; err.textContent = ''; }
+    const title = (d.title || '').trim();
+    if (!title) { App.toast('ใส่ชื่อเอกสารด้วยนะ'); return; }
+    const parsed = normalizeLink(d.url);
+    if (parsed.error) { if (err) { err.hidden = false; err.textContent = parsed.error; } else App.toast(parsed.error); return; }
     s.links = s.links || [];
-    s.links.unshift({ id: uid(), title: d.title.trim(), url: d.url.trim(), addedAt: Date.now() });
+    s.links.unshift({ id: uid(), title, url: parsed.url, addedAt: Date.now() });
     f.reset(); save({ silent: true }); filesRender();
   },
   async 'ai-exams'(d) {
     if (!d.text.trim() && !App._examImg) return App.toast('พิมพ์ข้อความหรือแนบรูปตารางสอบก่อนนะ');
     const r = await aiRun('AI กำลังอ่านตารางสอบ', () => AI.parseExams(d.text, App._examImg));
     if (!Array.isArray(r) || !r.length) return App.toast('ไม่พบข้อมูลวิชา ลองพิมพ์ให้ชัดเจนขึ้นนะ');
-    const items = r.filter(x => x && x.name).map(x => ({
-      name: String(x.name).trim(),
-      examDate: /^\d{4}-\d{2}-\d{2}$/.test(x.examDate || '') ? x.examDate : '',
-      examTime: String(x.examTime || '').slice(0, 5),
-      room: String(x.room || '').trim(),
-      chapters: Array.isArray(x.chapters) ? x.chapters.map(c => String(c).trim()).filter(Boolean) : [],
-    }));
+    const items = r.filter(x => x && x.name).map(x => {
+      let examTime = String(x.examTime || '').trim();
+      let room = String(x.room || '').trim();
+      if (room && !roomText(room)) { if (!examTime || examTime.length <= 5) examTime = room; room = ''; }
+      return {
+        name: String(x.name).trim(),
+        examDate: /^\d{4}-\d{2}-\d{2}$/.test(x.examDate || '') ? x.examDate : '',
+        examTime: examTime.slice(0, 20),
+        room,
+        chapters: Array.isArray(x.chapters) ? x.chapters.map(c => String(c).trim()).filter(Boolean) : [],
+      };
+    });
     if (!items.length) return App.toast('ไม่พบข้อมูลวิชา');
     App._examPreview = items;
     setModalBody(`
@@ -1037,7 +1251,7 @@ const Forms = {
       ${items.map((x, i) => `<label class="item" style="cursor:pointer">
         <input type="checkbox" class="cb" data-exam-idx="${i}" checked>
         <div class="grow"><b>${esc(x.name)}</b><br>
-          <small class="muted">${x.examDate ? `🎯 ${fmtDateLong(x.examDate)} (${x.examDate})` : 'ยังไม่ระบุวัน'}${x.examTime ? ' · ' + esc(x.examTime) : ''}${x.room ? ' · ' + esc(x.room) : ''}${x.chapters.length ? ` · ${x.chapters.length} บท` : ''}</small>
+          <small class="muted">${x.examDate ? `🎯 ${fmtDateLong(x.examDate)} (${x.examDate})` : 'ยังไม่ระบุวัน'}${x.examTime ? ' · ' + esc(x.examTime) : ''}${roomText(x.room) ? ' · ห้อง ' + esc(roomText(x.room)) : ''}${x.chapters.length ? ` · ${x.chapters.length} บท` : ''}</small>
         </div>
       </label>`).join('')}
       <div class="row end">
@@ -1076,6 +1290,14 @@ const Changes = {
   'ai-ch': el => { App.aiCh = el.value; },
   'plan-sub': el => { document.getElementById('planCh').innerHTML = planChapterOptions(el.value); },
   'custom-color': el => { el.form.querySelectorAll('input[name=color]').forEach(r => r.checked = false); },
+  'be-hint': el => { const s = el.closest('.field')?.querySelector('small'); if (s && el.value) s.textContent = `(${fmtDateBE(el.value)})`; },
+  'ai-model-select': el => {
+    const c = aiCfg();
+    if (el.value === '__custom__') { App._customModel = true; App.render(); return; }
+    App._customModel = false;
+    if (c.provider === 'gemini') c.geminiModel = el.value; else c.openaiModel = el.value;
+    saveAICfg(); if (!DB.ai?.sync) App.render();
+  },
   'file-upload': async el => {
     const files = [...(el.files || [])]; if (!files.length || !App.filesSid) return;
     for (const f of files) await FileStore.add(App.filesSid, f);
@@ -1100,7 +1322,7 @@ const Changes = {
       const data = JSON.parse(txt);
       if (!Array.isArray(data.subjects)) throw new Error('ไฟล์ไม่ถูกต้อง');
       if (!confirm('นำเข้าข้อมูลนี้แทนข้อมูลปัจจุบัน?')) return;
-      data.updatedAt = Date.now(); replaceDB(data); App.toast('นำเข้าข้อมูลเรียบร้อย ✓');
+      data.updatedAt = Date.now(); replaceDB(sanitizeIncoming(data)); App.toast('นำเข้าข้อมูลเรียบร้อย ✓');
     }).catch(e => App.toast('นำเข้าไม่สำเร็จ: ' + e.message));
   },
 };

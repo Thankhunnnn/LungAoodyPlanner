@@ -12,7 +12,7 @@ const defaultData = () => ({
   sessions: [],   // {id,subjectId,date,minutes,at}
   flashcards: [], // {id,subjectId,chapterId,q,a,known}
   prefs: {
-    theme: 'pink', dark: false,
+    theme: 'navy', dark: false,
     chaptersPerDay: 3, reviewDayBefore: true,
     pomo: { work: 25, short: 5, long: 15, every: 4 },
     notify: false, notifyTime: '08:00',
@@ -48,6 +48,8 @@ function loadLS(key, def) {
 }
 
 let DB = loadLS(LS_KEY, defaultData);
+/* Old builds stored the implicit default 'pink' even when the user never picked a theme. */
+if (!DB.prefs.themeChosen && (!DB.prefs.theme || DB.prefs.theme === 'pink')) DB.prefs.theme = 'navy';
 let LOCAL = loadLS(LS_LOCAL, defaultLocal);
 if (DB.ai?.sync && !DB.ai.geminiKey && !DB.ai.openaiKey && (LOCAL.geminiKey || LOCAL.openaiKey)) {
   Object.assign(DB.ai, {
@@ -93,13 +95,18 @@ const TH_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 
 const TH_DAYS = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 const TH_DAYS_FULL = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
 const fmtDate = s => { if (!s) return '-'; const d = parseDate(s); return `${d.getDate()} ${TH_MONTHS[d.getMonth()]}`; };
-const fmtDateLong = s => { const d = parseDate(s); return `${TH_DAYS_FULL[d.getDay()]} ${d.getDate()} ${TH_MONTHS[d.getMonth()]}`; };
+const fmtDateBE = s => { if (!s) return '-'; const d = parseDate(s); return `${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`; };
+const fmtDateLong = s => { const d = parseDate(s); return `${TH_DAYS_FULL[d.getDay()]} ${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`; };
 const weekStart = s => { const d = parseDate(s); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toDateStr(d); }; // Monday
 
 /* ===== Misc helpers ===== */
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const subjectById = id => DB.subjects.find(s => s.id === id);
-const subjectColor = id => (subjectById(id) || {}).color || '#bbb';
+function safeColor(c) {
+  const s = String(c || '').trim();
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s) ? s : '#9a8790';
+}
+const subjectColor = id => safeColor((subjectById(id) || {}).color);
 const subjectName = id => (subjectById(id) || {}).name || 'ทั่วไป';
 const SUBJECT_COLORS = ['#ec6a9c', '#9b7ede', '#4a9be8', '#3fb68b', '#f0a04b', '#e85d5d', '#5cc5c5', '#c77dd1', '#8a9a5b', '#f27fb2'];
 
@@ -186,3 +193,75 @@ const FileStore = {
     delete this._counts[sid];
   },
 };
+
+function hasDemo() {
+  return [DB.subjects, DB.tasks, DB.plan, DB.sessions, DB.flashcards].some(list => (list || []).some(x => x && x.demo));
+}
+function loadDemoData() {
+  if (hasDemo()) return false;
+  const t = todayStr();
+  const ch = (titles, doneN = 0) => titles.map((title, i) => ({ id: 'demo-' + uid(), title, done: i < doneN, doneAt: i < doneN ? addDays(t, -2 + i) : null, note: '', demo: true }));
+  const s1 = { id: 'demo-' + uid(), demo: true, name: '5500111 EXP ENG I', color: '#9b7ede', examDate: addDays(t, 6), examTime: '08:30', room: '301', chapters: ch(['Essay Structure & Thesis', 'Academic Vocabulary', 'Reading Comprehension', 'Grammar Review', 'Mock Test'], 2) };
+  s1.chapters[0].note = 'Topic sentence ต้องชัด + มี supporting details 2-3 ข้อ';
+  const s2 = { id: 'demo-' + uid(), demo: true, name: '2301119 CAL BUS', color: '#3fb68b', examDate: addDays(t, 8), examTime: '08:30', room: '204', chapters: ch(['Limits & Continuity', 'Derivatives & Rules', 'Optimization Problems', 'Marginal Analysis', 'Integrals'], 1) };
+  const s3 = { id: 'demo-' + uid(), demo: true, name: '2900112 ECONOMICS II', color: '#f0a04b', examDate: addDays(t, 10), examTime: '08:30', room: '110', chapters: ch(['GDP & National Income', 'Inflation & Unemployment', 'Fiscal Policy', 'Monetary Policy', 'International Trade']) };
+  const s4 = { id: 'demo-' + uid(), demo: true, name: '2601113 PRIN ACCTG', color: '#4a9be8', examDate: addDays(t, 14), examTime: '08:30', room: '', chapters: ch(['Accounting Equation', 'Journal & Ledger', 'Adjusting Entries', 'Financial Statements', 'Cash Flow']) };
+  const ids = new Set([s1.id, s2.id, s3.id, s4.id]);
+  DB.subjects.push(s1, s2, s3, s4);
+  DB.tasks.push(
+    { id: 'demo-' + uid(), demo: true, title: 'ส่งแบบฝึกหัด Cal บท 2', date: addDays(t, 1), time: '16:00', subjectId: s2.id, type: 'homework', done: false },
+    { id: 'demo-' + uid(), demo: true, title: 'ติวกลุ่ม Economics II', date: addDays(t, 3), time: '14:00', subjectId: s3.id, type: 'event', done: false },
+  );
+  DB.sessions.push(
+    { id: 'demo-' + uid(), demo: true, subjectId: s1.id, date: addDays(t, -10), minutes: 50, at: Date.now() - 864000000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s2.id, date: addDays(t, -8), minutes: 75, at: Date.now() - 691200000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s3.id, date: addDays(t, -5), minutes: 60, at: Date.now() - 432000000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s1.id, date: addDays(t, -2), minutes: 90, at: Date.now() - 172800000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s2.id, date: addDays(t, -1), minutes: 60, at: Date.now() - 86400000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s4.id, date: t, minutes: 45, at: Date.now() - 3600000 },
+  );
+  DB.flashcards.push(
+    { id: 'demo-' + uid(), demo: true, subjectId: s3.id, chapterId: s3.chapters[0].id, q: 'GDP คืออะไร?', a: 'มูลค่าตลาดของสินค้าและบริการขั้นสุดท้ายทั้งหมดที่ผลิตในประเทศในช่วงเวลาหนึ่ง', known: false },
+    { id: 'demo-' + uid(), demo: true, subjectId: s4.id, chapterId: s4.chapters[0].id, q: 'สมการบัญชีพื้นฐาน', a: 'สินทรัพย์ = หนี้สิน + ส่วนของเจ้าของ (A = L + E)', known: true },
+  );
+  autoSchedule();
+  DB.plan.forEach(p => { if (ids.has(p.subjectId)) p.demo = true; });
+  save();
+  return true;
+}
+function removeDemoData() {
+  const userTied = sid => {
+    const s = DB.subjects.find(x => x.id === sid);
+    if (s && (s.chapters || []).some(c => c && !c.demo)) return true;
+    if (s && (s.links || []).some(l => l && !l.demo)) return true;
+    return [DB.tasks, DB.plan, DB.sessions, DB.flashcards].some(list => (list || []).some(x => x && !x.demo && x.subjectId === sid));
+  };
+  const removed = DB.subjects.filter(s => s.demo && !userTied(s.id)).map(s => s.id);
+  DB.subjects = DB.subjects.filter(s => !s.demo || userTied(s.id)).map(s => s.demo ? {
+    ...s,
+    chapters: (s.chapters || []).filter(c => c && !c.demo),
+    links: (s.links || []).filter(l => l && !l.demo),
+  } : s);
+  const own = x => x && !x.demo;
+  DB.tasks = (DB.tasks || []).filter(own);
+  DB.plan = (DB.plan || []).filter(own);
+  DB.sessions = (DB.sessions || []).filter(own);
+  DB.flashcards = (DB.flashcards || []).filter(own);
+  save();
+  removed.forEach(id => FileStore.delSubject(id).catch(() => { }));
+}
+function sanitizeIncoming(data) {
+  if (!data || typeof data !== 'object') return data;
+  (data.subjects || []).forEach(s => {
+    if (!s || typeof s !== 'object') return;
+    s.color = safeColor(s.color);
+    if (!Array.isArray(s.links) || typeof normalizeLink !== 'function') return;
+    s.links = s.links.map(l => {
+      if (!l) return null;
+      const n = normalizeLink(l.url);
+      if (!n.url) return null;
+      return { ...l, url: n.url, title: String(l.title || '').slice(0, 200) };
+    }).filter(Boolean);
+  });
+  return data;
+}

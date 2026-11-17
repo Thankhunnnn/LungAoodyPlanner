@@ -1,6 +1,10 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v1';
-const SHELL = ['./', './index.html', './styles.css', './manifest.json', './icon.svg',
+const CACHE = 'study-planner-v9';
+const SHELL = ['./', './index.html', './styles.css', './manifest.json',
+  './icon-16.png', './icon-32.png', './icon-180.png', './icon-192.png', './icon-512.png',
+  './assets/bg-blue.webp', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
+  './assets/coach-hero-real.webp', './assets/coach-action.webp', './assets/coach-moto.webp',
+  './assets/sticker-pencil.webp', './assets/sticker-book.webp', './assets/sticker-rocket.webp', './assets/sticker-sakura.webp',
   './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/services.js', './js/app.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -11,8 +15,14 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); return r; })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
+    fetch(e.request).then(r => {
+      if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+      return r;
+    }).catch(() => caches.match(e.request).then(r => {
+      if (r) return r;
+      if (e.request.destination === 'image') return new Response('', { status: 404, statusText: 'Not cached' });
+      return caches.match('./index.html');
+    }))
   );
 });
 self.addEventListener('notificationclick', e => {
