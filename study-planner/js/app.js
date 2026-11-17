@@ -708,8 +708,13 @@ const Views = {
       ['gpt-4o', 'gpt-4o (ฉลาดขึ้น)'],
       ['gpt-4.1-mini', 'gpt-4.1-mini'],
     ];
-    const presets = C.provider === 'gemini' ? gemPresets : oaPresets;
-    const curModel = C.provider === 'gemini' ? C.geminiModel : C.openaiModel;
+    const dsPresets = [
+      ['deepseek-chat', 'deepseek-chat (แนะนำ · รองรับคำสั่งจัดตาราง)'],
+      ['deepseek-reasoner', 'deepseek-reasoner (คิดวิเคราะห์ลึก)'],
+    ];
+    const presets = C.provider === 'gemini' ? gemPresets : C.provider === 'deepseek' ? dsPresets : oaPresets;
+    const curModel = C.provider === 'gemini' ? C.geminiModel : C.provider === 'deepseek' ? (C.deepseekModel || 'deepseek-chat') : C.openaiModel;
+    const modelField = C.provider === 'gemini' ? 'geminiModel' : C.provider === 'deepseek' ? 'deepseekModel' : 'openaiModel';
     const isCustom = App._customModel || !presets.some(([v]) => v === curModel);
 
 
@@ -743,11 +748,15 @@ const Views = {
     <section class="card"><h2>🤖 AI</h2>
       <div class="pills">
         <button class="pill ${C.provider === 'gemini' ? 'active' : ''}" data-act="ai-provider" data-p="gemini">Google Gemini</button>
+        <button class="pill ${C.provider === 'deepseek' ? 'active' : ''}" data-act="ai-provider" data-p="deepseek">DeepSeek</button>
         <button class="pill ${C.provider === 'openai' ? 'active' : ''}" data-act="ai-provider" data-p="openai">OpenAI</button>
       </div>
       ${C.provider === 'gemini' ? `
         <label class="field">Gemini API key <input type="password" data-ai="geminiKey" value="${esc(C.geminiKey)}" placeholder="AIza..."></label>
-        <p class="muted small" style="margin-top:-6px">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : `
+        <p class="muted small" style="margin-top:-6px">ขอ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></p>` : C.provider === 'deepseek' ? `
+        <label class="field">DeepSeek API key <input type="password" data-ai="deepseekKey" value="${esc(C.deepseekKey || '')}" placeholder="sk-..."></label>
+        <label class="field">CORS Proxy URL (Cloudflare Worker)<input type="url" data-ai="deepseekProxy" value="${esc(C.deepseekProxy || 'https://lungaoody-deepseek.pkgztv6.workers.dev')}" placeholder="https://...workers.dev"></label>
+        <p class="muted small" style="margin-top:-6px">สร้าง key ได้ที่ <a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com/api_keys</a> (คิดเงินตามการใช้งาน · ส่งผ่าน Cloudflare Worker ที่ตั้งค่าไว้)</p>` : `
         <label class="field">OpenAI API key <input type="password" data-ai="openaiKey" value="${esc(C.openaiKey)}" placeholder="sk-..."></label>
         <p class="muted small" style="margin-top:-6px">สร้าง key ที่ <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a> (คิดเงินตามการใช้งาน)</p>`}
       <label class="field">รุ่นโมเดล
@@ -756,10 +765,10 @@ const Views = {
           <option value="__custom__" ${isCustom ? 'selected' : ''}>✏️ พิมพ์ชื่อรุ่นเอง (Custom)…</option>
         </select>
       </label>
-      ${isCustom ? `<label class="field">ระบุชื่อรุ่นโมเดลเอง<input data-ai="${C.provider === 'gemini' ? 'geminiModel' : 'openaiModel'}" value="${esc(curModel)}" placeholder="เช่น gemini-3.8-flash"></label>` : ''}
+      ${isCustom ? `<label class="field">ระบุชื่อรุ่นโมเดลเอง<input data-ai="${modelField}" value="${esc(curModel)}" placeholder="เช่น gemini-3.8-flash"></label>` : ''}
       <button class="btn ghost small" data-act="test-ai">ทดสอบการเชื่อมต่อ</button>
       <label class="switch"><input type="checkbox" data-bind="ai.sync" ${DB.ai?.sync ? 'checked' : ''}><span></span> Sync API key ข้ามเครื่อง (เฉพาะในบัญชี Google ของคุณ)</label>
-      <p class="muted small">🔐 <b>ความปลอดภัย:</b> API key ถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง (และเฉพาะในบัญชี Google ส่วนตัวหากเปิด Sync) ข้อมูลจะส่งตรงไปยัง Google / OpenAI โดยไม่ผ่านเซิร์ฟเวอร์กลาง และไม่ติดไปในไฟล์ Export</p>
+      <p class="muted small">🔐 <b>ความปลอดภัย:</b> API key ถูกเก็บไว้ในเบราว์เซอร์ของคุณเอง (และเฉพาะในบัญชี Google ส่วนตัวหากเปิด Sync) และไม่ติดไปในไฟล์ Export</p>
     </section>
 
     <section class="card"><h2>☁️ Sync ข้ามเครื่อง (Firebase)</h2>
@@ -2202,7 +2211,7 @@ const Changes = {
     const c = aiCfg();
     if (el.value === '__custom__') { App._customModel = true; App.render(); return; }
     App._customModel = false;
-    if (c.provider === 'gemini') c.geminiModel = el.value; else c.openaiModel = el.value;
+    if (c.provider === 'gemini') c.geminiModel = el.value; else if (c.provider === 'deepseek') c.deepseekModel = el.value; else c.openaiModel = el.value;
     saveAICfg(); if (!DB.ai?.sync) App.render();
   },
   'chat-file': el => {

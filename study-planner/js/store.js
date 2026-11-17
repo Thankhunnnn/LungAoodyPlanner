@@ -22,6 +22,7 @@ const defaultData = () => ({
     sync: true, provider: 'gemini',
     geminiKey: '', geminiModel: 'gemini-3.8-flash',
     openaiKey: '', openaiModel: 'gpt-4o-mini',
+    deepseekKey: '', deepseekModel: 'deepseek-chat', deepseekProxy: 'https://lungaoody-deepseek.pkgztv6.workers.dev',
   },
   updatedAt: 0,
 });
@@ -30,6 +31,7 @@ const defaultLocal = () => ({
   aiProvider: 'gemini',
   geminiKey: '', geminiModel: 'gemini-3.8-flash',
   openaiKey: '', openaiModel: 'gpt-4o-mini',
+  deepseekKey: '', deepseekModel: 'deepseek-chat', deepseekProxy: 'https://lungaoody-deepseek.pkgztv6.workers.dev',
   firebaseConfig: '',
   fileDest: 'drive',
   lastNotify: {},
@@ -53,11 +55,13 @@ let DB = loadLS(LS_KEY, defaultData);
 /* Old builds stored the implicit default 'pink' even when the user never picked a theme. */
 if (!DB.prefs.themeChosen && (!DB.prefs.theme || DB.prefs.theme === 'pink')) DB.prefs.theme = 'navy';
 let LOCAL = loadLS(LS_LOCAL, defaultLocal);
-if (DB.ai?.sync && !DB.ai.geminiKey && !DB.ai.openaiKey && (LOCAL.geminiKey || LOCAL.openaiKey)) {
+if (DB.ai?.sync && !DB.ai.geminiKey && !DB.ai.openaiKey && !DB.ai.deepseekKey && (LOCAL.geminiKey || LOCAL.openaiKey || LOCAL.deepseekKey)) {
   Object.assign(DB.ai, {
     provider: LOCAL.aiProvider || 'gemini',
     geminiKey: LOCAL.geminiKey || '', geminiModel: LOCAL.geminiModel || 'gemini-3.8-flash',
     openaiKey: LOCAL.openaiKey || '', openaiModel: LOCAL.openaiModel || 'gpt-4o-mini',
+    deepseekKey: LOCAL.deepseekKey || '', deepseekModel: LOCAL.deepseekModel || 'deepseek-chat',
+    deepseekProxy: LOCAL.deepseekProxy || 'https://lungaoody-deepseek.pkgztv6.workers.dev',
   });
 }
 function aiCfg() {
@@ -68,6 +72,9 @@ function aiCfg() {
     get geminiModel() { return LOCAL.geminiModel; }, set geminiModel(v) { LOCAL.geminiModel = v; },
     get openaiKey() { return LOCAL.openaiKey; }, set openaiKey(v) { LOCAL.openaiKey = v; },
     get openaiModel() { return LOCAL.openaiModel; }, set openaiModel(v) { LOCAL.openaiModel = v; },
+    get deepseekKey() { return LOCAL.deepseekKey; }, set deepseekKey(v) { LOCAL.deepseekKey = v; },
+    get deepseekModel() { return LOCAL.deepseekModel; }, set deepseekModel(v) { LOCAL.deepseekModel = v; },
+    get deepseekProxy() { return LOCAL.deepseekProxy; }, set deepseekProxy(v) { LOCAL.deepseekProxy = v; },
   };
 }
 function saveAICfg() { DB.ai?.sync ? save() : saveLocal(); }

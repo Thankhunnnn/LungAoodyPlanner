@@ -1,10 +1,37 @@
-/* ===== AI (Gemini / OpenAI) ===== */
+/* ===== AI (Gemini / OpenAI / DeepSeek) ===== */
+const DEEPSEEK_DEFAULT_PROXY = 'https://lungaoody-deepseek.pkgztv6.workers.dev';
+function deepseekEndpoint(raw) {
+  const base = String(raw || DEEPSEEK_DEFAULT_PROXY).trim().replace(/\/+$/, '');
+  if (!/^https:\/\//i.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(base)) {
+    throw new Error('Proxy URL ของ DeepSeek ต้องขึ้นต้นด้วย https://');
+  }
+  return base + '/v1/chat/completions';
+}
+function schemaLower(o) {
+  if (!o || typeof o !== 'object') return o;
+  if (Array.isArray(o)) return o.map(schemaLower);
+  const out = {};
+  for (const k in o) out[k] = k === 'type' && typeof o[k] === 'string' ? o[k].toLowerCase() : schemaLower(o[k]);
+  return out;
+}
+
 const AI = {
   ready() {
     const c = aiCfg();
+    if (c.provider === 'deepseek') return !!c.deepseekKey;
     return c.provider === 'openai' ? !!c.openaiKey : !!c.geminiKey;
   },
-  providerLabel() { const c = aiCfg(); return c.provider === 'openai' ? `OpenAI · ${c.openaiModel}` : `Gemini · ${c.geminiModel}`; },
+  providerLabel() {
+    const c = aiCfg();
+    if (c.provider === 'deepseek') return `DeepSeek · ${c.deepseekModel || 'deepseek-chat'}`;
+    return c.provider === 'openai' ? `OpenAI · ${c.openaiModel}` : `Gemini · ${c.geminiModel}`;
+  },
+  openAITools() {
+    return this.tutorTools()[0].functionDeclarations.map(fn => ({
+      type: 'function',
+      function: { name: fn.name, description: fn.description, parameters: schemaLower(fn.parameters) },
+    }));
+  },
 
   context() {
     const t = todayStr();
@@ -98,6 +125,28 @@ ${this.context()}`;
       }
       return { role: m.role, content, files: c.provider === 'gemini' ? files : [] };
     });
+    if (c.provider === 'deepseek') {
+      const r = await fetch(deepseekEndpoint(c.deepseekProxy), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${c.deepseekKey}` },
+        body: JSON.stringify({
+          model: c.deepseekModel || 'deepseek-chat',
+          tools: this.openAITools(),
+          messages: [{ role: 'system', content: this.tutorPrompt() }, ...hist.map(m => ({ role: m.role, content: m.content }))],
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error?.message || r.statusText);
+      const msg = j.choices?.[0]?.message || {};
+      const text = msg.content || '';
+      const calls = (msg.tool_calls || []).map(tc => {
+        let args = tc.function?.arguments || '{}';
+        if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
+        return { name: tc.function?.name, args: args || {} };
+      }).filter(x => x.name);
+      if (!text && !calls.length) throw new Error('DeepSeek ไม่ได้ตอบกลับ');
+      return { text, calls };
+    }
     if (c.provider !== 'gemini') {
       const text = await this.chat(hist.map(m => ({ role: m.role, content: m.content })), this.tutorPrompt());
       return { text, calls: [] };
@@ -134,7 +183,21 @@ ${this.context()}`;
   async chat(messages, system = this.systemPrompt()) {
     if (!this.ready()) throw new Error('ยังไม่ได้ใส่ API key — ไปที่ ตั้งค่า > AI');
     const c = aiCfg();
-    if (c.provider === 'openai') {
+    if (c.provider === 'deepseek') {
+      const r = await fetch(deepseekEndpoint(c.deepseekProxy), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${c.deepseekKey}` },
+        body: JSON.stringify({
+          model: c.deepseekModel || 'deepseek-chat',
+          messages: [{ role: 'system', content: system }, ...messages.map(m => ({ role: m.role, content: m.content || '' }))],
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error?.message || r.statusText);
+      const text = j.choices?.[0]?.message?.content || '';
+      if (!text) throw new Error('DeepSeek ไม่ได้ตอบกลับ');
+      return text;
+    } else if (c.provider === 'openai') {
       const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${c.openaiKey}` },
