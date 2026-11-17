@@ -48,6 +48,8 @@ function loadLS(key, def) {
 }
 
 let DB = loadLS(LS_KEY, defaultData);
+/* Old builds stored the implicit default 'pink' even when the user never picked a theme. */
+if (!DB.prefs.themeChosen && (!DB.prefs.theme || DB.prefs.theme === 'pink')) DB.prefs.theme = 'navy';
 let LOCAL = loadLS(LS_LOCAL, defaultLocal);
 if (DB.ai?.sync && !DB.ai.geminiKey && !DB.ai.openaiKey && (LOCAL.geminiKey || LOCAL.openaiKey)) {
   Object.assign(DB.ai, {
@@ -188,29 +190,48 @@ const FileStore = {
   },
 };
 
+function hasDemo() {
+  return [DB.subjects, DB.tasks, DB.plan, DB.sessions, DB.flashcards].some(list => (list || []).some(x => x && x.demo));
+}
 function loadDemoData() {
+  if (hasDemo()) return false;
   const t = todayStr();
-  const s1 = { id: uid(), name: '5500111 EXP ENG I', color: '#9b7ede', examDate: addDays(t, 6), examTime: '08:30', room: '301', chapters: ['Essay Structure & Thesis', 'Academic Vocabulary', 'Reading Comprehension', 'Grammar Review', 'Mock Test'].map((c, i) => ({ id: uid(), title: c, done: i < 2, doneAt: i < 2 ? addDays(t, -2 + i) : null, note: i === 0 ? 'Topic sentence ต้องชัด + มี supporting details 2-3 ข้อ' : '' })) };
-  const s2 = { id: uid(), name: '2301119 CAL BUS', color: '#3fb68b', examDate: addDays(t, 8), examTime: '08:30', room: '204', chapters: ['Limits & Continuity', 'Derivatives & Rules', 'Optimization Problems', 'Marginal Analysis', 'Integrals'].map((c, i) => ({ id: uid(), title: c, done: i === 0, doneAt: i === 0 ? addDays(t, -1) : null, note: '' })) };
-  const s3 = { id: uid(), name: '2900112 ECONOMICS II', color: '#f0a04b', examDate: addDays(t, 10), examTime: '08:30', room: '110', chapters: ['GDP & National Income', 'Inflation & Unemployment', 'Fiscal Policy', 'Monetary Policy', 'International Trade'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
-  const s4 = { id: uid(), name: '2601113 PRIN ACCTG', color: '#4a9be8', examDate: addDays(t, 14), examTime: '08:30', room: '', chapters: ['Accounting Equation', 'Journal & Ledger', 'Adjusting Entries', 'Financial Statements', 'Cash Flow'].map(c => ({ id: uid(), title: c, done: false, doneAt: null, note: '' })) };
-  DB.subjects = [s1, s2, s3, s4];
-  DB.tasks = [
-    { id: uid(), title: 'ส่งแบบฝึกหัด Cal บท 2', date: addDays(t, 1), time: '16:00', subjectId: s2.id, type: 'homework', done: false },
-    { id: uid(), title: 'ติวกลุ่ม Economics II', date: addDays(t, 3), time: '14:00', subjectId: s3.id, type: 'event', done: false },
-  ];
-  DB.sessions = [
-    { id: uid(), subjectId: s1.id, date: addDays(t, -10), minutes: 50, at: Date.now() - 864000000 },
-    { id: uid(), subjectId: s2.id, date: addDays(t, -8), minutes: 75, at: Date.now() - 691200000 },
-    { id: uid(), subjectId: s3.id, date: addDays(t, -5), minutes: 60, at: Date.now() - 432000000 },
-    { id: uid(), subjectId: s1.id, date: addDays(t, -2), minutes: 90, at: Date.now() - 172800000 },
-    { id: uid(), subjectId: s2.id, date: addDays(t, -1), minutes: 60, at: Date.now() - 86400000 },
-    { id: uid(), subjectId: s4.id, date: t, minutes: 45, at: Date.now() - 3600000 },
-  ];
-  DB.flashcards = [
-    { id: uid(), subjectId: s3.id, chapterId: s3.chapters[0].id, q: 'GDP คืออะไร?', a: 'มูลค่าตลาดของสินค้าและบริการขั้นสุดท้ายทั้งหมดที่ผลิตในประเทศในช่วงเวลาหนึ่ง', known: false },
-    { id: uid(), subjectId: s4.id, chapterId: s4.chapters[0].id, q: 'สมการบัญชีพื้นฐาน', a: 'สินทรัพย์ = หนี้สิน + ส่วนของเจ้าของ (A = L + E)', known: true },
-  ];
+  const ch = (titles, doneN = 0) => titles.map((title, i) => ({ id: 'demo-' + uid(), title, done: i < doneN, doneAt: i < doneN ? addDays(t, -2 + i) : null, note: '', demo: true }));
+  const s1 = { id: 'demo-' + uid(), demo: true, name: '5500111 EXP ENG I', color: '#9b7ede', examDate: addDays(t, 6), examTime: '08:30', room: '301', chapters: ch(['Essay Structure & Thesis', 'Academic Vocabulary', 'Reading Comprehension', 'Grammar Review', 'Mock Test'], 2) };
+  s1.chapters[0].note = 'Topic sentence ต้องชัด + มี supporting details 2-3 ข้อ';
+  const s2 = { id: 'demo-' + uid(), demo: true, name: '2301119 CAL BUS', color: '#3fb68b', examDate: addDays(t, 8), examTime: '08:30', room: '204', chapters: ch(['Limits & Continuity', 'Derivatives & Rules', 'Optimization Problems', 'Marginal Analysis', 'Integrals'], 1) };
+  const s3 = { id: 'demo-' + uid(), demo: true, name: '2900112 ECONOMICS II', color: '#f0a04b', examDate: addDays(t, 10), examTime: '08:30', room: '110', chapters: ch(['GDP & National Income', 'Inflation & Unemployment', 'Fiscal Policy', 'Monetary Policy', 'International Trade']) };
+  const s4 = { id: 'demo-' + uid(), demo: true, name: '2601113 PRIN ACCTG', color: '#4a9be8', examDate: addDays(t, 14), examTime: '08:30', room: '', chapters: ch(['Accounting Equation', 'Journal & Ledger', 'Adjusting Entries', 'Financial Statements', 'Cash Flow']) };
+  const ids = new Set([s1.id, s2.id, s3.id, s4.id]);
+  DB.subjects.push(s1, s2, s3, s4);
+  DB.tasks.push(
+    { id: 'demo-' + uid(), demo: true, title: 'ส่งแบบฝึกหัด Cal บท 2', date: addDays(t, 1), time: '16:00', subjectId: s2.id, type: 'homework', done: false },
+    { id: 'demo-' + uid(), demo: true, title: 'ติวกลุ่ม Economics II', date: addDays(t, 3), time: '14:00', subjectId: s3.id, type: 'event', done: false },
+  );
+  DB.sessions.push(
+    { id: 'demo-' + uid(), demo: true, subjectId: s1.id, date: addDays(t, -10), minutes: 50, at: Date.now() - 864000000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s2.id, date: addDays(t, -8), minutes: 75, at: Date.now() - 691200000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s3.id, date: addDays(t, -5), minutes: 60, at: Date.now() - 432000000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s1.id, date: addDays(t, -2), minutes: 90, at: Date.now() - 172800000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s2.id, date: addDays(t, -1), minutes: 60, at: Date.now() - 86400000 },
+    { id: 'demo-' + uid(), demo: true, subjectId: s4.id, date: t, minutes: 45, at: Date.now() - 3600000 },
+  );
+  DB.flashcards.push(
+    { id: 'demo-' + uid(), demo: true, subjectId: s3.id, chapterId: s3.chapters[0].id, q: 'GDP คืออะไร?', a: 'มูลค่าตลาดของสินค้าและบริการขั้นสุดท้ายทั้งหมดที่ผลิตในประเทศในช่วงเวลาหนึ่ง', known: false },
+    { id: 'demo-' + uid(), demo: true, subjectId: s4.id, chapterId: s4.chapters[0].id, q: 'สมการบัญชีพื้นฐาน', a: 'สินทรัพย์ = หนี้สิน + ส่วนของเจ้าของ (A = L + E)', known: true },
+  );
   autoSchedule();
+  DB.plan.forEach(p => { if (ids.has(p.subjectId)) p.demo = true; });
+  save();
+  return true;
+}
+function removeDemoData() {
+  const ids = new Set(DB.subjects.filter(s => s.demo).map(s => s.id));
+  const keep = x => x && !x.demo && !ids.has(x.subjectId);
+  DB.subjects = DB.subjects.filter(s => !s.demo);
+  DB.tasks = DB.tasks.filter(keep);
+  DB.plan = DB.plan.filter(keep);
+  DB.sessions = DB.sessions.filter(keep);
+  DB.flashcards = DB.flashcards.filter(keep);
   save();
 }

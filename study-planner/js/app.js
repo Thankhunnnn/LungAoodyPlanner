@@ -29,6 +29,7 @@ const App = {
 
   applyTheme() {
     document.documentElement.dataset.theme = DB.prefs.theme || 'navy';
+    document.documentElement.dataset.home = this.tab === 'home' ? '1' : '0';
     document.documentElement.dataset.dark = DB.prefs.dark ? '1' : '0';
     const c = (THEMES.find(t => t[0] === DB.prefs.theme) || THEMES[0])[2];
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', DB.prefs.dark ? '#1d1a1f' : c);
@@ -44,6 +45,7 @@ const App = {
       `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('');
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
+    syncGutters();
     if (this.tab === 'ai') { const box = document.getElementById('chatBox'); if (box) box.scrollTop = box.scrollHeight; }
   },
 
@@ -69,14 +71,13 @@ const App = {
         sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
       }
       const greet = DB.prefs.theme === 'navy' ? 'หวัดดีค้าบ' : 'หวัดดีค่า';
-      const av = `<img src="assets/avatar.png" alt="" class="avatar-img" width="56" height="56">`;
       left = `<div class="hello">
-        <div class="avatar">${av}</div>
+        <div class="avatar">${avatarImg()}</div>
         <div><h1>${greet}${DB.name ? ' ' + esc(DB.name) : ''}</h1><p>${sub}</p></div>
       </div>`;
     } else {
       const cur = ALL_TABS.find(x => x[0] === this.tab) || ALL_TABS[0];
-      left = `<div class="hello compact"><button class="icon-btn" data-act="go" data-tab="home" title="หน้าแรก">🌸</button><h1>${cur[1]} ${cur[2]}</h1></div>`;
+      left = `<div class="hello compact"><button class="avatar avatar-btn" data-act="go" data-tab="home" title="หน้าแรก">${avatarImg()}</button><h1>${cur[1]} ${cur[2]}</h1></div>`;
     }
     return `${left}
       <div class="head-actions">
@@ -164,26 +165,50 @@ function dateField(label, name, value, required) {
   const v = value || '';
   return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
 }
+function avatarImg() {
+  return `<img class="avatar-img" src="assets/avatar-profile.webp" alt="อู๊ด" width="46" height="46" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='assets/avatar-profile.png'}">`;
+}
+function coachBubble(kind) {
+  const name = esc(DB.name || 'เพื่อน');
+  const nextEx = upcomingExams()[0];
+  if (kind === 'action') {
+    return `<div class="coach-bubble warn"><b>อู๊ด:</b> อย่ามาอู้อ่านหนังสือนะ! 😤<br><span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปอ่านหนังสือกัน!'}</span></div>`;
+  }
+  return `<div class="coach-bubble"><b>อู๊ด:</b> เฮ้ ${name}! วันนี้เราลุยวิชาไหนกันดี?<br><span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span></div>`;
+}
 function coachHeroHTML() {
-  if (DB.prefs.theme !== 'navy') return '';
-  return `<section class="coach-hero">
-      <div class="coach-bubble">
-        <b>เฮ้ ${esc(DB.name || 'เพื่อน')}! วันนี้เราลุยวิชาไหนกันดี?</b><br>
-        <span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>
-      </div>
-      <img src="assets/coach-hero-real.webp" alt="" class="coach-hero-img" width="117" height="210">
-    </section>`;
+  return `<section class="coach-hero">${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด" class="coach-hero-img" width="117" height="210"></section>`;
 }
 function coachActionHTML() {
-  if (DB.prefs.theme !== 'navy') return '';
-  const nextEx = upcomingExams()[0];
-  return `<section class="coach-footer">
-      <div class="coach-bubble warn">
-        <b>อย่ามาอู้อ่านหนังสือนะ! 😤</b><br>
-        <span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปเพิ่มวิชาแล้วมาอ่านกัน!'}</span>
-      </div>
-      <img src="assets/coach-action.webp" alt="" class="coach-action-img" width="139" height="180">
-    </section>`;
+  return `<section class="coach-footer">${coachBubble('action')}<img src="assets/coach-action.webp" alt="อู๊ด" class="coach-action-img" width="139" height="180"></section>`;
+}
+function syncGutters() {
+  const home = App.tab === 'home';
+  document.documentElement.dataset.home = home ? '1' : '0';
+  const left = document.getElementById('gutterLeft');
+  const right = document.getElementById('gutterRight');
+  if (!left || !right) return;
+  if (!home) { left.innerHTML = ''; right.innerHTML = ''; return; }
+  right.innerHTML = `${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด">`;
+  left.innerHTML = `${coachBubble('action')}<img src="assets/coach-action.webp" alt="อู๊ด">`;
+}
+function normalizeLink(raw) {
+  let url = String(raw || '').trim();
+  if (!url) return { error: 'ใส่ลิงก์เอกสารด้วยนะ' };
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+    if (/^([\w-]+\.)+[a-z]{2,}([/?#].*)?$/i.test(url)) url = 'https://' + url;
+    else return { error: 'ลิงก์ไม่ถูกต้อง ใส่เช่น https://drive.google.com/...' };
+  }
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/i.test(u.protocol)) return { error: 'ใช้ลิงก์ที่ขึ้นต้นด้วย http หรือ https นะ' };
+    return { url: u.href };
+  } catch { return { error: 'ลิงก์ไม่ถูกต้อง ใส่เช่น https://drive.google.com/...' }; }
+}
+function demoButtonHTML() {
+  return hasDemo()
+    ? `<button class="btn danger" data-act="clear-demo">ลบข้อมูลทดลอง</button>`
+    : `<button class="btn ghost" data-act="load-demo">ใส่ข้อมูลทดลอง</button>`;
 }
 
 /* ===== Views ===== */
@@ -198,9 +223,9 @@ const Views = {
         ${!DB.name ? `<form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value=""><button class="btn ghost">บันทึกชื่อ</button></form>` : ''}
         <div class="row center wrap">
           <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
-          <button class="btn ghost" data-act="load-demo">✨ โหลดข้อมูลตัวอย่าง (Demo)</button>
+          ${demoButtonHTML()}
         </div>
-      </section>${coachActionHTML()}`;
+      </section>`;
     }
     const exams = upcomingExams();
     const today = planForDate(t);
@@ -245,8 +270,7 @@ const Views = {
         ${barChart(week, v => Math.round(v / 6) / 10 + 'h')}
         <button class="btn ghost full" data-act="go" data-tab="timer">เริ่มจับเวลาอ่าน ▶</button>
       </section>
-    </div>
-    ${coachActionHTML()}`;
+    </div>`;
   },
 
   plan() {
@@ -614,7 +638,7 @@ const firebaseConfig = {
       <div class="row wrap">
         <button class="btn ghost" data-act="export">⬇️ Export (สำรองไฟล์)</button>
         <label class="btn ghost">⬆️ Import<input type="file" accept=".json" data-chg="import" hidden></label>
-        <button class="btn ghost" data-act="load-demo">✨ โหลดข้อมูลตัวอย่าง (Demo)</button>
+        ${demoButtonHTML()}
       </div>
     </section>
 
@@ -785,9 +809,14 @@ async function filesRender() {
     </div>`).join('') : '<p class="muted small">ยังไม่มีไฟล์</p>'}
     <hr>
     <h3>🔗 ลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
-    <form data-form="link-add" class="fc-add">
-      <input name="title" placeholder="ชื่อเอกสาร เช่น สไลด์บท 1" required>
-      <input name="url" type="url" placeholder="https://..." required>
+    <form data-form="link-add" class="link-form" novalidate>
+      <label class="field">ชื่อเอกสาร
+        <input name="title" placeholder="ชื่อเอกสาร" required>
+      </label>
+      <label class="field">ลิงก์
+        <input name="url" type="text" inputmode="url" placeholder="ลิงก์ เช่น https://drive.google.com/..." autocomplete="url" required>
+        <small class="field-error" data-url-error hidden></small>
+      </label>
       <button class="btn small">+ เพิ่ม</button>
     </form>
     ${links.length ? links.map(l => `<div class="item">
@@ -849,7 +878,7 @@ const Actions = {
   'go': el => { closeModal(); App.go(el.dataset.tab); },
   'close-modal': () => closeModal(),
   'toggle-dark': () => { DB.prefs.dark = !DB.prefs.dark; save(); },
-  'theme': el => { DB.prefs.theme = el.dataset.theme; save(); },
+  'theme': el => { DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; save(); },
   'toggle-past': () => { App.showPast = !App.showPast; App.render(); },
 
   // plan
@@ -1051,8 +1080,16 @@ const Actions = {
       <button class="more-item" data-act="go" data-tab="settings"><span>⚙️</span><b>ตั้งค่า</b><small class="muted">ธีม, AI, Sync</small></button>
     </div>`),
   'load-demo': () => {
-    if (DB.subjects.length && !confirm('โหลดข้อมูลตัวอย่างแทนข้อมูลวิชา/ตารางปัจจุบัน?')) return;
-    loadDemoData(); App.go('home'); App.toast('โหลดข้อมูลตัวอย่างเรียบร้อย ✨');
+    if (hasDemo()) return App.toast('มีข้อมูลทดลองอยู่แล้ว');
+    if (!loadDemoData()) return;
+    App.go('home'); App.toast('ใส่ข้อมูลทดลองแล้ว ✨');
+  },
+  'clear-demo': () => {
+    if (!hasDemo()) return;
+    if (!confirm('ลบข้อมูลทดลองออกทั้งหมดใช่ไหม? ข้อมูลที่คุณเพิ่มเองจะยังอยู่')) return;
+    removeDemoData();
+    App.toast('ลบข้อมูลทดลองแล้ว');
+    App.render();
   },
   'ask-notify': async () => {
     const ok = await Notifier.ask();
@@ -1154,8 +1191,14 @@ const Forms = {
   'fc-add'(d) { DB.flashcards.push({ id: uid(), subjectId: App.fc.sid, chapterId: null, q: d.q.trim(), a: d.a.trim(), known: false }); save({ silent: true }); fcRender(); },
   'link-add'(d, f) {
     const s = subjectById(App.filesSid); if (!s) return;
+    const err = f.querySelector('[data-url-error]');
+    if (err) { err.hidden = true; err.textContent = ''; }
+    const title = (d.title || '').trim();
+    if (!title) { App.toast('ใส่ชื่อเอกสารด้วยนะ'); return; }
+    const parsed = normalizeLink(d.url);
+    if (parsed.error) { if (err) { err.hidden = false; err.textContent = parsed.error; } else App.toast(parsed.error); return; }
     s.links = s.links || [];
-    s.links.unshift({ id: uid(), title: d.title.trim(), url: d.url.trim(), addedAt: Date.now() });
+    s.links.unshift({ id: uid(), title, url: parsed.url, addedAt: Date.now() });
     f.reset(); save({ silent: true }); filesRender();
   },
   async 'ai-exams'(d) {

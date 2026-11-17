@@ -1,8 +1,8 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v3';
+const CACHE = 'study-planner-v4';
 const SHELL = ['./', './index.html', './styles.css', './manifest.json', './icon.svg',
   './icon-180.png', './icon-192.png', './icon-512.png',
-  './assets/bg-blue.webp', './assets/avatar.png', './assets/og.jpg',
+  './assets/bg-blue.webp', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
   './assets/coach-hero-real.webp', './assets/coach-action.webp', './assets/coach-moto.webp',
   './assets/sticker-pencil.webp', './assets/sticker-book.webp', './assets/sticker-rocket.webp', './assets/sticker-sakura.webp',
   './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/services.js', './js/app.js'];
