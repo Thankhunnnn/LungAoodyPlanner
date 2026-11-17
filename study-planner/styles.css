@@ -1716,3 +1716,78 @@ html:is([data-theme="mono"], [data-theme="pink"], [data-theme="lavender"], [data
 .color-rgb.is-custom span { background: var(--c) !important; border-color: #fff; box-shadow: 0 0 0 2px var(--c); }
 .batch-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 .theme-sw:active { transform: scale(.96); }
+
+/* ===== UX/UI Enhancements: Quick-Add, Agenda View, Mobile Bottom Nav & FAB ===== */
+.mob-term-wrap { display: none; }
+.quick-add-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  padding: 4px 6px 4px 12px; border-radius: 12px;
+  border: 1px solid var(--border); background: color-mix(in srgb, var(--soft) 55%, transparent);
+}
+.quick-add-row input {
+  border: none; background: transparent; padding: 5px 0; font-size: .84rem;
+  box-shadow: none !important; flex: 1; min-width: 0;
+}
+.quick-add-btn { min-width: 32px !important; min-height: 32px !important; width: 32px; height: 32px; border-radius: 8px; }
+
+.tt-agenda-days { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tt-agenda-list { display: flex; flex-direction: column; gap: 8px; }
+.tt-agenda-card {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 12px 14px; border-radius: 14px; cursor: pointer; font: inherit; color: var(--text);
+  border: 1px solid var(--border); border-left: 4px solid var(--c, var(--accent));
+  background: color-mix(in srgb, var(--c, var(--accent)) 10%, var(--card));
+  transition: transform .14s ease, box-shadow .14s ease;
+}
+.tt-agenda-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.tt-agenda-time { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .84rem; color: var(--accent); min-width: 96px; flex-shrink: 0; }
+.tt-agenda-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tt-agenda-info b { font-size: .92rem; overflow-wrap: anywhere; }
+
+.fab-wrap { display: none; position: fixed; right: 16px; bottom: 24px; z-index: 50; flex-direction: column; align-items: flex-end; gap: 8px; }
+.fab-btn {
+  width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .28);
+  background: linear-gradient(135deg, #4ea8ff 0%, #3b6ef6 55%, #6366f1 100%);
+  color: #fff; font-size: 1.7rem; line-height: 1; font-weight: 400; cursor: pointer;
+  display: grid; place-items: center; box-shadow: 0 8px 24px rgba(59, 130, 246, .45);
+  transition: transform .18s ease;
+}
+.fab-btn.open { transform: rotate(45deg); }
+.fab-menu[hidden] { display: none !important; }
+.fab-menu {
+  display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .38); min-width: 205px;
+}
+.fab-item {
+  background: none; border: none; padding: 10px 12px; border-radius: 10px;
+  font: inherit; font-size: .88rem; color: var(--text); text-align: left; cursor: pointer;
+}
+.fab-item:hover { background: var(--soft2); }
+
+@media (max-width: 959px) {
+  .fab-wrap { display: flex; }
+}
+@media (max-width: 720px) {
+  .date-pill { display: none !important; }
+  .mob-term-wrap { display: inline-flex; align-items: center; gap: 4px; max-width: 165px; }
+  .mob-term-wrap .side-term-sel { padding: 5px 8px; font-size: .78rem; min-height: 36px; width: auto; max-width: 112px; }
+  .nav {
+    position: fixed !important; top: auto !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+    z-index: 45 !important; display: block !important; margin: 0 !important;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom)) !important;
+    border-top: 1px solid var(--border) !important; border-bottom: none !important;
+    border-radius: 18px 18px 0 0 !important;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, .28) !important;
+  }
+  .nav .side-brand, .nav .side-term { display: none !important; }
+  .nav .side-tabs { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; width: 100%; }
+  .nav .tab {
+    flex-direction: column; justify-content: center; gap: 2px; min-width: 0;
+    padding: 5px 2px; font-size: .62rem; min-height: 46px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; border-radius: 12px;
+  }
+  .nav .tab span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .fab-wrap { bottom: 78px; right: 14px; }
+  .toast { bottom: 82px !important; }
+}

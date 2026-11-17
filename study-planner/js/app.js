@@ -254,6 +254,7 @@ function smartActionData() {
 
 const App = {
   tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
+  agendaDay: new Date().getDay(), ttView: '',
   aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
 
   init() {
@@ -366,6 +367,12 @@ const App = {
     const thMeta = THEMES.find(x => x[0] === th) || THEMES[0];
     return `${left}
       <div class="head-actions">
+        <span class="mob-term-wrap">
+          <select class="side-term-sel" data-chg="switch-term" aria-label="เลือก Workflow">
+            ${allTermNames().map(tm => `<option value="${esc(tm)}" ${tm === (DB.term || 'เทอม 1') ? 'selected' : ''}>${esc(tm)}</option>`).join('')}
+          </select>
+          <button type="button" class="mini-btn" data-act="new-term" title="สร้าง Workflow ใหม่">+ ใหม่</button>
+        </span>
         <span class="chip date-pill">${ico('calendar', 14)} ${fmtDateLong(t)}</span>
         <span id="liveClock" class="chip date-pill live-clock" aria-label="เวลาปัจจุบัน">${ico('clock', 14)} ${liveTimeStr()}</span>
         ${this.syncBadgeHTML()}
@@ -845,6 +852,10 @@ const Views = {
           <button class="mini-btn" data-act="add-todo" data-date="${t}" title="เพิ่มสิ่งที่ต้องทำ">+ สิ่งที่ต้องทำ</button>
           <span class="chip accent">${todayListCount} รายการ</span>
         </div>
+        <form class="quick-add-row" data-form="quick-todo">
+          <input name="title" type="text" placeholder="+ พิมพ์ชื่องานวันนี้แล้วกด Enter..." maxlength="200" aria-label="เพิ่มงานวันนี้แบบด่วน">
+          <button type="submit" class="mini-btn quick-add-btn" aria-label="เพิ่ม">${ico('plus', 16)}</button>
+        </form>
         <div class="ref-todo-list">
           ${todayListCount ? [
             ...todayExams.map(s => `<div class="item" style="cursor:pointer" data-act="open-subject" data-id="${s.id}">
@@ -1088,11 +1099,35 @@ const Views = {
       const EN_DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
       const dow = new Date().getDay();
       const uniqueSubs = new Set(classes.map(c => c.subjectId || c.title)).size;
+      const ttMode = App.ttView || (window.innerWidth <= 720 ? 'agenda' : 'grid');
+      const agDay = App.agendaDay ?? dow;
+      const agDays = [1, 2, 3, 4, 5, 6, 0];
+      const agClasses = classes.filter(c => c.day === agDay).sort((a, b) => (a.start || '').localeCompare(b.start || ''));
 
       return `
       <section class="card">
         ${switcher}
-        ${autoHiddenAfterExam ? empty('🎉', 'สอบครบทุกวิชาแล้ว — ตารางเรียนเทอมนี้ถูกซ่อนอัตโนมัติ', `<button class="btn small ghost" data-act="toggle-exam-classes">แสดงตารางเรียนเดิม</button>`) : `${inExamPeriod ? `<div class="muted small" style="margin-bottom:8px">📚 เข้าสู่สัปดาห์สอบแล้ว — ซ่อนคาบเรียนบนปฏิทินและ Today list อัตโนมัติ</div>` : ''}<div class="tt-wrap">
+        ${autoHiddenAfterExam ? empty('🎉', 'สอบครบทุกวิชาแล้ว — ตารางเรียนเทอมนี้ถูกซ่อนอัตโนมัติ', `<button class="btn small ghost" data-act="toggle-exam-classes">แสดงตารางเรียนเดิม</button>`) : `${inExamPeriod ? `<div class="muted small" style="margin-bottom:8px">📚 เข้าสู่สัปดาห์สอบแล้ว — ซ่อนคาบเรียนบนปฏิทินและ Today list อัตโนมัติ</div>` : ''}<div class="row wrap" style="margin-bottom:10px;justify-content:space-between;align-items:center">
+          <div class="pills" style="margin:0">
+            <button type="button" class="pill ${ttMode === 'agenda' ? 'active' : ''}" data-act="tt-mode" data-m="agenda">มุมมองรายวัน</button>
+            <button type="button" class="pill ${ttMode === 'grid' ? 'active' : ''}" data-act="tt-mode" data-m="grid">ตารางทั้งสัปดาห์</button>
+          </div>
+          <span class="muted small">รวม: <b>${classes.length} คาบ</b> · ${uniqueSubs} วิชา</span>
+        </div>
+        ${ttMode === 'agenda' ? `
+          <div class="tt-agenda-days">
+            ${agDays.map(d => `<button type="button" class="pill ${d === agDay ? 'active' : ''}" data-act="agenda-day" data-d="${d}">${TH_DAYS[d]}${d === dow ? ' •' : ''}</button>`).join('')}
+          </div>
+          <div class="tt-agenda-list">
+            ${agClasses.length ? agClasses.map(c => {
+              const col = classColor(c), nm = className(c);
+              return `<button type="button" class="tt-agenda-card" data-act="edit-class" data-id="${c.id}" style="--c:${col}">
+                <span class="tt-agenda-time">${esc(c.start || '—')}${c.end ? ` – ${esc(c.end)}` : ''}</span>
+                <span class="tt-agenda-info"><b>${esc(nm)}</b>${c.room ? `<small class="muted">ห้อง ${esc(c.room)}</small>` : ''}</span>
+              </button>`;
+            }).join('') : empty(ico('calendar', 26), `ไม่มีคาบเรียนวัน${TH_DAYS_FULL[agDay]}`, `<button type="button" class="btn small" data-act="add-class" data-day="${agDay}">+ เพิ่มคาบวัน${TH_DAYS[agDay]}</button>`)}
+          </div>
+        ` : `<div class="tt-wrap">
           <div class="tt-table" style="--cols:${hours.length}">
             <div class="tt-hdr">
               <div class="tt-corner">Day/Time</div>
@@ -1119,12 +1154,11 @@ const Views = {
               </div>`;
             }).join('')}
           </div>
-        </div>
+        </div>`}
         <div class="toolbar" style="margin-top:12px;margin-bottom:0">
           <button class="btn ghost small" data-act="tt-png">⬇️ PNG</button>
           <button class="btn small" data-act="add-class">+ เพิ่มคาบเรียน</button>
           <span class="grow"></span>
-          <span class="muted small">รวมในตาราง: <b>${classes.length} คาบ</b> · ${uniqueSubs} วิชา</span>
         </div>`}
       </section>
       <section class="card">
@@ -2749,6 +2783,23 @@ const Actions = {
     }
   },
   'add-todo': el => openModal('+ สิ่งที่ต้องทำ', todoForm({ date: el.dataset.date, kind: el.dataset.kind })),
+  'tt-mode': el => { App.ttView = el.dataset.m || ''; App.render(); },
+  'agenda-day': el => { App.agendaDay = Number(el.dataset.d); App.render(); },
+  'toggle-fab': () => {
+    const m = document.getElementById('fabMenu'), b = document.getElementById('fabBtn');
+    if (!m || !b) return;
+    const open = m.hidden; m.hidden = !open;
+    b.setAttribute('aria-expanded', String(open)); b.classList.toggle('open', open);
+  },
+  'fab-pick': el => {
+    const m = document.getElementById('fabMenu'), b = document.getElementById('fabBtn');
+    if (m) m.hidden = true;
+    if (b) { b.setAttribute('aria-expanded', 'false'); b.classList.remove('open'); }
+    const g = el.dataset.go;
+    if (g === 'todo') openModal('+ สิ่งที่ต้องทำ', todoForm({ date: todayStr() }));
+    else if (g === 'subject') openModal(`${ico('plus', 17)} เพิ่มวิชา`, subjectForm(), true);
+    else if (g === 'timer') App.go('timer');
+  },
   'todo-kind': el => {
     const k = el.dataset.k || 'homework';
     const inp = document.getElementById('todoKindInput'); if (inp) inp.value = k;
@@ -3278,6 +3329,13 @@ const Forms = {
       return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind }, f);
     }
     return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind }, f);
+  },
+  'quick-todo'(d) {
+    const title = (d.title || '').trim();
+    if (!title) return App.toast('พิมพ์ชื่องานก่อนนะ');
+    DB.tasks.push({ id: uid(), title: title.slice(0, 200), type: 'homework', date: todayStr(), time: '', subjectId: '', remind: false, done: false });
+    save();
+    App.toast('เพิ่มใน Today list แล้ว ✓');
   },
   task(d, f) {
     const title = (d.title || '').trim();
