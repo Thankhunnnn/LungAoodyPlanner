@@ -1,13 +1,56 @@
 /* ===== Main app: views, actions, forms ===== */
+const ICONS = {
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>',
+  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  layers: '<path d="m12 2 9 4.5-9 4.5-9-4.5Z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 17.5 9 4.5 9-4.5"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 16v-4"/><path d="M12 16V8"/><path d="M17 16v-6"/>',
+  sparkles: '<path d="m12 3 1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8Z"/><path d="M5 19v-2"/><path d="M4 18h2"/><path d="M19 5v-2"/><path d="M18 4h2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  play: '<polygon points="6 4 20 12 6 20 6 4"/>',
+  pause: '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+  square: '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  skip: '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>',
+  'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'arrow-up': '<path d="m12 19V5"/><path d="m5 12 7-7 7 7"/>',
+  paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  note: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
+  cards: '<rect x="3" y="5" width="14" height="16" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v14"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+  bell: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+  palette: '<circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1"/><circle cx="14" cy="9" r="1"/><circle cx="15" cy="14" r="1"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+  alert: '<path d="m10.29 3.86-7.5 13A2 2 0 0 0 4.53 20h14.94a2 2 0 0 0 1.74-3l-7.5-13a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  cpu: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 14h3"/><path d="M1 9h3"/><path d="M1 14h3"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+};
+const ico = (name, size = 16) => `<svg class="svg-ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+
 const THEMES = [
   ['pink', 'ชมพูพาสเทล', '#ec6a9c'], ['lavender', 'ลาเวนเดอร์', '#9b7ede'], ['mint', 'มิ้นต์', '#3fb68b'],
   ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
-  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'วิชา'], ['calendar', '📅', 'ปฏิทิน'],
-  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🐃', 'อู๊ดเอไอ'],
+  ['home', ico('home'), 'หน้าแรก'], ['plan', ico('book'), 'ตารางอ่าน'], ['subjects', ico('layers'), 'วิชา'], ['calendar', ico('calendar'), 'ปฏิทิน'],
+  ['timer', ico('clock'), 'จับเวลา'], ['stats', ico('chart'), 'สถิติ'], ['ai', ico('sparkles'), 'อู๊ดเอไอ'],
 ];
-const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
+const ALL_TABS = [...TABS, ['settings', ico('settings'), 'ตั้งค่า']];
 
 const App = {
   tab: 'home', calView: 'timetable', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false,
@@ -63,9 +106,9 @@ const App = {
     const ring = document.getElementById('timerRing');
     if (ring) ring.style.setProperty('--p', (1 - sec / Timer.dur()) * 100);
     const btn = document.getElementById('timerStartBtn');
-    if (btn) { btn.textContent = Timer.running ? '⏸ หยุดชั่วคราว' : '▶ เริ่ม'; btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start'; }
+    if (btn) { btn.innerHTML = Timer.running ? `${ico('pause')} หยุดชั่วคราว` : `${ico('play')} เริ่ม`; btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start'; }
     const mini = document.getElementById('timerMini');
-    if (mini) { mini.textContent = `⏱ ${txt}`; mini.hidden = !Timer.running; }
+    if (mini) { mini.innerHTML = `${ico('clock', 14)} ${txt}`; mini.hidden = !Timer.running; }
     document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
   },
 
@@ -90,10 +133,10 @@ const App = {
     const isDark = DB.prefs.dark || DB.prefs.theme === 'navy';
     return `${left}
       <div class="head-actions">
-        <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" aria-label="ตัวจับเวลา" ${Timer.running ? '' : 'hidden'}>⏱</button>
+        <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" aria-label="ตัวจับเวลา" ${Timer.running ? '' : 'hidden'}>${ico('clock', 14)}</button>
         ${this.syncBadgeHTML()}
-        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">⚙️</button>
-        <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? '☀️' : '🌙'}</button>
+        <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
+        <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? ico('sun', 17) : ico('moon', 17)}</button>
       </div>`;
   },
 
@@ -154,9 +197,9 @@ function planItemHTML(p, showDate = false) {
   return `<div class="item ${p.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
     ${tag(p.subjectId)}
-    <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${p.time ? ` <small class="muted">⏰ ${esc(p.time)}${p.remind !== false ? ' 🔔' : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
-    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">✎</button>
-    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ" aria-label="ลบแผนอ่าน">✕</button></span>
+    <span class="grow">${p.kind === 'review' ? `${ico('reset', 13)} ` : ''}${esc(p.title)}${p.time ? ` <small class="muted">${ico('clock', 12)} ${esc(p.time)}${p.remind !== false ? ` ${ico('bell', 12)}` : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">${ico('edit', 15)}</button>
+    <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ" aria-label="ลบแผนอ่าน">${ico('close', 15)}</button></span>
   </div>`;
 }
 function countdownCard(s) {
@@ -223,9 +266,11 @@ function coachHeroHTML() {
 function coachActionHTML() { return ''; }
 function syncGutters() {
   document.documentElement.dataset.home = '1';
+  const collapsed = localStorage.getItem('lp_coach_collapsed') === '1';
+  document.documentElement.dataset.coach = collapsed ? 'collapsed' : 'open';
   const right = document.getElementById('gutterRight');
   if (!right) return;
-  right.innerHTML = `${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด">`;
+  right.innerHTML = `<button type="button" class="coach-toggle" data-act="toggle-coach" aria-label="${collapsed ? 'แสดงลุงอู๊ด' : 'พับเก็บลุงอู๊ด'}">${collapsed ? `${ico('chevron-left', 14)} อู๊ด` : `${ico('chevron-right', 14)} ซ่อน`}</button>${collapsed ? '' : `${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด">`}`;
 }
 function normalizeLink(raw) {
   let url = String(raw || '').trim();
@@ -337,8 +382,8 @@ const Views = {
     
     <section class="card">
       <div class="toolbar">
-        <h2 class="grow">📖 ตารางอ่านหนังสือ</h2>
-        <button class="btn" data-act="add-plan" data-date="${t}">+ เพิ่มแผนอ่าน</button>
+        <h2 class="grow">${ico('book', 18)} ตารางอ่านหนังสือ</h2>
+        <button class="btn" data-act="add-plan" data-date="${t}">${ico('plus', 15)} เพิ่มแผนอ่าน</button>
       </div>
     </section>
     ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2></div>${overdue.map(p => planItemHTML(p, true)).join('')}</section>` : ''}
@@ -351,9 +396,13 @@ const Views = {
 
   subjects() {
     return `
-    <div class="toolbar subjects-bar"><h2>📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
-      <button class="btn" data-act="add-subject">+ เพิ่มวิชา</button></div>
-    ${DB.subjects.length ? '' : empty('📚', 'ยังไม่มีวิชา เพิ่มวิชาแรกกันเลย')}
+    <section class="card">
+      <div class="toolbar subjects-bar">
+        <h2 class="grow">${ico('layers', 18)} วิชาทั้งหมด (${DB.subjects.length})</h2>
+        <button class="btn" data-act="add-subject">${ico('plus', 15)} เพิ่มวิชา</button>
+      </div>
+    </section>
+    ${DB.subjects.length ? '' : `<section class="card">${empty(ico('layers', 32), 'ยังไม่มีวิชา เพิ่มวิชาแรกกันเลย')}</section>`}
     <div class="subj-list">${DB.subjects.map(s => {
       const p = subjectProgress(s), n = s.examDate ? daysBetween(todayStr(), s.examDate) : null;
       const fcN = DB.flashcards.filter(f => f.subjectId === s.id).length;
@@ -361,9 +410,9 @@ const Views = {
       return `<section class="card subj" id="subj-${s.id}" style="--c:${safeColor(s.color)}">
         <div class="subj-head">
           <div class="grow"><h3>${esc(s.name)}</h3>
-            <div class="muted small">${s.examDate ? `🎯 สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
-          <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวิชา ${esc(s.name)}">✎ แก้ไข</button>
-          <button class="mini-btn" data-act="del-subject" data-id="${s.id}" aria-label="ลบวิชา ${esc(s.name)}">🗑</button>
+            <div class="muted small">${s.examDate ? `${ico('target', 13)} สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div></div>
+          <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวิชา ${esc(s.name)}">${ico('edit', 15)} แก้ไข</button>
+          <button class="mini-btn" data-act="del-subject" data-id="${s.id}" aria-label="ลบวิชา ${esc(s.name)}">${ico('trash', 15)}</button>
         </div>
         <div class="prog-top"><span>ความคืบหน้า</span><span>${p.done}/${p.total} บท (${p.pct}%)</span></div>
         ${progressBar(p.pct, s.color)}
@@ -371,16 +420,16 @@ const Views = {
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">${esc(c.title)}</span>
             <span class="item-actions">
-            <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">📝${c.note ? '' : '+'}</button>
-            <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">↑</button>
-            <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">✎</button>
-            <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">✕</button>
+            <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">${ico('note', 15)}</button>
+            <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">${ico('arrow-up', 14)}</button>
+            <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
+            <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
             </span>
           </div>`).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
         <div class="row wrap">
-          <button class="btn small" data-act="add-chapters" data-sid="${s.id}">+ เพิ่มบท</button>
-          <button class="btn small ghost" data-act="files" data-sid="${s.id}">📎 ไฟล์ (${fileN})</button>
-          <button class="btn small ghost" data-act="flashcards" data-sid="${s.id}">🃏 แฟลชการ์ด (${fcN})</button>
+          <button class="btn small" data-act="add-chapters" data-sid="${s.id}">${ico('plus', 14)} เพิ่มบท</button>
+          <button class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('paperclip', 14)} ไฟล์ (${fileN})</button>
+          <button class="btn small ghost" data-act="flashcards" data-sid="${s.id}">${ico('cards', 14)} แฟลชการ์ด (${fcN})</button>
         </div>
       </section>`;
     }).join('')}</div>`;
@@ -388,14 +437,14 @@ const Views = {
 
   calendar() {
     const view = App.calView || 'timetable';
-    const switcher = `<div class="toolbar">
-      <h2 class="grow">${view === 'timetable' ? '🗓️ จัดตารางเรียน' : view === 'exams' ? '🎯 ตารางสอบ' : '📅 ปฏิทิน'}</h2>
+    const switcher = `<section class="card"><div class="toolbar">
+      <h2 class="grow">${view === 'timetable' ? `${ico('calendar', 18)} จัดตารางเรียน` : view === 'exams' ? `${ico('target', 18)} ตารางสอบ` : `${ico('calendar', 18)} ปฏิทิน`}</h2>
       <div class="pills" style="margin:0">
         <button class="pill ${view === 'timetable' ? 'active' : ''}" data-act="cal-view" data-v="timetable">ตารางเรียน</button>
         <button class="pill ${view === 'month' ? 'active' : ''}" data-act="cal-view" data-v="month">ปฏิทิน</button>
         <button class="pill ${view === 'exams' ? 'active' : ''}" data-act="cal-view" data-v="exams">ตารางสอบ</button>
       </div>
-    </div>`;
+    </div></section>`;
 
     if (view === 'timetable') {
       const classes = DB.classes || [];
@@ -513,7 +562,7 @@ const Views = {
     const p = DB.prefs.pomo, t = todayStr();
     const sessions = DB.sessions.filter(x => x.date === t).sort((a, b) => b.at - a.at);
     const total = sessions.reduce((a, x) => a + x.minutes, 0);
-    const modes = [['work', '🎯 โฟกัส'], ['short', '☕ พักสั้น'], ['long', '🌙 พักยาว']];
+    const modes = [['work', `${ico('target', 14)} โฟกัส`], ['short', `${ico('clock', 14)} พักสั้น`], ['long', `${ico('moon', 14)} พักยาว`]];
     setTimeout(() => App.renderTimerBits(), 0);
 
     return `
@@ -524,10 +573,10 @@ const Views = {
           <div class="muted small">รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}</div></div></div>
         <label class="field">อ่านวิชา<select data-chg="timer-subject">${subjectOptions(Timer.subjectId)}</select></label>
         <div class="row center wrap">
-          <button id="timerStartBtn" class="btn big" data-act="timer-start">▶ เริ่ม</button>
-          <button class="btn ghost" data-act="timer-reset">↺ รีเซ็ต</button>
-          ${Timer.mode === 'work' ? `<button class="btn ghost" data-act="timer-stoplog">⏹ หยุด+บันทึก</button>` : ''}
-          <button class="btn ghost" data-act="timer-skip">⏭ ข้าม</button>
+          <button id="timerStartBtn" class="btn big" data-act="timer-start">${ico('play')} เริ่ม</button>
+          <button class="btn ghost" data-act="timer-reset">${ico('reset')} รีเซ็ต</button>
+          ${Timer.mode === 'work' ? `<button class="btn ghost" data-act="timer-stoplog">${ico('square')} หยุด+บันทึก</button>` : ''}
+          <button class="btn ghost" data-act="timer-skip">${ico('skip')} ข้าม</button>
         </div>
         <details class="settings-mini"><summary>ตั้งค่าเวลา</summary>
           <div class="row wrap">
@@ -538,18 +587,18 @@ const Views = {
           </div></details>
       </section>
       <section class="card">
-        <div class="card-head"><h2>📒 บันทึกการอ่านวันนี้</h2><span class="chip accent">${fmtMin(total)}</span></div>
+        <div class="card-head"><h2>${ico('book', 18)} บันทึกการอ่านวันนี้</h2><span class="chip accent">${fmtMin(total)}</span></div>
         ${sessions.length ? sessions.map(x => `<div class="item">${tag(x.subjectId)}<span class="grow">${fmtMin(x.minutes)}</span>
           <small class="muted">${new Date(x.at).toTimeString().slice(0, 5)}</small>
-          <button class="mini-btn" data-act="del-session" data-id="${x.id}">✕</button></div>`).join('') : empty('⏳', 'ยังไม่มีบันทึกวันนี้')}
-        <h3>+ บันทึกเวลาเอง</h3>
+          <button class="mini-btn" data-act="del-session" data-id="${x.id}" aria-label="ลบบันทึก">${ico('close', 14)}</button></div>`).join('') : empty(ico('clock', 30), 'ยังไม่มีบันทึกวันนี้')}
+        <h3>${ico('plus', 15)} บันทึกเวลาเอง</h3>
         <form data-form="session" class="session-form" novalidate>
           <label class="field">วิชา<select name="subjectId">${subjectOptions('')}</select></label>
           <div class="grid2-sm">
             <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" max="1440" placeholder="เช่น 45" required></label>
             <label class="field"><span>วันที่ <small class="muted">(${fmtDateBE(t)})</small></span><input name="date" type="date" value="${t}" min="${new Date().getFullYear() - 1}-01-01" max="${new Date().getFullYear() + 5}-12-31" data-chg="be-hint"></label>
           </div>
-          <button class="btn small full">💾 บันทึกเวลา</button>
+          <button class="btn small full">${ico('save', 15)} บันทึกเวลา</button>
         </form>
       </section>
     </div>
@@ -576,9 +625,9 @@ const Views = {
     
     <section class="card">
       <div class="toolbar">
-        <button class="icon-btn" data-act="week-nav" data-dir="-1">‹</button>
+        <button class="icon-btn" data-act="week-nav" data-dir="-1" aria-label="สัปดาห์ก่อน">${ico('chevron-left', 17)}</button>
         <h2>สัปดาห์ ${fmtDateBE(ws)} – ${fmtDateBE(days[6])}</h2>
-        <button class="icon-btn" data-act="week-nav" data-dir="1">›</button>
+        <button class="icon-btn" data-act="week-nav" data-dir="1" aria-label="สัปดาห์ถัดไป">${ico('chevron-right', 17)}</button>
       </div>
       <div class="tiles">
         <div class="tile"><div class="tile-v">${(total / 60).toFixed(1)}</div><div class="muted small">ชั่วโมงที่อ่าน</div></div>
@@ -753,23 +802,42 @@ function taskItemHTML(x) {
   const n = daysBetween(todayStr(), x.date);
   return `<div class="item ${x.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
-    <span>${x.type === 'event' ? '📌' : '📝'}</span>
+    <span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>
     ${x.subjectId ? tag(x.subjectId) : ''}
     <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
-    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">✎</button>
-    <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">✕</button></span>
+    <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
+    <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">${ico('close', 15)}</button></span>
   </div>`;
 }
 
 /* ===== Modal contents ===== */
+function subjectClassRowHTML(c = {}) {
+  const dayOpts = [[1, 'จันทร์'], [2, 'อังคาร'], [3, 'พุธ'], [4, 'พฤหัส'], [5, 'ศุกร์'], [6, 'เสาร์'], [0, 'อาทิตย์']]
+    .map(([v, lbl]) => `<option value="${v}" ${Number(c.day ?? 1) === v ? 'selected' : ''}>${lbl}</option>`).join('');
+  return `<div class="subj-class-row" data-cid="${esc(c.id || '')}">
+    <select name="clsDay" aria-label="วันเรียน">${dayOpts}</select>
+    <input type="time" name="clsStart" value="${esc(c.start || '09:00')}" aria-label="เวลาเริ่ม">
+    <input type="time" name="clsEnd" value="${esc(c.end || '12:00')}" aria-label="เวลาเลิก">
+    <input name="clsRoom" value="${esc(c.room || '')}" placeholder="ห้องเรียน" maxlength="60" aria-label="ห้องเรียน">
+    <button type="button" class="mini-btn" data-act="subj-cls-del" aria-label="ลบคาบเรียน">${ico('close', 14)}</button>
+  </div>`;
+}
 function subjectForm(s = {}) {
   const color = s.color || SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length];
+  const classes = s.id ? (DB.classes || []).filter(c => c.subjectId === s.id) : [];
   return `<form data-form="subject" data-id="${s.id || ''}" novalidate>
     <label class="field">ชื่อวิชา<input name="name" required maxlength="120" value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
     <div class="row wrap">
       ${dateField('วันสอบ', 'examDate', s.examDate || '')}
-      <label class="field">เวลา<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
+      <label class="field">เวลาสอบ<input type="time" name="examTime" value="${esc(s.examTime || '')}"></label>
       <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น ห้อง 301"></label>
+    </div>
+    <div class="field">
+      <div class="row" style="margin:0 0 6px;justify-content:space-between">
+        <span>ตารางเรียนประจำสัปดาห์ (ซิงก์กับปฏิทินและหน้าแรกอัตโนมัติ)</span>
+        <button type="button" class="btn small ghost" data-act="subj-cls-add">${ico('plus', 13)} เพิ่มคาบเรียน</button>
+      </div>
+      <div id="subjClasses" class="subj-classes">${classes.map(subjectClassRowHTML).join('')}</div>
     </div>
     <div class="field">สี<div class="colors">${SUBJECT_COLORS.map((c, i) => `<label class="color-dot" style="--c:${c}" aria-label="เลือกสีที่ ${i + 1}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''} aria-label="เลือกสีที่ ${i + 1}"><span></span></label>`).join('')}
       <input type="color" name="customColor" value="${color}" title="สีอื่น" data-chg="custom-color"></div></div>
@@ -1021,7 +1089,7 @@ async function filesRender() {
       <span class="item-actions">
         ${folderSelect('drive', f.id, f.folder)}
         <button class="mini-btn pill-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
-        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">✕</button>
+        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">${ico('close', 14)}</button>
       </span>
     </div>`;
   const localRow = f => `<div class="item file-item">
@@ -1030,19 +1098,19 @@ async function filesRender() {
       <span class="item-actions">
         ${folderSelect('local', f.id, f.folder)}
         <button class="mini-btn pill-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
-        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}" aria-label="ดาวน์โหลด">⬇️</button>
+        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}" aria-label="ดาวน์โหลด">${ico('download', 15)}</button>
         <button class="mini-btn pill-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
-        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">✕</button>
+        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">${ico('close', 14)}</button>
       </span>
     </div>`;
   const linkRow = l => {
     let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch { }
     return `<div class="item file-item">
-      <span class="file-ic">🔗</span>
+      <span class="file-ic">${ico('link', 17)}</span>
       <span class="grow"><a href="${esc(l.url)}" target="_blank" rel="noopener"><b>${esc(l.title)}</b></a>${host ? `<br><small class="muted">${esc(host)}</small>` : ''}</span>
       <span class="item-actions">
         ${folderSelect('link', l.id, l.folder)}
-        <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}" aria-label="ลบลิงก์">✕</button>
+        <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}" aria-label="ลบลิงก์">${ico('close', 14)}</button>
       </span>
     </div>`;
   };
@@ -1594,8 +1662,18 @@ const Actions = {
   },
 
   // subjects
-  'add-subject': () => openModal('+ เพิ่มวิชา', subjectForm()),
-  'edit-subject': el => openModal('✎ แก้ไขวิชา', subjectForm(subjectById(el.dataset.id))),
+  'add-subject': () => openModal(`${ico('plus', 17)} เพิ่มวิชา`, subjectForm(), true),
+  'edit-subject': el => openModal(`${ico('edit', 17)} แก้ไขวิชา`, subjectForm(subjectById(el.dataset.id)), true),
+  'subj-cls-add': () => {
+    const wrap = document.getElementById('subjClasses');
+    if (wrap) wrap.insertAdjacentHTML('beforeend', subjectClassRowHTML());
+  },
+  'subj-cls-del': el => el.closest('.subj-class-row')?.remove(),
+  'toggle-coach': () => {
+    const next = localStorage.getItem('lp_coach_collapsed') === '1' ? '0' : '1';
+    localStorage.setItem('lp_coach_collapsed', next);
+    syncGutters();
+  },
   'del-subject': el => {
     const s = subjectById(el.dataset.id);
     if (!confirm(`ลบวิชา "${s.name}" และแผน/แฟลชการ์ด/ไฟล์ที่เกี่ยวข้อง?`)) return;
@@ -1960,7 +2038,18 @@ const Forms = {
       (d.chapters || '').split('\n').map(x => x.trim()).filter(Boolean).forEach(title => s.chapters.push({ id: uid(), title: title.slice(0, 200), done: false, note: '' }));
     }
     Object.assign(s, { name: name.slice(0, 120), examDate: d.examDate || '', examTime: d.examTime || '', room: (d.room || '').trim().slice(0, 80), color });
-    (DB.classes || []).forEach(c => { if (c.subjectId === s.id) c.color = color; });
+    const rows = [...f.querySelectorAll('.subj-class-row')];
+    const newSlots = [];
+    for (const row of rows) {
+      const day = Number(row.querySelector('[name=clsDay]')?.value ?? 1);
+      const start = row.querySelector('[name=clsStart]')?.value || '';
+      const end = row.querySelector('[name=clsEnd]')?.value || '';
+      const room = (row.querySelector('[name=clsRoom]')?.value || '').trim().slice(0, 60);
+      if (!start) continue;
+      if (end && end <= start) return App.toast('เวลาเลิกเรียนต้องหลังเวลาเริ่มนะ');
+      newSlots.push({ id: row.dataset.cid || uid(), subjectId: s.id, title: s.name, day, start, end, room, color });
+    }
+    DB.classes = (DB.classes || []).filter(c => c.subjectId !== s.id).concat(newSlots);
     if (d.examDate) Notifier.ask();
     closeModal(); save();
   },
