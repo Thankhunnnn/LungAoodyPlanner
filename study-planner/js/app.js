@@ -391,7 +391,7 @@ const Views = {
     return `
     <div class="ref-row1">
       <section class="card ref-banner ${isFootball ? 'is-football' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
-        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true">` : ''}
+        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true"><span class="banner-hala" aria-hidden="true">Hala Madrid</span>` : ''}
         <div class="banner-ic" aria-hidden="true">${ico('target', 24)}</div>
         <div class="ref-banner-body">
           <div class="ref-banner-title"><span>เป้าหมายหลักของคุณ</span></div>
