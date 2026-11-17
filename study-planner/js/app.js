@@ -5,7 +5,7 @@ const THEMES = [
 ];
 const TABS = [
   ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'แต่ละวิชา'], ['calendar', '📅', 'ปฏิทิน'],
-  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🤖', 'AI ติว'],
+  ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🐃', 'อู๊ดเอไอ'],
 ];
 const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
 
@@ -70,7 +70,7 @@ const App = {
         const n = daysBetween(t, ex.examDate);
         sub = n === 0 ? `วันนี้สอบ ${esc(ex.name)} สู้ๆ นะ! 💪` : `อีก ${n} วันสอบ ${esc(ex.name)} — ค่อยๆ อ่านไปด้วยกันนะ`;
       }
-      const greet = DB.prefs.theme === 'navy' ? 'หวัดดีค้าบ' : 'หวัดดีค่า';
+      const greet = 'หวัดดีค้าบ';
       left = `<div class="hello">
         <div class="avatar">${avatarImg()}</div>
         <div><h1>${greet}${DB.name ? ' ' + esc(DB.name) : ''}</h1><p>${sub}</p></div>
@@ -320,7 +320,7 @@ const Views = {
         <span class="grow"></span>
         <button class="btn ghost" data-act="add-plan" data-date="${t}">+ เพิ่มเอง</button>
       </div>
-      <p class="muted small">ระบบจะกระจายบทที่ยังไม่อ่านให้ทันวันสอบ โดยเน้นวิชาที่ใกล้สอบและเหลือเยอะก่อน (รายการที่เพิ่มเองและที่ติ๊กแล้วจะไม่ถูกลบ) · อยากให้ AI ช่วยจัดแบบมีเงื่อนไข ไปที่แท็บ <button class="link" data-act="go" data-tab="ai">AI ติว</button></p>
+      <p class="muted small">ระบบจะกระจายบทที่ยังไม่อ่านให้ทันวันสอบ โดยเน้นวิชาที่ใกล้สอบและเหลือเยอะก่อน (รายการที่เพิ่มเองและที่ติ๊กแล้วจะไม่ถูกลบ) · อยากให้ AI ช่วยจัดแบบมีเงื่อนไข ไปที่แท็บ <button class="link" data-act="go" data-tab="ai">อู๊ดเอไอ</button></p>
     </section>
     ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2><button class="btn small" data-act="auto-plan">จัดใหม่ให้ทัน</button></div>${overdue.map(p => planItemHTML(p, true)).join('')}</section>` : ''}
     <section class="card">
@@ -505,7 +505,7 @@ const Views = {
 
   ai() {
     if (!AI.ready()) {
-      return `<section class="card welcome"><h2>🤖 AI ติว</h2>
+      return `<section class="card welcome"><h2>🐃 อู๊ดเอไอ</h2>
         <p>ต้องใส่ API key ก่อนนะ เลือกได้ทั้ง <b>Google Gemini</b> (มีโควตาฟรี) หรือ <b>OpenAI</b></p>
         <button class="btn" data-act="go" data-tab="settings">ไปที่ตั้งค่า AI →</button></section>`;
     }
@@ -762,7 +762,7 @@ function fcRender() {
       <label class="inline"><input type="checkbox" data-act="fc-unknown" ${f.onlyUnknown ? 'checked' : ''}> เฉพาะที่ยังจำไม่ได้</label></div>
       <form data-form="fc-add" class="fc-add"><input name="q" maxlength="300" placeholder="คำถาม / คำศัพท์" required><input name="a" maxlength="300" placeholder="คำตอบ" required><button class="btn small">+ เพิ่ม</button></form>
       ${cards.map(x => `<div class="item ${x.known ? 'done' : ''}"><span class="grow"><b>${esc(x.q)}</b><br><small class="muted">${esc(x.a)}</small></span>
-        <button class="mini-btn" data-act="fc-del" data-id="${x.id}">✕</button></div>`).join('') || '<p class="muted">ยังไม่มีการ์ด — เพิ่มเอง หรือให้ AI สร้างจากโน้ต (แท็บ AI ติว / ปุ่มในโน้ต)</p>'}`);
+        <button class="mini-btn" data-act="fc-del" data-id="${x.id}">✕</button></div>`).join('') || '<p class="muted">ยังไม่มีการ์ด — เพิ่มเอง หรือให้ AI สร้างจากโน้ต (แท็บ อู๊ดเอไอ / ปุ่มในโน้ต)</p>'}`);
     return;
   }
   if (!cards.length) { f.mode = 'list'; return fcRender(); }
