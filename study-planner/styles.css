@@ -36,6 +36,7 @@
 /* After :root / dark mode so these tokens win (same specificity, later source). */
 [data-theme="navy"],
 [data-dark="1"][data-theme="navy"] {
+  color-scheme: dark;
   --accent: #4ea8ff;
   --bg1: #0b192c;
   --bg2: #123056;
