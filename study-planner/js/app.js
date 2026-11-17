@@ -183,10 +183,11 @@ const App = {
     document.getElementById('nav').innerHTML = `
       <div class="side-brand"><span class="side-logo">${isFootball ? '<img src="assets/madrid-crest.png" alt="Real Madrid" class="side-logo-img">' : isManU ? '<img src="assets/manutd-crest.png" alt="Man Utd" class="side-logo-img">' : isMono ? ico('layers', 18) : '🐃'}</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
       <div class="side-term">
-        <select class="side-term-sel" data-chg="switch-term" aria-label="เลือกเทอม">
-          ${allTermNames().map(t => `<option value="${esc(t)}" ${t === (DB.term || 'เทอม 1') ? 'selected' : ''}>🎓 ${esc(t)}</option>`).join('')}
+        <select class="side-term-sel" data-chg="switch-term" aria-label="เลือก Workflow">
+          ${allTermNames().map(t => `<option value="${esc(t)}" ${t === (DB.term || 'เทอม 1') ? 'selected' : ''}>${esc(t)}</option>`).join('')}
         </select>
-        <button type="button" class="mini-btn" data-act="new-term" title="เริ่มเทอมใหม่ (เก็บเทอมเดิมเป็นประวัติ)">+ เทอม</button>
+        <button type="button" class="mini-btn" data-act="new-term" title="สร้าง Workflow ใหม่แยกข้อมูลอิสระ">+ ใหม่</button>
+        ${allTermNames().length > 1 ? `<button type="button" class="mini-btn" data-act="del-term" title="ลบ Workflow ปัจจุบัน">${ico('trash', 13)}</button>` : ''}
       </div>
       <div class="side-tabs">${ALL_TABS.map(([id, ic, label]) =>
         `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${id === 'ai' ? aiTabLabel() : label}</span></button>`).join('')}</div>
@@ -1387,18 +1388,25 @@ function dayModal(d, opts = {}) {
     <div class="row wrap"><button class="btn small" data-act="add-todo" data-date="${d}">+ สิ่งที่ต้องทำ</button></div>`, false, opts);
 }
 function openNewTermModal() {
-  const existing = new Set(allTermNames());
-  const presets = ['เทอม 1', 'เทอม 2', 'ซัมเมอร์'];
-  const suggest = presets.find(p => !existing.has(p)) || `เทอม ${existing.size + 1}`;
-  openModal('🎓 เริ่มเทอมใหม่', `
-    <p class="muted small" style="margin-top:0">ระบบจะเก็บวิชา ตารางเรียน วันสอบ ไฟล์แนบ และงานของ <b>${esc(DB.term || 'เทอม 1')}</b> ไว้เป็นประวัติให้สลับกลับมาดูได้ตลอด โดยสถิติเวลาอ่านรวมทั้งหมดยังคงอยู่</p>
-    <div class="pills" style="margin-bottom:12px">
-      ${presets.map(p => `<button type="button" class="pill" data-act="pick-term-preset" data-v="${esc(p)}">${esc(p)}${existing.has(p) ? ' ✓' : ''}</button>`).join('')}
-    </div>
+  openModal('สร้าง Workflow ใหม่', `
+    <p class="muted small" style="margin-top:0">แยกชุดวิชา ตารางเรียน วันสอบ ไฟล์แนบ และงานเป็นคนละพื้นที่ทำงาน (ตั้งชื่อเองได้อิสระ) โดยสถิติเวลาอ่านรวมทั้งหมดยังคงอยู่</p>
     <form data-form="new-term">
-      <label class="field">ชื่อเทอม (เช่น เทอม 2, เทอม 2/2569, ซัมเมอร์)<input id="newTermName" name="termName" required maxlength="40" value="${esc(suggest)}"></label>
-      <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">สร้าง / สลับเทอม</button></div>
+      <label class="field">ชื่อ Workflow / พื้นที่ทำงาน<input id="newTermName" name="termName" required maxlength="40" placeholder="เช่น เทอม 2/2569, เตรียมสอบ, โปรเจกต์"></label>
+      <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">สร้าง &amp; สลับใช้งาน</button></div>
     </form>
+  `);
+}
+function openDeleteTermModal() {
+  const names = allTermNames();
+  if (names.length <= 1) return App.toast('ต้องมีอย่างน้อย 1 Workflow');
+  const cur = (DB.term || 'เทอม 1').trim() || 'เทอม 1';
+  openModal('ยืนยันการลบ Workflow', `
+    <p style="margin-top:0">ต้องการลบ Workflow <b>"${esc(cur)}"</b> และวิชา ตารางเรียน วันสอบ งานทั้งหมดใน Workflow นี้ใช่ไหม?</p>
+    <p class="muted small">สถิติเวลาอ่านรวมและ Workflow อื่นๆ จะยังคงอยู่ครบ</p>
+    <div class="row end">
+      <button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button>
+      <button type="button" class="btn danger" data-act="del-term-confirm">ลบ Workflow นี้</button>
+    </div>
   `);
 }
 function openTagColorsModal(opts = {}) {
@@ -2493,6 +2501,24 @@ const Actions = {
   // tasks & unified todo
   'open-pending': () => openPendingModal(),
   'new-term': () => openNewTermModal(),
+  'del-term': () => openDeleteTermModal(),
+  'del-term-confirm': () => {
+    const names = allTermNames();
+    const cur = (DB.term || 'เทอม 1').trim() || 'เทอม 1';
+    const nextName = names.find(n => n !== cur);
+    if (!nextName) return closeModal();
+    const next = DB.terms?.[nextName] || { subjects: [], classes: [], plan: [], tasks: [] };
+    DB.subjects = Array.isArray(next.subjects) ? next.subjects : [];
+    DB.classes = Array.isArray(next.classes) ? next.classes : [];
+    DB.plan = Array.isArray(next.plan) ? next.plan : [];
+    DB.tasks = Array.isArray(next.tasks) ? next.tasks : [];
+    if (DB.terms) { delete DB.terms[cur]; delete DB.terms[nextName]; }
+    DB.term = nextName;
+    App.todoSub = '';
+    closeModal();
+    save();
+    App.toast(`ลบ "${cur}" แล้ว`);
+  },
   'pick-term-preset': el => { const inp = document.getElementById('newTermName'); if (inp) { inp.value = el.dataset.v || ''; inp.focus(); } },
   'tag-colors': () => openTagColorsModal(),
   'tag-color-pick': el => {

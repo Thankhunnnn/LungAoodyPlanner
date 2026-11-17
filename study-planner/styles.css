@@ -1492,3 +1492,155 @@ html:is([data-theme="mono"], [data-theme="pink"], [data-theme="lavender"], [data
 @media (max-width: 1280px) {
   .ref-row1 { grid-template-columns: 1fr 1fr; }
 }
+
+/* ===== Royal Glass Button System ===== */
+
+/* 1. Primary CTA Button (+ สิ่งที่ต้องทำ, ดาวน์โหลด, ยืนยัน) */
+.btn:not(.ghost):not(.danger) {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #4ea8ff 0%, #3b6ef6 55%, #6366f1 100%);
+  border: 1px solid rgba(255, 255, 255, .26);
+  box-shadow:
+    0 4px 16px rgba(59, 130, 246, .35),
+    inset 0 1px 0 rgba(255, 255, 255, .35);
+  font-weight: 500;
+  letter-spacing: .2px;
+  transition: transform .16s ease, box-shadow .18s ease, filter .18s ease;
+}
+.btn:not(.ghost):not(.danger)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, .24) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform .45s ease;
+}
+.btn:not(.ghost):not(.danger):hover:not(:disabled)::after {
+  transform: translateX(120%);
+}
+.btn:not(.ghost):not(.danger):hover:not(:disabled) {
+  transform: translateY(-1.5px);
+  box-shadow:
+    0 6px 22px rgba(78, 168, 255, .48),
+    inset 0 1px 0 rgba(255, 255, 255, .45);
+}
+.btn:disabled {
+  opacity: .42 !important;
+  filter: grayscale(.45);
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: not-allowed;
+}
+
+/* 2. Ghost / Secondary Buttons (ยกเลิก, ล้างเลือก, เลือกทั้งหมด) */
+.btn.ghost, .mini-btn {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .14);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.btn.ghost:hover, .mini-btn:hover {
+  background: rgba(78, 168, 255, .14);
+  border-color: rgba(212, 175, 55, .45);
+  transform: translateY(-1px);
+}
+
+/* 3. Filter Chips (ทั้งหมด, 5500111 EXP ENG I, โฟลเดอร์) */
+.chip {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+  transition: all .16s ease;
+}
+.chip:hover {
+  background: rgba(255, 255, 255, .09);
+  border-color: rgba(212, 175, 55, .48);
+  transform: translateY(-1px);
+}
+.chip.accent {
+  background: linear-gradient(135deg, #4ea8ff, #6366f1);
+  border-color: rgba(255, 255, 255, .28);
+  box-shadow: 0 3px 14px rgba(78, 168, 255, .38), inset 0 1px 0 rgba(255, 255, 255, .3);
+}
+
+/* 4. ปุ่ม + เล็กๆ ขวาสุดของแต่ละวันใน To do list */
+.day-add-btn, [data-act="add-plan-day"], .day-head .mini-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid rgba(255, 255, 255, .14);
+  transition: all .16s ease;
+}
+.day-add-btn:hover, [data-act="add-plan-day"]:hover, .day-head .mini-btn:hover {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(78, 168, 255, .45);
+}
+
+/* 5. กดแล้วเด้งรับนิ้วทุกปุ่ม */
+.btn:active, .chip:active, .mini-btn:active, .icon-btn:active {
+  transform: scale(.96) !important;
+}
+
+/* 6. Royal Glass polish for Pills, Folder Select, Theme Swatches & Inline Folder Input */
+.folder-chip.active .folder-inline-inp { color: #fff; }
+.folder-chip.active .folder-inline-inp::placeholder { color: rgba(255, 255, 255, .75); }
+
+.folder-sel, .pill-btn {
+  background: rgba(255, 255, 255, .04) !important;
+  border: 1px solid rgba(255, 255, 255, .14) !important;
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+  transition: background .15s ease, border-color .15s ease, transform .15s ease;
+}
+.folder-sel:hover, .pill-btn:hover {
+  background: rgba(78, 168, 255, .14) !important;
+  border-color: rgba(212, 175, 55, .45) !important;
+}
+
+.pills {
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .13);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+.pill { transition: all .16s ease; }
+.pill:hover:not(.active) { background: rgba(255, 255, 255, .08); color: var(--text); }
+.pill.active {
+  background: linear-gradient(135deg, #4ea8ff 0%, #3b6ef6 55%, #6366f1 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 3px 14px rgba(78, 168, 255, .38), inset 0 1px 0 rgba(255, 255, 255, .3) !important;
+}
+.pill:active { transform: scale(.96); }
+
+.theme-sw {
+  white-space: nowrap;
+  color: var(--text) !important;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .14);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .07);
+  transition: all .16s ease;
+}
+.theme-sw:hover {
+  background: rgba(78, 168, 255, .12);
+  border-color: rgba(212, 175, 55, .48);
+  transform: translateY(-1px);
+}
+.theme-sw.active {
+  background: linear-gradient(135deg, rgba(78, 168, 255, .26), rgba(99, 102, 241, .26)) !important;
+  border-color: rgba(78, 168, 255, .75) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 14px rgba(78, 168, 255, .25), inset 0 1px 0 rgba(255, 255, 255, .22) !important;
+}
+.theme-sw:active { transform: scale(.96); }
