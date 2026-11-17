@@ -243,7 +243,7 @@ const Views = {
       return `${coachHeroHTML()}<section class="card welcome">
         <h2>ยินดีต้อนรับสู่ LungAoodyPlanner 🐃</h2>
         <p class="muted">เริ่มจาก 3 ขั้นง่ายๆ</p>
-        <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>กด "จัดตารางอัตโนมัติ" แล้วอ่านตามได้เลย</li></ol>
+        <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>จัดตารางอ่านและติ๊กความคืบหน้าได้เลย</li></ol>
         ${!DB.name ? `<form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value=""><button class="btn ghost">บันทึกชื่อ</button></form>` : ''}
         <div class="row center wrap">
           <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
@@ -280,8 +280,8 @@ const Views = {
       <section class="card today">
         <div class="card-head"><h2>📌 ตารางวันนี้ <small class="muted">(${fmtDateLong(t)})</small></h2>
           <span class="chip">${doneToday}/${today.length}</span></div>
-        ${today.length ? today.map(p => planItemHTML(p)).join('') : empty('📖', 'วันนี้ยังไม่มีแผนอ่าน', `<button class="btn" data-act="auto-plan">✨ จัดตารางอัตโนมัติ</button>`)}
-        ${overdue.length ? `<div class="warn-box">มีรายการค้าง ${overdue.length} อย่าง <button class="link" data-act="go" data-tab="plan">ดู</button> · <button class="link" data-act="auto-plan">จัดตารางใหม่</button></div>` : ''}
+        ${today.length ? today.map(p => planItemHTML(p)).join('') : empty('📖', 'วันนี้ยังไม่มีแผนอ่าน', `<button class="btn" data-act="add-plan" data-date="${t}">+ เพิ่มแผนอ่านวันนี้</button>`)}
+        ${overdue.length ? `<div class="warn-box">มีรายการค้าง ${overdue.length} อย่าง <button class="link" data-act="go" data-tab="plan">ดูในตารางอ่าน</button></div>` : ''}
       </section>
       <section class="card">
         <div class="card-head"><h2>📝 การบ้าน / งานใกล้ถึง</h2><button class="mini-btn" data-act="add-task">+ เพิ่ม</button></div>
@@ -328,17 +328,13 @@ const Views = {
     
     <section class="card">
       <div class="toolbar">
-        <button class="btn" data-act="auto-plan">✨ จัดตารางอัตโนมัติ</button>
-        <label class="inline">อ่านวันละ <input type="number" min="1" max="20" data-bind="prefs.chaptersPerDay" value="${DB.prefs.chaptersPerDay}" class="num"> บท</label>
-        <label class="inline"><input type="checkbox" data-bind="prefs.reviewDayBefore" ${DB.prefs.reviewDayBefore ? 'checked' : ''}> ทบทวนวันก่อนสอบ</label>
-        <span class="grow"></span>
-        <button class="btn ghost" data-act="add-plan" data-date="${t}">+ เพิ่มเอง</button>
+        <h2 class="grow">📖 ตารางอ่านหนังสือ</h2>
+        <button class="btn" data-act="add-plan" data-date="${t}">+ เพิ่มแผนอ่าน</button>
       </div>
-      <p class="muted small">ระบบจะกระจายบทที่ยังไม่อ่านให้ทันวันสอบ โดยเน้นวิชาที่ใกล้สอบและเหลือเยอะก่อน (รายการที่เพิ่มเองและที่ติ๊กแล้วจะไม่ถูกลบ) · อยากให้ AI ช่วยจัดแบบมีเงื่อนไข ไปที่แท็บ <button class="link" data-act="go" data-tab="ai">อู๊ดเอไอ</button></p>
     </section>
-    ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2><button class="btn small" data-act="auto-plan">จัดใหม่ให้ทัน</button></div>${overdue.map(p => planItemHTML(p, true)).join('')}</section>` : ''}
+    ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2></div>${overdue.map(p => planItemHTML(p, true)).join('')}</section>` : ''}
     <section class="card">
-      ${dates.length ? dates.map(day).join('') : empty('🗓️', DB.subjects.length ? 'ยังไม่มีตาราง — กด "จัดตารางอัตโนมัติ" ได้เลย' : 'เพิ่มวิชาก่อนนะ', DB.subjects.length ? '' : `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
+      ${dates.length ? dates.map(day).join('') : empty('🗓️', DB.subjects.length ? 'ยังไม่มีตาราง — กด "+ เพิ่มแผนอ่าน" ได้เลย' : 'เพิ่มวิชาก่อนนะ', DB.subjects.length ? '' : `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
     </section>
     ${past.length ? `<section class="card"><button class="link" data-act="toggle-past">${App.showPast ? '▾ ซ่อน' : '▸ แสดง'}รายการที่อ่านเสร็จแล้ว (${past.length})</button>
       ${App.showPast ? past.sort((a, b) => b.date.localeCompare(a.date)).map(p => planItemHTML(p, true)).join('') : ''}</section>` : ''}`;
@@ -347,7 +343,6 @@ const Views = {
   subjects() {
     return `
     <div class="toolbar subjects-bar"><h2>📚 วิชาทั้งหมด (${DB.subjects.length})</h2>
-      <button class="btn ghost" data-act="ai-add-exams">✨ เพิ่มตารางสอบด้วย AI</button>
       <button class="btn" data-act="add-subject">+ เพิ่มวิชา</button></div>
     ${DB.subjects.length ? '' : empty('📚', 'ยังไม่มีวิชา เพิ่มวิชาแรกกันเลย')}
     <div class="subj-list">${DB.subjects.map(s => {
@@ -637,7 +632,6 @@ const Views = {
       </section>
       <section class="card tools-card">
         <h2>🧰 เครื่องมือ AI</h2>
-        <button class="btn full" data-act="ai-add-exams" style="margin-top:0;margin-bottom:12px">📅 เพิ่มตารางสอบด้วย AI (ข้อความ/รูป)</button>
         ${sub ? `
         <label class="field">วิชา<select data-chg="ai-sub">${subjectOptions(App.aiSub, false)}</select></label>
         <label class="field">บท<select data-chg="ai-ch">${chs.map(c => `<option value="${c.id}" ${c.id === App.aiCh ? 'selected' : ''}>${esc(c.title)}${c.note ? ' 📝' : ''}</option>`).join('') || '<option value="">(ยังไม่มีบท)</option>'}</select></label>
@@ -647,13 +641,7 @@ const Views = {
           <button class="btn ghost" data-act="ai-quiz" ${App.aiCh ? '' : 'disabled'}>❓ ทำข้อสอบ</button>
           <button class="btn ghost" data-act="ai-explain" ${App.aiCh ? '' : 'disabled'}>💡 อธิบายบทนี้</button>
         </div>
-        <p class="muted small">ถ้ามีโน้ตในบทนั้น AI จะใช้โน้ตของคุณเป็นหลัก</p>
-        <hr>
-        <h3>🗓️ ให้ AI จัดตารางใหม่</h3>
-        <form data-form="replan">
-          <textarea name="req" rows="3" placeholder="เช่น อ่านไม่ทันเลย / วันเสาร์ไม่ว่าง / อยากอ่านบัญชีเยอะๆ ก่อน"></textarea>
-          <button class="btn full" ${App.aiBusy ? 'disabled' : ''}>✨ จัดตารางให้หน่อย</button>
-        </form>` : empty('📚', 'เพิ่มวิชาก่อนนะ', `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
+        <p class="muted small">ถ้ามีโน้ตในบทนั้น AI จะใช้โน้ตของคุณเป็นหลัก</p>` : empty('📚', 'เพิ่มวิชาก่อนนะ', `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
       </section>
     </div>
     ${coachActionHTML()}`;
