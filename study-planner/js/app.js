@@ -210,9 +210,10 @@ const subjectOptions = (sel, allowNone = true) =>
   (allowNone ? `<option value="">— ทั่วไป —</option>` : '') + DB.subjects.map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 const empty = (icon, text, btn = '', img = '') => `<div class="empty">${img ? `<img src="${img}" alt="" class="empty-mascot">` : `<div class="empty-ic">${icon}</div>`}<p>${text}</p>${btn}</div>`;
 
-function planItemHTML(p, showDate = false) {
+function planItemHTML(p, showDate = false, cat = '') {
   return `<div class="item ${p.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
+    ${cat}
     ${tag(p.subjectId)}
     <span class="grow">${p.kind === 'review' ? `${ico('reset', 13)} ` : ''}${esc(p.title)}${p.time ? ` <small class="muted">${ico('clock', 12)} ${esc(p.time)}${p.remind !== false ? ` ${ico('bell', 12)}` : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
     <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">${ico('edit', 15)}</button>
@@ -388,7 +389,7 @@ const Views = {
 
     return `
     <div class="ref-row1">
-      <section class="card ref-banner">
+      <section class="card ref-banner" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
         <div class="ref-banner-body">
           <div class="ref-banner-title"><span class="ref-target">${ico('target', 16)}</span> <span>เป้าหมายหลักของคุณ</span></div>
           <h2>${nextEx ? `${esc(nextEx.name)} · อีก ${nextDays} วันสอบ` : 'อ่านหนังสือให้ครบตามเป้า'}</h2>
@@ -451,10 +452,13 @@ const Views = {
       <section class="card ref-todos">
         <div class="card-head">
           <h2>${ico('check', 17)} งานที่ต้องทำวันนี้</h2>
+          <button class="mini-btn" data-act="add-task" title="เพิ่มการบ้าน/งาน">+ งาน</button>
           <span class="chip accent">${todayTodos.length} รายการ</span>
         </div>
         <div class="ref-todo-list">
-          ${todayTodos.length ? todayTodos.map(t0 => t0.kind === 'plan' ? planItemHTML(t0.item) : taskItemHTML(t0.item)).join('')
+          ${todayTodos.length ? todayTodos.map(t0 => t0.kind === 'plan'
+              ? planItemHTML(t0.item, false, '<span class="todo-cat cat-plan">แผนอ่าน</span>')
+              : taskItemHTML(t0.item, t0.item.type === 'event' ? '<span class="todo-cat cat-ev">กิจกรรม</span>' : '<span class="todo-cat cat-hw">การบ้าน</span>')).join('')
             : empty('', 'วันนี้ยังไม่มีรายการ', `<button class="btn small" data-act="add-plan" data-date="${t}">${ico('plus', 14)} เพิ่มแผนอ่านวันนี้</button>`, 'assets/coach-action.webp')}
         </div>
         <div class="ref-todo-foot">
@@ -594,16 +598,25 @@ const Views = {
         </div>
         <div class="prog-top"><span>ความคืบหน้า</span><span>${p.done}/${p.total} บท (${p.pct}%)</span></div>
         ${progressBar(p.pct, s.color)}
-        <div class="chapters">${s.chapters.map((c, i) => `<div class="item ${c.done ? 'done' : ''}">
+        <div class="chapters">${s.chapters.map((c, i) => {
+          const cf = Array.isArray(c.files) ? c.files : [];
+          const rounds = Number(c.rounds) || 0;
+          return `<div class="item ${c.done ? 'done' : ''}">
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
-            <span class="grow">${esc(c.title)}</span>
+            <span class="grow">
+              <span>${esc(c.title)}</span>
+              ${cf.length ? `<div class="ch-files-mini">${cf.map(f => `<span class="ch-file-tag">${ico('paperclip', 11)} ${esc(f.name || 'ไฟล์')}</span>`).join('')}</div>` : ''}
+            </span>
             <span class="item-actions">
+            <button type="button" class="round-chip ${rounds > 0 ? 'has' : ''}" data-act="chapter-round" data-sid="${s.id}" data-id="${c.id}" title="กดเพิ่มรอบที่เรียน/ทบทวน">${ico('reset', 12)} <span>${rounds} รอบ</span></button>
+            <button class="mini-btn ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ไฟล์ในบทนี้ (${cf.length})" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 14)}${cf.length ? `<small class="ch-fc">${cf.length}</small>` : ''}</button>
             <button class="mini-btn ${c.note ? 'has' : ''}" data-act="note" data-sid="${s.id}" data-id="${c.id}" title="โน้ต" aria-label="โน้ตบท ${esc(c.title)}">${ico('note', 15)}</button>
             <button class="mini-btn" data-act="move-chapter" data-sid="${s.id}" data-id="${c.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="เลื่อนขึ้น">${ico('arrow-up', 14)}</button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
             <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
             </span>
-          </div>`).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
+          </div>`;
+        }).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
         <div class="row wrap">
           <button class="btn small" data-act="add-chapters" data-sid="${s.id}">${ico('plus', 14)} เพิ่มบท</button>
           <button class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('paperclip', 14)} ไฟล์ (${fileN})</button>
@@ -985,11 +998,11 @@ const firebaseConfig = {
   },
 };
 
-function taskItemHTML(x) {
+function taskItemHTML(x, cat = '') {
   const n = daysBetween(todayStr(), x.date);
   return `<div class="item ${x.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
-    <span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>
+    ${cat || `<span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>`}
     ${x.subjectId ? tag(x.subjectId) : ''}
     <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
     <span class="item-actions"><button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
@@ -1359,6 +1372,50 @@ async function filesRender() {
       ${links.length ? `<h3>🔗 ลิงก์เอกสาร (${links.length})</h3>${links.map(linkRow).join('')}` : ''}
     `}`);
 }
+function openAllExamsModal() {
+  const exams = upcomingExams();
+  const past = DB.subjects.filter(s => s.examDate && daysBetween(todayStr(), s.examDate) < 0);
+  openModal(`${ico('target', 17)} นับถอยหลังวันสอบทั้งหมด`, `
+    ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty(ico('calendar', 30), 'ยังไม่มีวันสอบที่กำลังจะมาถึง', `<button class="btn small" data-act="go" data-tab="subjects">ไปตั้งวันสอบ</button>`)}
+    ${past.length ? `<div style="margin-top:16px"><h3>สอบผ่านไปแล้ว (${past.length})</h3><div class="cd-grid" style="opacity:.65">${past.map(countdownCard).join('')}</div></div>` : ''}
+  `, true);
+}
+async function openChapterFilesModal(sid, cid) {
+  const s = subjectById(sid); if (!s) return;
+  const c = (s.chapters || []).find(x => x.id === cid); if (!c) return;
+  openModal(`${ico('paperclip', 17)} บท: ${esc(c.title)}`, '<p class="muted">กำลังโหลดรายการไฟล์…</p>', true);
+  const local = await FileStore.list(sid).catch(() => []);
+  const drive = (s.driveFiles || []).filter(f => f && safeDriveId(f.id));
+  const links = s.links || [];
+  const linked = Array.isArray(c.files) ? c.files : [];
+  const isLinked = (kind, id) => linked.some(x => x.kind === kind && x.id === id);
+  const rows = [
+    ...drive.map(f => ({ kind: 'drive', id: f.id, name: f.name, sub: f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive' })),
+    ...local.filter(f => f && !f.driveId).map(f => ({ kind: 'local', id: f.id, name: f.name, sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
+    ...links.map(l => ({ kind: 'link', id: l.id, name: l.title, sub: l.folder ? `ลิงก์ · 📁 ${l.folder}` : 'ลิงก์เอกสาร' })),
+  ];
+  const rounds = Number(c.rounds) || 0;
+  setModalBody(`
+    <div class="ch-round-bar">
+      <div><b>จำนวนรอบที่เรียน / ทบทวน</b><br><small class="muted">บันทึกไว้กันลืมว่าอ่านบทนี้ซ้ำไปกี่รอบแล้ว</small></div>
+      <div class="row" style="margin:0">
+        <button type="button" class="icon-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="-1" aria-label="ลดรอบ">−</button>
+        <b id="chRoundVal" class="stat-num" style="min-width:60px;text-align:center">${rounds} รอบ</b>
+        <button type="button" class="icon-btn" data-act="chapter-round-adj" data-sid="${s.id}" data-id="${c.id}" data-d="1" aria-label="เพิ่มรอบ">+</button>
+      </div>
+    </div>
+    <div class="card-head" style="margin-top:14px">
+      <h3>เลือกไฟล์/ลิงก์ที่อยู่ในบทนี้ (${rows.length})</h3>
+      <button type="button" class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('upload', 14)} จัดการไฟล์วิชา</button>
+    </div>
+    ${rows.length ? rows.map(r => `<label class="item file-item" style="cursor:pointer">
+      <input type="checkbox" class="cb" data-chg="toggle-chapter-file" data-sid="${s.id}" data-cid="${c.id}" data-kind="${r.kind}" data-id="${esc(r.id)}" data-name="${esc(r.name)}" ${isLinked(r.kind, r.id) ? 'checked' : ''}>
+      <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
+      <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
+    </label>`).join('') : empty(ico('folder', 28), 'วิชานี้ยังไม่มีไฟล์หรือลิงก์', `<button type="button" class="btn small" data-act="files" data-sid="${s.id}">${ico('upload', 14)} อัปโหลดไฟล์ / เพิ่มลิงก์</button>`)}
+  `);
+}
+
 function openFilesModal(sid) {
   App.filesSid = sid; App.fileFolder = ''; App.fileTab = 'list';
   openModal(`📎 ไฟล์และเอกสาร — ${esc(subjectName(sid))}`, '<p class="muted">กำลังโหลด…</p>', true);
@@ -1870,7 +1927,20 @@ const Actions = {
     FileStore.delSubject(s.id).catch(() => { });
     save();
   },
-  'open-subject': el => { App.go('subjects'); setTimeout(() => document.getElementById('subj-' + el.dataset.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); },
+  'open-subject': el => { closeModal(); App.go('subjects'); setTimeout(() => document.getElementById('subj-' + el.dataset.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); },
+  'all-exams': () => openAllExamsModal(),
+  'chapter-round': el => {
+    const { c } = getSC(el); if (!c) return;
+    c.rounds = (Number(c.rounds) || 0) + 1;
+    save(); App.toast(`บันทึกบท "${c.title}" เรียนรอบที่ ${c.rounds} แล้ว`);
+  },
+  'chapter-round-adj': el => {
+    const { c } = getSC(el); if (!c) return;
+    c.rounds = Math.max(0, (Number(c.rounds) || 0) + Number(el.dataset.d || 0));
+    const v = document.getElementById('chRoundVal'); if (v) v.textContent = `${c.rounds} รอบ`;
+    save();
+  },
+  'chapter-files': el => openChapterFilesModal(el.dataset.sid, el.dataset.id),
   'toggle-chapter': el => { setChapterDone(el.dataset.sid, el.dataset.id, el.checked); save(); },
   'add-chapters': el => openModal('+ เพิ่มบท/หัวข้อ', `<form data-form="chapters" data-sid="${el.dataset.sid}">
       <label class="field">บรรทัดละ 1 บท<textarea name="list" rows="6" placeholder="Ch1 ...&#10;Ch2 ..."></textarea></label>
@@ -2398,6 +2468,18 @@ const Changes = {
     if (files.length) addChatFiles(files);
   },
   'upload-folder': el => { App.fileFolder = el.value || ''; filesRender(); },
+  'toggle-chapter-file': el => {
+    const s = subjectById(el.dataset.sid); if (!s) return;
+    const c = (s.chapters || []).find(x => x.id === el.dataset.cid); if (!c) return;
+    c.files = Array.isArray(c.files) ? c.files : [];
+    const { kind, id, name } = el.dataset;
+    if (el.checked) {
+      if (!c.files.some(x => x.kind === kind && x.id === id)) c.files.push({ kind, id, name: name || 'ไฟล์' });
+    } else {
+      c.files = c.files.filter(x => !(x.kind === kind && x.id === id));
+    }
+    save();
+  },
   'move-file-folder': async el => {
     const s = subjectById(App.filesSid); if (!s) return;
     const { kind, id } = el.dataset, folder = el.value || '';
