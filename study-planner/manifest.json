@@ -1,6 +1,6 @@
 {
-  "name": "Study Planner 🌸",
-  "short_name": "Study Planner",
+  "name": "LungAoodyPlanner 🐃",
+  "short_name": "LungAoody",
   "description": "ตัวช่วยวางแผนอ่านหนังสือ นับถอยหลังสอบ จัดตาราง และติวด้วย AI",
   "start_url": "./index.html",
   "scope": "./",

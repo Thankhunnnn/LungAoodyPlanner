@@ -58,7 +58,7 @@ const App = {
     if (btn) { btn.textContent = Timer.running ? '⏸ หยุดชั่วคราว' : '▶ เริ่ม'; btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start'; }
     const mini = document.getElementById('timerMini');
     if (mini) { mini.textContent = `⏱ ${txt}`; mini.style.display = Timer.running ? '' : 'none'; }
-    document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — Study Planner` : 'Study Planner 🌸';
+    document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
   },
 
   headerHTML() {
@@ -215,7 +215,7 @@ const Views = {
     const t = todayStr();
     if (!DB.subjects.length) {
       return `${coachHeroHTML()}<section class="card welcome">
-        <h2>ยินดีต้อนรับสู่ Study Planner 🌷</h2>
+        <h2>ยินดีต้อนรับสู่ LungAoodyPlanner 🐃</h2>
         <p class="muted">เริ่มจาก 3 ขั้นง่ายๆ</p>
         <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>กด "จัดตารางอัตโนมัติ" แล้วอ่านตามได้เลย</li></ol>
         ${!DB.name ? `<form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value=""><button class="btn ghost">บันทึกชื่อ</button></form>` : ''}
@@ -644,7 +644,7 @@ const firebaseConfig = {
       <p class="muted small">การล้างข้อมูลจะลบวิชา วันสอบ ตารางอ่าน โน้ต และสถิติทั้งหมด (ไม่สามารถกู้คืนได้หากไม่ได้ Export ไว้)</p>
       <button class="btn danger" data-act="reset">🗑️ ล้างข้อมูลทั้งหมด</button>
     </section>
-    <p class="muted small center">Study Planner 🌸 · ข้อมูลอัปเดตล่าสุด ${DB.updatedAt ? new Date(DB.updatedAt).toLocaleString('th-TH') : '-'}</p>`;
+    <p class="muted small center">LungAoodyPlanner 🐃 · ข้อมูลอัปเดตล่าสุด ${DB.updatedAt ? new Date(DB.updatedAt).toLocaleString('th-TH') : '-'}</p>`;
   },
 };
 
