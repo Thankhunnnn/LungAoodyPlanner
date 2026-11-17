@@ -196,24 +196,26 @@ function examYearOk(s) {
 }
 function coachBubble(kind) {
   const name = esc(DB.name || 'เพื่อน');
-  const nextEx = upcomingExams()[0];
-  if (kind === 'action') {
-    return `<div class="coach-bubble warn"><b>อู๊ด:</b> อย่ามาอู้อ่านหนังสือนะ! 😤</div>`;
-  }
-  return `<div class="coach-bubble"><b>อู๊ด:</b> เฮ้ ${name}! วันนี้เราลุยวิชาไหนกันดี?<br><span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span></div>`;
+  const lines = {
+    home: `<b>อู๊ด:</b> เฮ้ ${name}! วันนี้เราลุยวิชาไหนกันดี?<br><span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span>`,
+    plan: `<b>อู๊ด:</b> จัดตารางอ่านให้เป๊ะ จะได้ไม่ลนคืนก่อนสอบ!<br><span>อ่านจบแล้วอย่าลืมติ๊กด้วยล่ะ 📖</span>`,
+    subjects: `<b>อู๊ด:</b> เช็กบทเรียน โน้ต และไฟล์แต่ละวิชาให้ครบ<br><span>บทไหนยังไม่คล่อง กดติวได้เลย 📚</span>`,
+    calendar: `<b>อู๊ด:</b> ไหนดูซิ มีเรียนไรมั่ง มีสอบวันไหน ส่งการบ้านวันไหน?<br><span>วางแผนดีมีชัยไปกว่าครึ่ง 🗓️</span>`,
+    timer: `<b>อู๊ด:</b> โฟกัสทีละรอบ พักสายตาบ้างนะเพื่อน<br><span>เปิดจับเวลาแล้วลุยเลย ⏱️</span>`,
+    stats: `<b>อู๊ด:</b> ดูสถิติแล้วภูมิใจในตัวเองหน่อย!<br><span>สะสมชั่วโมงอ่านไปเรื่อยๆ นะ 🔥</span>`,
+    ai: `<b>อู๊ด:</b> ติดตรงไหนถามอออได้เลย ไม่ต้องเกรงใจ!<br><span>ส่งรูปหรือโน้ตมาให้ช่วยสรุปก็ได้ 🐃</span>`,
+    settings: `<b>อู๊ด:</b> ปรับธีม ตั้งแจ้งเตือน และเชื่อม Google Sync<br><span>ข้อมูลจะได้ตามไปทุกเครื่อง ⚙️</span>`,
+  };
+  return `<div class="coach-bubble">${lines[App.tab] || lines.home}</div>`;
 }
 function coachHeroHTML() {
   return `<section class="coach-hero">${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด" class="coach-hero-img" width="117" height="210" onload="this.dataset.ready='1'"></section>`;
 }
-function coachActionHTML() {
-  return `<section class="coach-footer">${coachBubble('action')}<img src="assets/coach-action.webp" alt="อู๊ด" class="coach-action-img" width="139" height="180"></section>`;
-}
+function coachActionHTML() { return ''; }
 function syncGutters() {
-  const home = App.tab === 'home';
-  document.documentElement.dataset.home = home ? '1' : '0';
+  document.documentElement.dataset.home = '1';
   const right = document.getElementById('gutterRight');
   if (!right) return;
-  if (!home) { right.innerHTML = ''; return; }
   right.innerHTML = `${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด">`;
 }
 function normalizeLink(raw) {
