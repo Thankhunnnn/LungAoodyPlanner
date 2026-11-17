@@ -544,7 +544,9 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
 .folder-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
 .folder-chip { display: inline-flex; align-items: center; gap: 2px; }
 .folder-chip .mini-btn { min-width: 24px; min-height: 24px; padding: 2px 4px; font-size: .75rem; }
-.folder-sel { width: auto; max-width: 140px; padding: 4px 8px; font-size: .78rem; border-radius: 10px; background: var(--soft); }
+.folder-sel { width: auto; max-width: 140px; padding: 4px 8px; font-size: .78rem; border-radius: 10px; background: var(--soft); color: var(--text); }
+select option { background: #fff; color: #1a2840; }
+[data-dark="1"] select option, [data-theme="navy"] select option { background: #122644; color: #eaf2ff; }
 .link-add-box { background: var(--soft); border: 1px solid var(--border); border-radius: 14px; padding: 8px 12px; margin: 10px 0; }
 .link-add-box summary { margin: 0; font-weight: 500; font-size: .9rem; }
 @media (max-width: 600px) {

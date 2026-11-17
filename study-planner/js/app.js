@@ -1019,7 +1019,7 @@ async function filesRender() {
   const s = subjectById(sid); if (!s) return;
   const all = await FileStore.list(sid).catch(() => []);
   if (gen !== _filesGen || App.filesSid !== sid) return;
-  const folders = s.folders || (s.folders = ['เนื้อหา', 'แบบฝึกหัด', 'เฉลย']);
+  const folders = s.folders || [];
   const curFolder = App.fileFolder || '';
   const matchF = f => !curFolder ? true : curFolder === '__none__' ? !f.folder : f.folder === curFolder;
   const allLocal = (all || []).filter(f => f && !f.driveId);
@@ -1070,7 +1070,7 @@ async function filesRender() {
   setModalBody(`
     <div class="folder-bar">
       <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${countIn(() => true)})</button>
-      ${folders.map(fn => `<span class="folder-chip"><button type="button" class="chip ${curFolder === fn ? 'accent' : ''}" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button>${!['เนื้อหา', 'แบบฝึกหัด', 'เฉลย'].includes(fn) ? `<button type="button" class="mini-btn" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button>` : ''}</span>`).join('')}
+      ${folders.map(fn => `<span class="folder-chip"><button type="button" class="chip ${curFolder === fn ? 'accent' : ''}" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="mini-btn" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
       ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
       <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
     </div>
@@ -1688,7 +1688,7 @@ const Actions = {
     const name = prompt('ชื่อโฟลเดอร์ใหม่ (เช่น ชีทสรุป, ข้อสอบเก่า)');
     if (!name || !name.trim()) return;
     const clean = name.trim().slice(0, 40);
-    s.folders = s.folders || ['เนื้อหา', 'แบบฝึกหัด', 'เฉลย'];
+    s.folders = s.folders || [];
     if (!s.folders.includes(clean)) s.folders.push(clean);
     App.fileFolder = clean; save({ silent: true }); filesRender();
   },
