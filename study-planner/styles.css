@@ -411,12 +411,13 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
   html[data-home="1"] { --gutter: clamp(220px, 22vw, 440px); }
   html[data-home="1"] .app { max-width: calc(100vw - 2 * var(--gutter) - 32px); padding-top: 12px; padding-bottom: 190px; }
   html[data-home="1"] .gutter-right {
-    display: flex; position: absolute; z-index: 2; top: 8px;
-    right: calc(-1 * var(--gutter) + 28px); width: calc(var(--gutter) - 70px);
-    flex-direction: column; align-items: center; justify-content: flex-start; gap: 8px; pointer-events: none;
+    display: flex; position: fixed; z-index: 3; bottom: 72px; right: 16px; top: auto;
+    width: max-content; max-width: calc(var(--gutter) - 24px);
+    flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 8px; pointer-events: none;
   }
-  html[data-home="1"] .gutter-right .coach-bubble { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
-  html[data-home="1"] .gutter-right img { width: auto; max-width: 100%; height: min(44vh, calc((100vh - 220px) * 0.78)); object-fit: contain; object-position: bottom center; filter: drop-shadow(0 14px 18px rgba(0,0,0,.35)); }
+  html[data-home="1"] .gutter-right .coach-bubble { width: max-content; max-width: min(240px, calc(var(--gutter) - 24px)); min-width: 0; box-sizing: border-box; margin-right: 8px; }
+  html[data-home="1"] .gutter-right .coach-bubble::after { left: auto; right: 36px; transform: none; }
+  html[data-home="1"] .gutter-right img { width: auto; max-width: none; height: min(44vh, calc((100vh - 220px) * 0.78)); object-fit: contain; object-position: bottom center; filter: drop-shadow(0 14px 18px rgba(0,0,0,.35)); }
   html[data-home="1"] .coach-hero, html[data-home="1"] .coach-footer { display: none; }
   .coach-moto { display: block; left: 10px; bottom: 12px; width: 190px; height: 154px; }
   .app { padding-bottom: 190px; }
@@ -425,8 +426,6 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
   .s-book { top: 92px; left: 28px; width: 70px; height: 60px; background-image: url('assets/sticker-book.webp'); transform: rotate(-8deg); }
   .s-pencil { top: 16px; right: 18px; width: 46px; height: 64px; background-image: url('assets/sticker-pencil.webp'); transform: rotate(-18deg); }
   .s-sakura { top: 96px; right: 22px; width: 72px; height: 64px; background-image: url('assets/sticker-sakura.webp'); transform: rotate(8deg); }
-  html[data-home="1"] .s-pencil { top: 132px; left: 20px; right: auto; }
-  html[data-home="1"] .s-sakura { top: 210px; left: 78px; right: auto; }
 }
 @media (max-width: 1199px) {
   .coach-moto { display: block; left: 4px; bottom: 72px; width: 96px; height: 78px; }

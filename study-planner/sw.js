@@ -1,5 +1,5 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v5';
+const CACHE = 'study-planner-v6';
 const SHELL = ['./', './index.html', './styles.css', './manifest.json', './icon.svg',
   './icon-180.png', './icon-192.png', './icon-512.png',
   './assets/bg-blue.webp', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
