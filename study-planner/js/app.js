@@ -605,7 +605,7 @@ const Views = {
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">
               <span>${esc(c.title)}</span>
-              ${cf.length ? `<div class="ch-files-mini">${cf.map(f => `<span class="ch-file-tag">${ico('paperclip', 11)} ${esc(f.name || 'ไฟล์')}</span>`).join('')}</div>` : ''}
+              ${cf.length ? `<div class="ch-files-mini">${cf.slice(0, 3).map(f => `<span class="ch-file-tag">${ico('paperclip', 11)} ${esc(f.name || 'ไฟล์')}</span>`).join('')}${cf.length > 3 ? `<button type="button" class="ch-file-tag more" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}">+${cf.length - 3} ไฟล์</button>` : ''}</div>` : ''}
             </span>
             <span class="item-actions">
             <button type="button" class="round-chip ${rounds > 0 ? 'has' : ''}" data-act="chapter-round" data-sid="${s.id}" data-id="${c.id}" title="กดเพิ่มรอบที่เรียน/ทบทวน">${ico('reset', 12)} <span>${rounds} รอบ</span></button>
@@ -1387,13 +1387,29 @@ async function openChapterFilesModal(sid, cid) {
   const local = await FileStore.list(sid).catch(() => []);
   const drive = (s.driveFiles || []).filter(f => f && safeDriveId(f.id));
   const links = s.links || [];
+  const rows = [
+    ...drive.map(f => ({ kind: 'drive', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive' })),
+    ...local.filter(f => f && !f.driveId).map(f => ({ kind: 'local', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
+    ...links.map(l => ({ kind: 'link', id: l.id, name: l.title, folder: l.folder || '', sub: l.folder ? `ลิงก์ · 📁 ${l.folder}` : 'ลิงก์เอกสาร' })),
+  ];
+  App._chFiles = { sid, cid, rows, folder: '', q: '' };
+  renderChapterFilesModal();
+}
+function renderChapterFilesModal() {
+  const st = App._chFiles; if (!st) return;
+  const s = subjectById(st.sid), c = (s?.chapters || []).find(x => x.id === st.cid);
+  if (!s || !c) return;
   const linked = Array.isArray(c.files) ? c.files : [];
   const isLinked = (kind, id) => linked.some(x => x.kind === kind && x.id === id);
-  const rows = [
-    ...drive.map(f => ({ kind: 'drive', id: f.id, name: f.name, sub: f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive' })),
-    ...local.filter(f => f && !f.driveId).map(f => ({ kind: 'local', id: f.id, name: f.name, sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
-    ...links.map(l => ({ kind: 'link', id: l.id, name: l.title, sub: l.folder ? `ลิงก์ · 📁 ${l.folder}` : 'ลิงก์เอกสาร' })),
-  ];
+  const folders = s.folders || [];
+  const q = st.q.trim().toLowerCase();
+  const filtered = st.rows.filter(r => {
+    if (st.folder === '__checked__' && !isLinked(r.kind, r.id)) return false;
+    else if (st.folder === '__none__' && r.folder) return false;
+    else if (st.folder && st.folder !== '__checked__' && st.folder !== '__none__' && r.folder !== st.folder) return false;
+    if (q && !r.name.toLowerCase().includes(q) && !r.folder.toLowerCase().includes(q)) return false;
+    return true;
+  });
   const rounds = Number(c.rounds) || 0;
   setModalBody(`
     <div class="ch-round-bar">
@@ -1405,14 +1421,29 @@ async function openChapterFilesModal(sid, cid) {
       </div>
     </div>
     <div class="card-head" style="margin-top:14px">
-      <h3>เลือกไฟล์/ลิงก์ที่อยู่ในบทนี้ (${rows.length})</h3>
+      <h3>เลือกไฟล์/ลิงก์ในบทนี้ (${linked.length}/${st.rows.length})</h3>
       <button type="button" class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('upload', 14)} จัดการไฟล์วิชา</button>
     </div>
-    ${rows.length ? rows.map(r => `<label class="item file-item" style="cursor:pointer">
-      <input type="checkbox" class="cb" data-chg="toggle-chapter-file" data-sid="${s.id}" data-cid="${c.id}" data-kind="${r.kind}" data-id="${esc(r.id)}" data-name="${esc(r.name)}" ${isLinked(r.kind, r.id) ? 'checked' : ''}>
-      <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
-      <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
-    </label>`).join('') : empty(ico('folder', 28), 'วิชานี้ยังไม่มีไฟล์หรือลิงก์', `<button type="button" class="btn small" data-act="files" data-sid="${s.id}">${ico('upload', 14)} อัปโหลดไฟล์ / เพิ่มลิงก์</button>`)}
+    ${st.rows.length ? `
+      <div class="row wrap" style="margin:6px 0 8px">
+        <input id="chFileSearch" type="search" value="${esc(st.q)}" placeholder="🔍 ค้นหาชื่อไฟล์ หรือโฟลเดอร์..." style="flex:1;min-width:180px">
+        <button type="button" class="btn small ghost" data-act="ch-files-bulk" data-v="1">เลือกทั้งหมด (${filtered.length})</button>
+        <button type="button" class="btn small ghost" data-act="ch-files-bulk" data-v="0">เอาออกทั้งหมด</button>
+      </div>
+      <div class="folder-bar" style="margin-bottom:8px">
+        <button type="button" class="chip ${!st.folder ? 'accent' : ''}" data-act="ch-file-folder" data-f="">ทั้งหมด (${st.rows.length})</button>
+        <button type="button" class="chip ${st.folder === '__checked__' ? 'accent' : ''}" data-act="ch-file-folder" data-f="__checked__">✓ เลือกแล้ว (${linked.length})</button>
+        ${folders.map(fn => `<button type="button" class="chip ${st.folder === fn ? 'accent' : ''}" data-act="ch-file-folder" data-f="${esc(fn)}">📁 ${esc(fn)}</button>`).join('')}
+        ${st.rows.some(r => !r.folder) ? `<button type="button" class="chip ${st.folder === '__none__' ? 'accent' : ''}" data-act="ch-file-folder" data-f="__none__">ยังไม่จัดหมวด</button>` : ''}
+      </div>
+      <div class="ch-file-scroll">
+        ${filtered.length ? filtered.map(r => `<label class="item file-item" style="cursor:pointer">
+          <input type="checkbox" class="cb" data-chg="toggle-chapter-file" data-sid="${s.id}" data-cid="${c.id}" data-kind="${r.kind}" data-id="${esc(r.id)}" data-name="${esc(r.name)}" ${isLinked(r.kind, r.id) ? 'checked' : ''}>
+          <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
+          <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
+        </label>`).join('') : '<p class="muted center" style="padding:16px">ไม่พบไฟล์ที่ค้นหา</p>'}
+      </div>
+    ` : empty(ico('folder', 28), 'วิชานี้ยังไม่มีไฟล์หรือลิงก์', `<button type="button" class="btn small" data-act="files" data-sid="${s.id}">${ico('upload', 14)} อัปโหลดไฟล์ / เพิ่มลิงก์</button>`)}
   `);
 }
 
@@ -1941,6 +1972,29 @@ const Actions = {
     save();
   },
   'chapter-files': el => openChapterFilesModal(el.dataset.sid, el.dataset.id),
+  'ch-file-folder': el => { if (App._chFiles) { App._chFiles.folder = el.dataset.f || ''; renderChapterFilesModal(); } },
+  'ch-files-bulk': el => {
+    const st = App._chFiles; if (!st) return;
+    const s = subjectById(st.sid), c = (s?.chapters || []).find(x => x.id === st.cid);
+    if (!s || !c) return;
+    c.files = Array.isArray(c.files) ? c.files : [];
+    const q = st.q.trim().toLowerCase();
+    const isLinked = (kind, id) => c.files.some(x => x.kind === kind && x.id === id);
+    const filtered = st.rows.filter(r => {
+      if (st.folder === '__checked__' && !isLinked(r.kind, r.id)) return false;
+      else if (st.folder === '__none__' && r.folder) return false;
+      else if (st.folder && st.folder !== '__checked__' && st.folder !== '__none__' && r.folder !== st.folder) return false;
+      if (q && !r.name.toLowerCase().includes(q) && !r.folder.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    if (el.dataset.v === '1') {
+      filtered.forEach(r => { if (!isLinked(r.kind, r.id)) c.files.push({ kind: r.kind, id: r.id, name: r.name || 'ไฟล์' }); });
+    } else {
+      const rm = new Set(filtered.map(r => `${r.kind}:${r.id}`));
+      c.files = c.files.filter(x => !rm.has(`${x.kind}:${x.id}`));
+    }
+    save(); renderChapterFilesModal();
+  },
   'toggle-chapter': el => { setChapterDone(el.dataset.sid, el.dataset.id, el.checked); save(); },
   'add-chapters': el => openModal('+ เพิ่มบท/หัวข้อ', `<form data-form="chapters" data-sid="${el.dataset.sid}">
       <label class="field">บรรทัดละ 1 บท<textarea name="list" rows="6" placeholder="Ch1 ...&#10;Ch2 ..."></textarea></label>
@@ -2541,6 +2595,15 @@ function setPath(obj, path, val) { const ks = path.split('.'); let o = obj; ks.s
 
 function bindEvents() {
   const modalBody = document.getElementById('modalBody');
+  modalBody.addEventListener('input', e => {
+    if (e.target.id === 'chFileSearch' && App._chFiles) {
+      const pos = e.target.selectionStart;
+      App._chFiles.q = e.target.value;
+      renderChapterFilesModal();
+      const inp = document.getElementById('chFileSearch');
+      if (inp) { inp.focus(); try { inp.setSelectionRange(pos, pos); } catch { } }
+    }
+  });
   modalBody.addEventListener('dragover', e => {
     const box = e.target.closest('#fileDropzone');
     if (!box) return;
