@@ -321,6 +321,14 @@ const App = {
       ${isFootball ? '<div class="side-hala" aria-hidden="true">Hala Madrid</div>' : isManU ? '<div class="side-hala" aria-hidden="true">Glory Glory Man United</div>' : ''}`;
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
+    const mobStack = document.getElementById('mobNavStack');
+    if (mobStack) {
+      mobStack.innerHTML = ALL_TABS.map(([id, ic, label], idx) => {
+        const shortLbl = id === 'calendar' ? 'ปฏิทิน' : id === 'plan' ? 'To do' : id === 'ai' ? aiTabLabel() : label;
+        const delayIdx = ALL_TABS.length - 1 - idx;
+        return `<button type="button" class="bubble-item ${this.tab === id ? 'active' : ''}" style="--i:${delayIdx}" data-act="mob-go" data-tab="${id}"><span class="bubble-pill">${shortLbl}</span><span class="bubble-ic">${ic}</span></button>`;
+      }).join('');
+    }
     syncGutters();
     if (this.tab === 'ai') { const box = document.getElementById('chatBox'); if (box) box.scrollTop = box.scrollHeight; }
   },
@@ -2785,16 +2793,12 @@ const Actions = {
   'add-todo': el => openModal('+ สิ่งที่ต้องทำ', todoForm({ date: el.dataset.date, kind: el.dataset.kind })),
   'tt-mode': el => { App.ttView = el.dataset.m || ''; App.render(); },
   'agenda-day': el => { App.agendaDay = Number(el.dataset.d); App.render(); },
-  'toggle-fab': () => {
-    const m = document.getElementById('fabMenu'), b = document.getElementById('fabBtn');
-    if (!m || !b) return;
-    const open = m.hidden; m.hidden = !open;
-    b.setAttribute('aria-expanded', String(open)); b.classList.toggle('open', open);
-  },
+  'toggle-fab': () => toggleBubbleMenu('fabMenu', 'fabBtn'),
+  'toggle-mob-nav': () => toggleBubbleMenu('mobNavStack', 'mobMenuBtn'),
+  'close-bubbles': () => closeBubbles(),
+  'mob-go': el => { closeBubbles(); App.go(el.dataset.tab); },
   'fab-pick': el => {
-    const m = document.getElementById('fabMenu'), b = document.getElementById('fabBtn');
-    if (m) m.hidden = true;
-    if (b) { b.setAttribute('aria-expanded', 'false'); b.classList.remove('open'); }
+    closeBubbles();
     const g = el.dataset.go;
     if (g === 'todo') openModal('+ สิ่งที่ต้องทำ', todoForm({ date: todayStr() }));
     else if (g === 'subject') openModal(`${ico('plus', 17)} เพิ่มวิชา`, subjectForm(), true);
@@ -3250,6 +3254,41 @@ const Actions = {
       <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn danger">ยืนยันลบทั้งหมด</button></div>
     </form>`),
 };
+
+function closeBubbles() {
+  ['mobNavStack', 'fabMenu'].forEach(id => {
+    const s = document.getElementById(id);
+    if (s) { s.classList.remove('open'); s.hidden = true; }
+  });
+  ['mobMenuBtn', 'fabBtn'].forEach(id => {
+    const b = document.getElementById(id);
+    if (!b) return;
+    b.classList.remove('open');
+    b.setAttribute('aria-expanded', 'false');
+    if (id === 'mobMenuBtn') b.textContent = '≡';
+  });
+  const bd = document.getElementById('bubbleBackdrop');
+  if (bd) { bd.classList.remove('open'); bd.hidden = true; }
+}
+
+function toggleBubbleMenu(stackId, btnId) {
+  const stack = document.getElementById(stackId);
+  const btn = document.getElementById(btnId);
+  const bd = document.getElementById('bubbleBackdrop');
+  if (!stack || !btn) return;
+  const isOpen = !stack.hidden && stack.classList.contains('open');
+  closeBubbles();
+  if (isOpen) return;
+  if (bd) bd.hidden = false;
+  stack.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  if (btnId === 'mobMenuBtn') btn.textContent = '✕';
+  requestAnimationFrame(() => {
+    if (bd) bd.classList.add('open');
+    stack.classList.add('open');
+    btn.classList.add('open');
+  });
+}
 
 function showSummaryResult(r) {
   App._summary = r;

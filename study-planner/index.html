@@ -40,13 +40,20 @@
     <main id="main" class="main"></main>
   </div>
 
+  <div id="bubbleBackdrop" class="bubble-backdrop" data-act="close-bubbles" hidden></div>
+
   <div id="fabWrap" class="fab-wrap">
-    <div id="fabMenu" class="fab-menu" hidden>
-      <button type="button" class="fab-item" data-act="fab-pick" data-go="todo">+ เพิ่มสิ่งที่ต้องทำ</button>
-      <button type="button" class="fab-item" data-act="fab-pick" data-go="subject">+ เพิ่มวิชา</button>
-      <button type="button" class="fab-item" data-act="fab-pick" data-go="timer">⏱️ จับเวลา / บันทึกเวลา</button>
+    <div id="fabMenu" class="bubble-stack fab-stack" hidden>
+      <button type="button" class="bubble-item" style="--i:2" data-act="fab-pick" data-go="timer"><span class="bubble-pill">จับเวลา / บันทึกเวลา</span><span class="bubble-ic">⏱️</span></button>
+      <button type="button" class="bubble-item" style="--i:1" data-act="fab-pick" data-go="subject"><span class="bubble-pill">เพิ่มวิชา</span><span class="bubble-ic">📚</span></button>
+      <button type="button" class="bubble-item" style="--i:0" data-act="fab-pick" data-go="todo"><span class="bubble-pill">เพิ่มสิ่งที่ต้องทำ</span><span class="bubble-ic">✅</span></button>
     </div>
-    <button type="button" id="fabBtn" class="fab-btn" data-act="toggle-fab" aria-label="เมนูลัดเพิ่มรายการ" aria-expanded="false">+</button>
+    <button type="button" id="fabBtn" class="bubble-trigger fab-btn" data-act="toggle-fab" aria-label="เมนูลัดเพิ่มรายการ" aria-expanded="false">+</button>
+  </div>
+
+  <div id="mobMenuWrap" class="mob-menu-wrap">
+    <div id="mobNavStack" class="bubble-stack" hidden></div>
+    <button type="button" id="mobMenuBtn" class="bubble-trigger menu-trigger" data-act="toggle-mob-nav" aria-label="เปิดเมนูนำทาง" aria-expanded="false">≡</button>
   </div>
 
   <div id="modal" class="modal hidden">
