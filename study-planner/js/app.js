@@ -289,7 +289,7 @@ const Views = {
       </section>
       <section class="card">
         <div class="card-head"><h2>📝 การบ้าน / งานใกล้ถึง</h2><button class="mini-btn" data-act="add-task">+ เพิ่ม</button></div>
-        ${soonTasks.length ? soonTasks.map(taskItemHTML).join('') : empty('☕', 'ไม่มีงานใน 7 วันนี้ พักผ่อนได้สบายเลย!', '', 'assets/ooo-chat.webp')}
+        ${soonTasks.length ? soonTasks.map(taskItemHTML).join('') : empty('☕', 'ไม่มีงานใน 7 วันนี้ พักผ่อนได้สบายเลย!', '', 'assets/coach-action.webp')}
       </section>
     </div>
 
