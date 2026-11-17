@@ -192,6 +192,17 @@ const FileStore = {
     await this._tx('readwrite', s => { list.forEach(f => s.delete(f.id)); return {}; });
     delete this._counts[sid];
   },
+  async clearAll() {
+    this._counts = {};
+    const db = await this.open();
+    await new Promise((res, rej) => {
+      const tx = db.transaction('files', 'readwrite');
+      tx.objectStore('files').clear();
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+      tx.onabort = () => rej(tx.error || new Error('clear aborted'));
+    });
+  },
 };
 
 function hasDemo() {
@@ -237,11 +248,16 @@ function removeDemoData() {
     return [DB.tasks, DB.plan, DB.sessions, DB.flashcards].some(list => (list || []).some(x => x && !x.demo && x.subjectId === sid));
   };
   const removed = DB.subjects.filter(s => s.demo && !userTied(s.id)).map(s => s.id);
-  DB.subjects = DB.subjects.filter(s => !s.demo || userTied(s.id)).map(s => s.demo ? {
-    ...s,
-    chapters: (s.chapters || []).filter(c => c && !c.demo),
-    links: (s.links || []).filter(l => l && !l.demo),
-  } : s);
+  DB.subjects = DB.subjects.filter(s => !s.demo || userTied(s.id)).map(s => {
+    if (!s.demo) return s;
+    const kept = {
+      ...s,
+      chapters: (s.chapters || []).filter(c => c && !c.demo),
+      links: (s.links || []).filter(l => l && !l.demo),
+    };
+    delete kept.demo;
+    return kept;
+  });
   const own = x => x && !x.demo;
   DB.tasks = (DB.tasks || []).filter(own);
   DB.plan = (DB.plan || []).filter(own);
