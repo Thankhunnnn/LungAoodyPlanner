@@ -1465,3 +1465,6 @@ button.color-dot.sel span { border-color: var(--text); }
 .ref-pending-top { padding: 12px 14px; }
 .ref-pending-top .ref-todo-list { max-height: 108px; }
 .side-tabs .tab span:last-child { font-size: .88rem; line-height: 1.25; text-align: left; }
+
+.ref-banner-body { position: relative; z-index: 2; }
+.bento-mascot.ronaldo-hero { z-index: 1; }
