@@ -47,14 +47,14 @@ const THEMES = [
   ['peach', 'พีช', '#f08a5d'], ['mono', 'มินิมอล', '#555555'],
   ['sky', 'อู๊ด', '#60c5ff'], ['navy', 'Madrid', '#3b82f6'], ['manutd', 'Man U', '#dc2626'],
 ];
-const isMinimalTheme = (th = DB.prefs.theme || 'navy') => ['mono', 'pink', 'lavender', 'mint', 'peach'].includes(th);
+const isMinimalTheme = (th = DB.prefs.theme || 'sky') => ['mono', 'pink', 'lavender', 'mint', 'peach'].includes(th);
 const liveTimeStr = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
 const aiTabLabel = () => {
-  const th = DB.prefs.theme || 'navy';
+  const th = DB.prefs.theme || 'sky';
   return isMinimalTheme(th) ? 'Ask AI' : th === 'navy' ? 'Ask Kylian' : th === 'manutd' ? 'Ask Dr.Marcus' : 'อู๊ดเอไอ';
 };
 const aiBotName = () => {
-  const th = DB.prefs.theme || 'navy';
+  const th = DB.prefs.theme || 'sky';
   return isMinimalTheme(th) ? 'AI' : th === 'navy' ? 'Kylian' : th === 'manutd' ? 'Dr.Marcus' : 'อออ';
 };
 const TABS = [
@@ -267,7 +267,7 @@ const App = {
   },
 
   applyTheme() {
-    document.documentElement.dataset.theme = DB.prefs.theme || 'navy';
+    document.documentElement.dataset.theme = DB.prefs.theme || 'sky';
     document.documentElement.dataset.home = this.tab === 'home' ? '1' : '0';
     document.documentElement.dataset.dark = DB.prefs.dark ? '1' : '0';
     const c = (THEMES.find(t => t[0] === DB.prefs.theme) || THEMES[0])[2];
@@ -293,7 +293,7 @@ const App = {
     hdr.classList.toggle('compact', this.tab !== 'home');
     hdr.innerHTML = this.headerHTML();
     const nextEx = upcomingExams()[0];
-    const theme = DB.prefs.theme || 'navy';
+    const theme = DB.prefs.theme || 'sky';
     const isFootball = theme === 'navy';
     const isManU = theme === 'manutd';
     const isMono = isMinimalTheme(theme);
@@ -353,11 +353,14 @@ const App = {
       left = `<div class="hello compact"><button class="avatar avatar-btn" data-act="go" data-tab="home" title="หน้าแรก">${avatarImg()}</button><h1>${cur[1]} ${curTitle}</h1></div>`;
     }
     const isDark = !!DB.prefs.dark;
+    const th = DB.prefs.theme || 'sky';
+    const thMeta = THEMES.find(x => x[0] === th) || THEMES[0];
     return `${left}
       <div class="head-actions">
         <span class="chip date-pill">${ico('calendar', 14)} ${fmtDateLong(t)}</span>
         <span id="liveClock" class="chip date-pill live-clock" aria-label="เวลาปัจจุบัน">${ico('clock', 14)} ${liveTimeStr()}</span>
         ${this.syncBadgeHTML()}
+        <button class="chip theme-pick-btn" data-act="open-themes" style="--th-c:${thMeta[2]}" title="คลิกเพื่อเปลี่ยนธีม"><span class="theme-pick-dot"></span><span>ธีม: ${esc(thMeta[1])}</span><span class="theme-pick-caret">▾</span></button>
         <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
         <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? ico('sun', 17) : ico('moon', 17)}</button>
       </div>`;
@@ -570,6 +573,90 @@ function normalizeLink(raw) {
     return { url: u.href };
   } catch { return { error: 'ลิงก์ไม่ถูกต้อง ใส่เช่น https://drive.google.com/...' }; }
 }
+const AI_IMPORT_PROMPT = `ช่วยแปลงข้อมูลวิชาเรียน วันสอบ ตารางเรียน และงาน/กิจกรรมของฉันด้านล่าง เป็นไฟล์ JSON ชื่อ "study-planner.json" ให้ดาวน์โหลดพร้อมอัปโหลดทันที (หากสร้างไฟล์ดาวน์โหลดไม่ได้ ให้ตอบเป็น JSON ล้วนๆ ใน code block เดียว) ตามโครงสร้างนี้:
+{
+  "name": "ชื่อเล่น",
+  "term": "เทอม 1",
+  "subjects": [
+    {
+      "id": "sub1",
+      "name": "รหัสวิชา ชื่อวิชา",
+      "color": "#4a9be8",
+      "examDate": "YYYY-MM-DD",
+      "examTime": "09:00",
+      "room": "ห้องสอบ (ถ้ามี)",
+      "chapters": [
+        { "id": "ch1", "title": "ชื่อบท/หัวข้อ", "done": false }
+      ]
+    }
+  ],
+  "classes": [
+    {
+      "id": "cls1",
+      "day": 1,
+      "start": "09:00",
+      "end": "12:00",
+      "subjectId": "sub1",
+      "title": "ชื่อวิชา",
+      "room": "ห้องเรียน",
+      "color": "#4a9be8"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "ชื่องาน/การบ้าน หรือกิจกรรมเฉพาะวัน",
+      "date": "YYYY-MM-DD",
+      "time": "23:59",
+      "subjectId": "sub1",
+      "type": "homework",
+      "done": false
+    }
+  ],
+  "plan": []
+}
+กติกาสำคัญ:
+- "classes" ใช้เฉพาะคาบเรียนที่วนทุกสัปดาห์ในเทอมนี้เท่านั้น (ระบบจะซ่อนให้อัตโนมัติเมื่อเข้าสัปดาห์สอบ) ถ้าไม่มีคาบประจำหรือเรียนจบแล้ว ให้ใส่ "classes": []
+- นัดหมาย คลาสชดเชย หรือติวเฉพาะบางวัน ให้ใส่ใน "tasks" โดยใช้ "type": "event" แทน "classes"
+- day ใช้ 0=อาทิตย์, 1=จันทร์, 2=อังคาร, 3=พุธ, 4=พฤหัส, 5=ศุกร์, 6=เสาร์
+- วันที่ใช้ปี ค.ศ. รูปแบบ YYYY-MM-DD เท่านั้น
+
+[วางข้อมูล / แนบรูปตารางเรียน-ตารางสอบของคุณตรงนี้]`;
+
+function openAiImportModal() {
+  openModal('✨ วิธีให้ AI สร้างไฟล์ .json พร้อมอัปโหลด', `
+    <ol class="steps" style="margin-top:0">
+      <li>กด <b>คัดลอก Prompt</b> แล้วส่งให้ ChatGPT / Gemini / Claude พร้อมรูปตารางเรียน-วันสอบ</li>
+      <li>ดาวน์โหลดไฟล์ <b><code>study-planner.json</code></b> ที่ AI สร้างให้ (หรือบันทึกเป็น <code>.json</code>)</li>
+      <li>กดปุ่ม <b>⬆️ Import (.json)</b> ด้านล่างเพื่อนำเข้าข้อมูลทั้งหมดทันที</li>
+    </ol>
+    <p class="muted small" style="margin:6px 0 0">💡 <b>ตารางเรียนจะไม่ค้างยาวตลอดไป:</b> คาบเรียนใน <code>classes</code> จะถูกซ่อนอัตโนมัติเมื่อเข้าสัปดาห์สอบ และสามารถสร้าง Workflow/เทอมใหม่แยกได้ตลอด</p>
+    <div class="row between" style="margin:12px 0 6px">
+      <span class="muted small">Prompt สำหรับส่งให้ AI</span>
+      <button type="button" class="mini-btn" data-act="copy-ai-prompt">📋 คัดลอก Prompt</button>
+    </div>
+    <pre class="ai-prompt-box">${esc(AI_IMPORT_PROMPT)}</pre>
+    <div class="row end" style="margin-top:14px">
+      <label class="btn small" style="cursor:pointer">⬆️ Import (.json)<input type="file" accept=".json" data-chg="import" hidden></label>
+      <button type="button" class="btn ghost small" data-act="close-modal">ปิด</button>
+    </div>
+  `);
+}
+
+function openThemeModal() {
+  const cur = DB.prefs.theme || 'sky';
+  openModal('🎨 เลือกธีมของแอป', `
+    <p class="muted small" style="margin-top:0">เลือกสไตล์สีและพื้นหลังที่ชอบ (เปลี่ยนได้ตลอดเวลา)</p>
+    <p class="small" style="margin:8px 0 6px"><b>มินิมอล / พาสเทล</b></p>
+    <div class="theme-grid">${THEMES.filter(([k]) => isMinimalTheme(k)).map(([k, l, c]) =>
+      `<button class="theme-sw ${cur === k ? 'active' : ''}" data-act="theme" data-theme="${k}" style="--c:${c}"><span class="dot"></span>${l}</button>`).join('')}</div>
+    <p class="small" style="margin:12px 0 6px"><b>พิเศษ / ฟุตบอล</b></p>
+    <div class="theme-grid">${THEMES.filter(([k]) => !isMinimalTheme(k)).map(([k, l, c]) =>
+      `<button class="theme-sw ${cur === k ? 'active' : ''}" data-act="theme" data-theme="${k}" style="--c:${c}"><span class="dot"></span>${l}</button>`).join('')}</div>
+    <div class="row end" style="margin-top:14px"><button type="button" class="btn small" data-act="close-modal">เสร็จสิ้น</button></div>
+  `);
+}
+
 function demoButtonHTML() {
   return hasDemo() ? `<button class="btn danger" data-act="clear-demo">ลบข้อมูลทดลอง</button>` : '';
 }
@@ -579,14 +666,33 @@ const Views = {
   home() {
     const t = todayStr();
     if (!DB.subjects.length) {
-      return `${coachHeroHTML()}<section class="card welcome">
+      return `<section class="card welcome">
         <h2>ยินดีต้อนรับสู่ LungAoodyPlanner 🐃</h2>
-        <p class="muted">เริ่มจาก 3 ขั้นง่ายๆ</p>
-        <ol class="steps"><li>เพิ่มวิชา + วันสอบ</li><li>ใส่บท/หัวข้อที่ต้องอ่าน</li><li>จัดตารางอ่านและติ๊กความคืบหน้าได้เลย</li></ol>
         ${!DB.name ? `<form data-form="name" class="row"><input name="name" placeholder="ให้เรียกคุณว่าอะไรดี?" value=""><button class="btn ghost">บันทึกชื่อ</button></form>` : ''}
-        <div class="row center wrap">
-          <button class="btn" data-act="add-subject">+ เพิ่มวิชาแรก</button>
-          ${demoButtonHTML()}
+        <div class="welcome-auth">
+          <h3 style="margin:0;font-size:1.05rem">เริ่มจากศูนย์</h3>
+          <p class="welcome-col-steps"><b>1.</b> เพิ่มวิชา → <b>2.</b> ใส่บท → <b>3.</b> ติ๊กจบ</p>
+          <div class="row center wrap" style="margin:2px 0 0">
+            <button class="btn big" data-act="add-subject">+ เพิ่มวิชาแรก</button>
+            ${demoButtonHTML()}
+          </div>
+        </div>
+        <div class="welcome-split">
+          <div class="welcome-col">
+            <h3>ซิงก์ข้อมูลข้ามเครื่อง</h3>
+            <p class="welcome-col-steps">☁️ ซิงก์ข้ามเครื่อง • 📁 สำรองไฟล์ใน Drive อัตโนมัติ</p>
+            ${!Sync.user
+              ? (Sync.status === 'signedout' ? `<button class="btn" data-act="login">🔑 ล็อกอินด้วย Google (แนะนำ)</button>` : `<span class="chip">${Sync.status === 'loading' ? '⏳ กำลังเชื่อมต่อ…' : '💾 เก็บในเครื่อง'}</span>`)
+              : `<span class="chip ok">☁️ ล็อกอินแล้ว (${esc(Sync.user.email || Sync.user.displayName || 'Google')})</span>`}
+          </div>
+          <div class="welcome-col">
+            <h3>นำเข้าด้วย AI</h3>
+            <p class="welcome-col-steps">มีตารางเรียน/วันสอบอยู่แล้ว? แปลงแล้วอัปโหลดได้เลย</p>
+            <div class="row center wrap">
+              <label class="btn" style="cursor:pointer">⬆️ Import (.json)<input type="file" accept=".json" data-chg="import" hidden></label>
+            </div>
+            <button type="button" class="link ai-guide-btn" data-act="open-ai-import-guide">✨ วิธีให้ AI แปลงตาราง →</button>
+          </div>
         </div>
       </section>`;
     }
@@ -659,7 +765,7 @@ const Views = {
     const timerPct = Math.round((1 - sec / Timer.dur()) * 100);
     const pomoCfg = DB.prefs.pomo || { work: 25, short: 5, long: 15 };
 
-    const theme = DB.prefs.theme || 'navy';
+    const theme = DB.prefs.theme || 'sky';
     const isFootball = theme === 'navy';
     const isManU = theme === 'manutd';
     const isMono = isMinimalTheme(theme);
@@ -1179,7 +1285,8 @@ const Views = {
 
   ai() {
     if (!AI.ready()) {
-      return `<section class="card welcome"><h2>🐃 อู๊ดเอไอ</h2>
+      const th = DB.prefs.theme || 'sky';
+      return `<section class="card welcome"><h2>${th === 'sky' ? '🐃' : ico('sparkles', 20)} ${aiTabLabel()}</h2>
         <p>ต้องใส่ API key ก่อนนะ เลือกได้ทั้ง <b>Google Gemini</b> (มีโควตาฟรี) หรือ <b>OpenAI</b></p>
         <button class="btn" data-act="go" data-tab="settings">ไปที่ตั้งค่า AI →</button></section>`;
     }
@@ -1391,7 +1498,7 @@ function subjectForm(s = {}) {
       </div>
     </div>
     <div class="field">สี<div class="colors">${SUBJECT_COLORS.map((c, i) => `<label class="color-dot" style="--c:${c}" aria-label="เลือกสีที่ ${i + 1}"><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''} aria-label="เลือกสีที่ ${i + 1}"><span></span></label>`).join('')}
-      <input type="color" name="customColor" value="${color}" title="สีอื่น" data-chg="custom-color"></div></div>
+      <label class="color-dot color-rgb ${!SUBJECT_COLORS.includes(color) ? 'is-custom' : ''}" style="--c:${color}" title="เลือกสี RGB เอง" aria-label="เลือกสี RGB เอง"><input type="color" name="customColor" value="${color}" data-chg="custom-color"><span></span></label></div></div>
     ${s.id ? '' : `<label class="field">บท/หัวข้อ (บรรทัดละ 1 บท, ใส่ทีหลังก็ได้)<textarea name="chapters" rows="4" placeholder="Ch1 Introduction&#10;Ch2 Cost behavior&#10;..."></textarea></label>`}
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
@@ -1584,7 +1691,7 @@ function fcRender() {
       <label class="inline"><input type="checkbox" data-act="fc-unknown" ${f.onlyUnknown ? 'checked' : ''}> เฉพาะที่ยังจำไม่ได้</label></div>
       <form data-form="fc-add" class="fc-add"><input name="q" maxlength="300" placeholder="คำถาม / คำศัพท์" required><input name="a" maxlength="300" placeholder="คำตอบ" required><button class="btn small">+ เพิ่ม</button></form>
       ${cards.map(x => `<div class="item ${x.known ? 'done' : ''}"><span class="grow"><b>${esc(x.q)}</b><br><small class="muted">${esc(x.a)}</small></span>
-        <button class="mini-btn" data-act="fc-del" data-id="${x.id}">✕</button></div>`).join('') || '<p class="muted">ยังไม่มีการ์ด — เพิ่มเอง หรือให้ AI สร้างจากโน้ต (แท็บ อู๊ดเอไอ / ปุ่มในโน้ต)</p>'}`);
+        <button class="mini-btn" data-act="fc-del" data-id="${x.id}">✕</button></div>`).join('') || `<p class="muted">ยังไม่มีการ์ด — เพิ่มเอง หรือให้ AI สร้างจากโน้ต (แท็บ ${aiTabLabel()} / ปุ่มในโน้ต)</p>`}`);
     return;
   }
   if (!cards.length) { f.mode = 'list'; return fcRender(); }
@@ -1641,11 +1748,8 @@ function fmtStamp(v) {
 }
 function fileGoesToDrive() { return !!Sync.user && LOCAL.fileDest !== 'local'; }
 function driveNote(s) {
-  if (!Sync.user) return 'เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น (เปิดไว ไม่ต้องใช้เน็ต) — ล็อกอินเพื่ออัปโหลดขึ้น Drive และซิงก์ข้ามเครื่อง';
-  if (!fileGoesToDrive()) return 'เก็บไว้ในเบราว์เซอร์เครื่องนี้เท่านั้น (เปิดไว ไม่เปลืองพื้นที่ Drive แต่ไม่ซิงก์ข้ามเครื่อง)';
-  if (!driveClientId()) return 'ยังไม่ได้ตั้งค่า Google Client ID — ไฟล์จะเก็บในเครื่องนี้ก่อน (วิธีตั้งอยู่ใน README)';
-  const who = Sync.user.email || Sync.user.displayName || 'บัญชีนี้';
-  return `อัปโหลดไฟล์จริงเข้า Google Drive ของ ${who} (${DRIVE_ROOT_NAME} / ${driveFolderLabel(s.name)}) เพื่อซิงก์เปิดดูข้ามเครื่องได้`;
+  if (!Sync.user || !fileGoesToDrive() || !driveClientId()) return 'เก็บในเครื่องอัตโนมัติ · ล็อกอินเพื่อซิงก์ขึ้น Drive';
+  return `อัปโหลดลง Google Drive ของ ${s.name} อัตโนมัติ`;
 }
 function driveFailToast(e, savedLocal) {
   const code = e && e.code;
@@ -1734,55 +1838,49 @@ async function filesRender() {
     <option value="" ${!cur ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
     ${folders.map(fn => `<option value="${esc(fn)}" ${cur === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
   </select>`;
+  const fileMenuBtn = (kind, id, cur) => `<button type="button" class="mini-btn file-menu-btn" data-act="file-menu" data-kind="${kind}" data-id="${esc(id)}" data-folder="${esc(cur || '')}" aria-label="จัดการไฟล์">⋮</button>`;
   const signed = !!Sync.user;
   const driveRow = f => `<div class="item file-item">
       <span class="file-ic">${fileIcon(f.mimeType, f.name)}</span>
-      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.modifiedTime))}</small></span>
-      <span class="item-actions">
-        ${folderSelect('drive', f.id, f.folder)}
-        <button class="mini-btn pill-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
-        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">${ico('close', 14)}</button>
+      <span class="grow">
+        <button type="button" class="file-name-btn" data-act="file-drive-open" data-id="${esc(f.id)}"><b>${esc(f.name)}</b></button>
+        <small class="muted file-meta"><span class="file-loc">☁️ Drive</span>${!curFolder && f.folder ? ` · 📁 ${esc(f.folder)}` : ''} · ${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.modifiedTime))}</small>
       </span>
+      ${fileMenuBtn('drive', f.id, f.folder)}
     </div>`;
   const localRow = f => `<div class="item file-item">
       <span class="file-ic">${fileIcon(f.type, f.name)}</span>
-      <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small></span>
-      <span class="item-actions">
-        ${folderSelect('local', f.id, f.folder)}
-        <button class="mini-btn pill-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
-        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}" aria-label="ดาวน์โหลด">${ico('download', 15)}</button>
-        <button class="mini-btn pill-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
-        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">${ico('close', 14)}</button>
+      <span class="grow">
+        <button type="button" class="file-name-btn" data-act="file-open" data-id="${esc(f.id)}"><b>${esc(f.name)}</b></button>
+        <small class="muted file-meta"><span class="file-loc">💻 ในเครื่อง</span>${!curFolder && f.folder ? ` · 📁 ${esc(f.folder)}` : ''} · ${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small>
       </span>
+      ${fileMenuBtn('local', f.id, f.folder)}
     </div>`;
   const linkRow = l => {
     let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch { }
     return `<div class="item file-item">
       <span class="file-ic">${ico('link', 17)}</span>
-      <span class="grow"><a href="${esc(l.url)}" target="_blank" rel="noopener"><b>${esc(l.title)}</b></a>${host ? `<br><small class="muted">${esc(host)}</small>` : ''}</span>
-      <span class="item-actions">
-        ${folderSelect('link', l.id, l.folder)}
-        <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}" aria-label="ลบลิงก์">${ico('close', 14)}</button>
+      <span class="grow">
+        <a href="${esc(l.url)}" target="_blank" rel="noopener" class="file-name-link"><b>${esc(l.title)}</b></a>
+        <small class="muted file-meta"><span class="file-loc">🔗 ลิงก์</span>${!curFolder && l.folder ? ` · 📁 ${esc(l.folder)}` : ''}${host ? ` · ${esc(host)}` : ''}</small>
       </span>
+      ${fileMenuBtn('link', l.id, l.folder)}
     </div>`;
   };
   const dest = fileGoesToDrive() ? 'drive' : 'local';
-  const ftab = App.fileTab || 'list';
   const totalN = countIn(() => true);
-  const topTabs = `<div class="pills" style="margin-bottom:12px">
-    <button type="button" class="pill ${ftab === 'list' ? 'active' : ''}" data-act="file-tab" data-t="list">📂 ไฟล์และโฟลเดอร์ (${totalN})</button>
-    <button type="button" class="pill ${ftab === 'upload' ? 'active' : ''}" data-act="file-tab" data-t="upload">📤 อัปโหลด / เพิ่มลิงก์</button>
-  </div>`;
+  const ftab = totalN === 0 ? 'upload' : (App.fileTab || 'list');
 
   if (ftab === 'upload') {
     const upFolder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
-    setModalBody(`${topTabs}
-      <div class="row wrap" style="margin-bottom:10px">
+    setModalBody(`
+      <div class="row wrap between" style="margin-bottom:10px;gap:8px">
+        ${totalN > 0 ? `<button type="button" class="btn small ghost" data-act="file-tab" data-t="list">← กลับไปรายการไฟล์ (${totalN})</button>` : ''}
         ${signed ? `<div class="pills file-dest" style="margin:0">
           <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
           <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
-        </div>` : '<button class="btn small" data-act="login">ล็อกอินเพื่อ sync / ขึ้น Drive</button>'}
-        <label class="inline" style="margin-left:auto">เก็บเข้าโฟลเดอร์:
+        </div>` : '<button type="button" class="btn small ghost" data-act="login">🔑 ล็อกอิน Google เพื่อซิงก์ข้ามเครื่อง</button>'}
+        <label class="inline" style="margin-left:auto">โฟลเดอร์:
           <select class="folder-sel" data-chg="upload-folder" aria-label="เลือกโฟลเดอร์ที่จะใส่">
             <option value="" ${!upFolder ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
             ${folders.map(fn => `<option value="${esc(fn)}" ${upFolder === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
@@ -1792,106 +1890,77 @@ async function filesRender() {
       </div>
       <label class="upload-box" id="fileDropzone">
         <input type="file" multiple data-chg="file-upload" hidden>
-        <div>📤 <b>คลิกเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</b>${upFolder ? ` → เก็บเข้าโฟลเดอร์ <b>${esc(upFolder)}</b>` : ''}</div>
+        <div>📤 <b>คลิกเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</b>${upFolder ? ` → โฟลเดอร์ <b>${esc(upFolder)}</b>` : ''}</div>
         <div class="muted small">${esc(driveNote(s))}</div>
       </label>
       <div id="upProg" class="up-prog" role="status" hidden></div>
-      <div class="or-divider"><span>หรือเพิ่มลิงก์</span></div>
-      <h3>🔗 เพิ่มลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
-      <form data-form="link-add" class="link-form" novalidate>
-        <div class="grid2-sm">
-          <label class="field"><span>ชื่อเอกสาร</span><input name="title" maxlength="200" placeholder="เช่น สไลด์บท 1" required></label>
-          <label class="field"><span>ลิงก์ URL</span><input name="url" type="text" inputmode="url" maxlength="500" placeholder="https://..." autocomplete="url" required><small class="field-error" data-url-error hidden></small></label>
+      <div class="or-divider"><span>หรือวางลิงก์</span></div>
+      <form data-form="link-add" class="link-form-row" novalidate>
+        <div class="link-inline">
+          <input name="url" type="text" inputmode="url" maxlength="500" placeholder="🔗 วางลิงก์ Google Drive, Notion, YouTube..." autocomplete="url" required>
+          <button class="btn small">+ เพิ่ม</button>
         </div>
-        <button class="btn small">+ เพิ่มลิงก์${upFolder ? `ลง "${esc(upFolder)}"` : ''}</button>
+        <small class="field-error" data-url-error hidden></small>
       </form>`);
     return;
   }
 
-  const folderPickHTML = `
-    <div class="row wrap" style="margin:0 0 10px;justify-content:space-between;align-items:center;gap:6px">
-      ${(curFolder && curFolder !== '__none__') ? `<span class="muted small">📁 โฟลเดอร์ <b>${esc(curFolder)}</b></span>` : '<span class="grow"></span>'}
-      <div class="row" style="margin:0;gap:6px">
-        ${(curFolder && curFolder !== '__none__') ? `<button type="button" class="btn small ${App.filePickMode ? '' : 'ghost'}" data-act="file-pick-toggle">${App.filePickMode ? '✓ เสร็จสิ้น' : '☑ ติ๊กเลือกไฟล์เข้าโฟลเดอร์'}</button>` : ''}
-        ${(driveFiles.length || local.length) && !App.filePickMode ? `<button type="button" class="btn small ${App.fileDlMode ? '' : 'ghost'}" data-act="file-dl-toggle">${App.fileDlMode ? 'ยกเลิก' : '⬇ โหลดหลายไฟล์'}</button>` : ''}
-      </div>
-    </div>`;
+  const folderBarHTML = `<div class="folder-bar">
+    <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
+    ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
+    ${folders.length && countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
+    <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
+    <span class="folder-bar-actions">
+      <button type="button" class="btn small ${App.fileSelectMode ? '' : 'ghost'}" data-act="file-select-toggle">${App.fileSelectMode ? '✓ เสร็จสิ้น' : '☑ เลือกหลายไฟล์'}</button>
+      <button type="button" class="btn small" data-act="file-tab" data-t="upload">+ เพิ่มไฟล์ / ลิงก์</button>
+    </span>
+  </div>`;
 
-  if (App.fileDlMode) {
+  if (App.fileSelectMode) {
     const sel = App._dlSel || (App._dlSel = new Set());
-    const dlList = [
-      ...driveFiles.map(f => ({ kind: 'drive', id: f.id, name: f.name, sub: f.folder ? `Drive · 📁 ${f.folder}` : 'Google Drive' })),
-      ...local.map(f => ({ kind: 'local', id: f.id, name: f.name, sub: f.folder ? `ในเครื่อง · 📁 ${f.folder}` : 'ในเครื่อง' })),
+    const allItems = [
+      ...driveFiles.map(f => ({ kind: 'drive', id: f.id, name: f.name, sub: `☁️ Drive${!curFolder && f.folder ? ` · 📁 ${f.folder}` : ''}` })),
+      ...local.map(f => ({ kind: 'local', id: f.id, name: f.name, sub: `💻 ในเครื่อง${!curFolder && f.folder ? ` · 📁 ${f.folder}` : ''}` })),
+      ...links.map(l => ({ kind: 'link', id: l.id, name: l.title, sub: `🔗 ลิงก์${!curFolder && l.folder ? ` · 📁 ${l.folder}` : ''}` })),
     ];
-    setModalBody(`${topTabs}
-      <div class="folder-bar">
-        <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
-        ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
-        ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
-      </div>
+    const dlCount = [...sel].filter(k => k.startsWith('drive:') || k.startsWith('local:')).length;
+    setModalBody(`${folderBarHTML}
       <div class="row wrap" style="margin:0 0 10px;justify-content:space-between;gap:6px">
         <div class="row" style="margin:0;gap:6px">
-          <button type="button" class="btn small ghost" data-act="file-dl-all" data-v="1">เลือกทั้งหมด (${dlList.length})</button>
+          <button type="button" class="btn small ghost" data-act="file-dl-all" data-v="1">เลือกทั้งหมด (${allItems.length})</button>
           <button type="button" class="btn small ghost" data-act="file-dl-all" data-v="0">ล้างเลือก</button>
         </div>
-        <div class="row" style="margin:0;gap:6px">
-          <button type="button" class="btn small ghost" data-act="file-dl-toggle">ยกเลิก</button>
-          <button type="button" class="btn small" data-act="file-dl-run" ${sel.size ? '' : 'disabled'}>⬇ ดาวน์โหลด (${sel.size})</button>
-        </div>
+        <button type="button" class="btn small ghost" data-act="file-select-toggle">ยกเลิก</button>
       </div>
       <div class="ch-file-scroll">
-        ${dlList.map(r => {
+        ${allItems.length ? allItems.map(r => {
           const key = `${r.kind}:${r.id}`;
           return `<label class="item file-item" style="cursor:pointer">
             <input type="checkbox" class="cb" data-chg="dl-pick" data-key="${esc(key)}" ${sel.has(key) ? 'checked' : ''}>
-            <span class="file-ic">${ico('folder', 16)}</span>
+            <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
             <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
           </label>`;
-        }).join('')}
-      </div>`);
-    return;
-  }
-
-  if (App.filePickMode && curFolder && curFolder !== '__none__') {
-    const allPick = [
-      ...allDrive.map(f => ({ kind: 'drive', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `โฟลเดอร์: ${f.folder}` : 'ยังไม่จัดหมวด' })),
-      ...allLocal.map(f => ({ kind: 'local', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `ในเครื่อง · ${f.folder}` : 'ในเครื่อง · ยังไม่จัดหมวด' })),
-      ...allLinks.map(l => ({ kind: 'link', id: l.id, name: l.title, folder: l.folder || '', sub: l.folder ? `ลิงก์ · ${l.folder}` : 'ลิงก์ · ยังไม่จัดหมวด' })),
-    ];
-    setModalBody(`${topTabs}
-      <div class="folder-bar">
-        <button type="button" class="chip" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
-        ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
-        ${countIn(x => !x.folder) ? `<button type="button" class="chip" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
-        <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
+        }).join('') : empty('📁', 'ไม่มีรายการในหมวดนี้')}
       </div>
-      ${folderPickHTML}
-      <div class="ch-file-scroll">
-        ${allPick.length ? allPick.map(r => `<label class="item file-item" style="cursor:pointer">
-          <input type="checkbox" class="cb" data-chg="toggle-folder-file" data-kind="${r.kind}" data-id="${esc(r.id)}" ${r.folder === curFolder ? 'checked' : ''}>
-          <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
-          <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
-        </label>`).join('') : empty('📁', 'ยังไม่มีไฟล์ในวิชานี้')}
+      <div class="batch-bar">
+        <select class="folder-sel" data-chg="batch-move-folder" ${sel.size ? '' : 'disabled'} aria-label="ย้ายเข้าโฟลเดอร์">
+          <option value="__pick__">📁 ย้ายเข้าโฟลเดอร์…</option>
+          <option value="">ไม่มีโฟลเดอร์</option>
+          ${folders.map(fn => `<option value="${esc(fn)}">📁 ${esc(fn)}</option>`).join('')}
+        </select>
+        <button type="button" class="btn small ghost" data-act="file-dl-run" ${dlCount ? '' : 'disabled'}>⬇ ดาวน์โหลด (${dlCount})</button>
+        <button type="button" class="btn small danger" data-act="file-batch-del" ${sel.size ? '' : 'disabled'}>🗑️ ลบ (${sel.size})</button>
       </div>`);
     return;
   }
 
-  const hasAny = driveFiles.length || local.length || links.length;
-  setModalBody(`${topTabs}
-    <div class="folder-bar">
-      <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
-      ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
-      ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
-      <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
-    </div>
-    ${folderPickHTML}
-    ${!hasAny ? empty('📁', 'ยังไม่มีไฟล์หรือลิงก์ในหมวดนี้', `<button class="btn small" data-act="file-tab" data-t="upload">📤 อัปโหลด / เพิ่มลิงก์</button>`) : `
-      ${driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>${driveFiles.map(driveRow).join('')}` : ''}
-      ${local.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
-        <button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button></div>
-        ${local.map(localRow).join('')}` : ''}
-      ${links.length ? `<h3>🔗 ลิงก์เอกสาร (${links.length})</h3>${links.map(linkRow).join('')}` : ''}
-    `}`);
+  const unifiedRows = [
+    ...driveFiles.map(driveRow),
+    ...local.map(localRow),
+    ...links.map(linkRow),
+  ];
+  setModalBody(`${folderBarHTML}
+    ${!unifiedRows.length ? empty('📁', 'ยังไม่มีไฟล์หรือลิงก์ในหมวดนี้', `<button class="btn small" data-act="file-tab" data-t="upload">+ เพิ่มไฟล์ / ลิงก์</button>`) : unifiedRows.join('')}`);
 }
 function openAllExamsModal() {
   const exams = upcomingExams();
@@ -2418,7 +2487,14 @@ const Actions = {
   'go': el => { closeModal(); App.go(el.dataset.tab); },
   'close-modal': () => closeModal(),
   'toggle-dark': () => { DB.prefs.dark = !DB.prefs.dark; save(); },
-  'theme': el => { DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true; if (el.dataset.theme === 'navy' || el.dataset.theme === 'manutd') DB.prefs.dark = true; save(); },
+  'open-ai-import-guide': () => openAiImportModal(),
+  'open-themes': () => openThemeModal(),
+  'theme': el => {
+    DB.prefs.theme = el.dataset.theme; DB.prefs.themeChosen = true;
+    if (el.dataset.theme === 'navy' || el.dataset.theme === 'manutd') DB.prefs.dark = true;
+    save();
+    document.querySelectorAll('.modal-body .theme-sw').forEach(b => b.classList.toggle('active', b.dataset.theme === el.dataset.theme));
+  },
   'toggle-past': () => { App.showPast = !App.showPast; App.render(); },
 
   // plan
@@ -2741,9 +2817,43 @@ const Actions = {
     filesRender();
   },
   'file-tab': el => { App.fileTab = el.dataset.t || 'list'; App.filePickMode = false; App.fileDlMode = false; filesRender(); },
-  'file-folder': el => { App.fileFolder = el.dataset.f || ''; App.filePickMode = false; App.fileDlMode = false; filesRender(); },
-  'file-pick-toggle': () => { App.filePickMode = !App.filePickMode; App.fileDlMode = false; filesRender(); },
-  'file-dl-toggle': () => { App.fileDlMode = !App.fileDlMode; App.filePickMode = false; if (!App.fileDlMode) App._dlSel = new Set(); filesRender(); },
+  'file-menu': el => {
+    const pop = document.getElementById('fileMenuPop');
+    const s = subjectById(App.filesSid);
+    if (!pop || !s) return;
+    const { kind, id, folder } = el.dataset;
+    if (!pop.hidden && pop.dataset.for === `${kind}:${id}`) { pop.hidden = true; return; }
+    const folders = s.folders || [];
+    const folderSel = `<select class="folder-sel" data-chg="move-file-folder" data-kind="${kind}" data-id="${esc(id)}" aria-label="เลือกโฟลเดอร์">
+      <option value="" ${!folder ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
+      ${folders.map(fn => `<option value="${esc(fn)}" ${folder === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
+    </select>`;
+    let items = '';
+    if (kind === 'local') {
+      items = `<button type="button" class="file-menu-item" data-act="file-dl" data-id="${esc(id)}">⬇️ ดาวน์โหลด</button>
+        ${Sync.user ? `<button type="button" class="file-menu-item" data-act="file-migrate" data-id="${esc(id)}">☁️ ย้ายขึ้น Drive</button>` : ''}
+        <button type="button" class="file-menu-item danger" data-act="file-del" data-id="${esc(id)}">🗑️ ลบไฟล์</button>`;
+    } else if (kind === 'drive') {
+      items = `<button type="button" class="file-menu-item danger" data-act="file-drive-del" data-id="${esc(id)}">🗑️ ลบไฟล์</button>`;
+    } else {
+      items = `<button type="button" class="file-menu-item danger" data-act="link-del" data-id="${esc(id)}">🗑️ ลบลิงก์</button>`;
+    }
+    pop.dataset.for = `${kind}:${id}`;
+    pop.innerHTML = `<label class="file-menu-folder"><span>📁 โฟลเดอร์</span>${folderSel}</label>${items}`;
+    pop.hidden = false;
+    const r = el.getBoundingClientRect();
+    pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+    const popH = pop.offsetHeight || 150;
+    if (window.innerHeight - r.bottom < popH + 12 && r.top > popH + 12) {
+      pop.style.top = 'auto';
+      pop.style.bottom = `${window.innerHeight - r.top + 4}px`;
+    } else {
+      pop.style.bottom = 'auto';
+      pop.style.top = `${Math.max(8, Math.min(r.bottom + 4, window.innerHeight - popH - 8))}px`;
+    }
+  },
+  'file-folder': el => { App.fileFolder = el.dataset.f || ''; App.fileSelectMode = false; App._dlSel = new Set(); filesRender(); },
+  'file-select-toggle': () => { App.fileSelectMode = !App.fileSelectMode; if (!App.fileSelectMode) App._dlSel = new Set(); filesRender(); },
   'file-dl-all': async el => {
     const s = subjectById(App.filesSid); if (!s) return;
     const sel = App._dlSel || (App._dlSel = new Set());
@@ -2753,11 +2863,29 @@ const Actions = {
     const matchF = x => !cur ? true : cur === '__none__' ? !x.folder : x.folder === cur;
     (s.driveFiles || []).filter(f => f && safeDriveId(f.id) && matchF(f)).forEach(f => sel.add(`drive:${f.id}`));
     local.filter(f => f && !f.driveId && matchF(f)).forEach(f => sel.add(`local:${f.id}`));
+    (s.links || []).filter(l => matchF(l)).forEach(l => sel.add(`link:${l.id}`));
     filesRender();
+  },
+  'file-batch-del': async () => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const keys = [...(App._dlSel || [])];
+    if (!keys.length || !confirm(`ลบที่เลือก ${keys.length} รายการ?`)) return;
+    for (const key of keys) {
+      const [kind, id] = key.split(':');
+      if (kind === 'local') await FileStore.del(id, s.id).catch(() => { });
+      else if (kind === 'link') s.links = (s.links || []).filter(l => l.id !== id);
+      else if (kind === 'drive') {
+        try { if (Sync.user && typeof Drive !== 'undefined') await Drive.delete(id); } catch { }
+        s.driveFiles = (s.driveFiles || []).filter(f => f.id !== id);
+      }
+    }
+    App._dlSel = new Set(); App.fileSelectMode = false;
+    save({ silent: true }); filesRender();
+    App.toast(`ลบ ${keys.length} รายการแล้ว`);
   },
   'file-dl-run': async () => {
     const s = subjectById(App.filesSid); if (!s) return;
-    const keys = [...(App._dlSel || [])];
+    const keys = [...(App._dlSel || [])].filter(k => k.startsWith('drive:') || k.startsWith('local:'));
     if (!keys.length) return;
     App.toast(`กำลังดาวน์โหลด ${keys.length} ไฟล์…`, 4000);
     const triggerA = (href, name) => {
@@ -3046,6 +3174,13 @@ const Actions = {
     const blob = new Blob([JSON.stringify(copy, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `study-planner-${todayStr()}.json`; a.click();
   },
+  'copy-ai-prompt': () => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(AI_IMPORT_PROMPT).then(() => App.toast('คัดลอก Prompt แล้ว 📋')).catch(() => App.toast('คัดลอกไม่สำเร็จ'));
+    } else {
+      App.toast('เบราว์เซอร์ไม่รองรับการคัดลอกอัตโนมัติ');
+    }
+  },
   'reset': () => openModal('⚠️ ยืนยันการล้างข้อมูลทั้งหมด', `
     <p>ข้อมูลวิชา วันสอบ ตารางอ่าน โน้ต และสถิติทั้งหมดจะถูกลบถาวร (ไม่สามารถกู้คืนได้หากไม่ได้ Export ไว้)</p>
     <form data-form="reset-confirm">
@@ -3214,13 +3349,20 @@ const Forms = {
     const s = subjectById(App.filesSid); if (!s) return;
     const err = f.querySelector('[data-url-error]');
     if (err) { err.hidden = true; err.textContent = ''; }
-    const title = (d.title || '').trim();
-    if (!title) { App.toast('ใส่ชื่อเอกสารด้วยนะ'); return; }
     const parsed = normalizeLink(d.url);
     if (parsed.error) { if (err) { err.hidden = false; err.textContent = parsed.error; } else App.toast(parsed.error); return; }
+    let autoTitle = (d.title || '').trim();
+    if (!autoTitle) {
+      try {
+        const u = new URL(parsed.url);
+        const host = u.hostname.replace(/^www\./, '');
+        const seg = decodeURIComponent(u.pathname.split('/').filter(Boolean).pop() || '');
+        autoTitle = seg && seg.length <= 40 && !/^(view|edit|open|file|d)$/i.test(seg) ? `${host} · ${seg}` : host;
+      } catch { autoTitle = 'ลิงก์เอกสาร'; }
+    }
     s.links = s.links || [];
     const folder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
-    s.links.unshift({ id: uid(), title, url: parsed.url, folder, addedAt: Date.now() });
+    s.links.unshift({ id: uid(), title: autoTitle, url: parsed.url, folder, addedAt: Date.now() });
     f.reset(); App.fileTab = 'list'; save({ silent: true }); filesRender();
   },
   async 'ai-exams'(d) {
@@ -3291,7 +3433,11 @@ const Changes = {
   'ai-sub': el => { App.aiSub = el.value; App.aiCh = ''; App.render(); },
   'ai-ch': el => { App.aiCh = el.value; },
   'plan-sub': el => { document.getElementById('planCh').innerHTML = planChapterOptions(el.value); },
-  'custom-color': el => { el.form.querySelectorAll('input[name=color]').forEach(r => r.checked = false); },
+  'custom-color': el => {
+    el.form.querySelectorAll('input[name=color]').forEach(r => r.checked = false);
+    const wrap = el.closest('.color-rgb');
+    if (wrap) { wrap.style.setProperty('--c', el.value); wrap.classList.add('is-custom'); }
+  },
   'be-hint': el => { const s = el.closest('.field')?.querySelector('small'); if (s && el.value) s.textContent = `(${fmtDateBE(el.value)})`; },
   'ai-model-select': el => {
     const c = aiCfg();
@@ -3351,6 +3497,27 @@ const Changes = {
     if (el.checked) sel.add(el.dataset.key); else sel.delete(el.dataset.key);
     filesRender();
   },
+  'batch-move-folder': async el => {
+    const folder = el.value;
+    if (folder === '__pick__') return;
+    const s = subjectById(App.filesSid); if (!s) return;
+    const keys = [...(App._dlSel || [])];
+    for (const key of keys) {
+      const [kind, id] = key.split(':');
+      if (kind === 'drive') {
+        const f = (s.driveFiles || []).find(x => x.id === id);
+        if (f) f.folder = folder;
+      } else if (kind === 'link') {
+        const l = (s.links || []).find(x => x.id === id);
+        if (l) l.folder = folder;
+      } else if (kind === 'local') {
+        await FileStore.setFolder(id, folder);
+      }
+    }
+    App._dlSel = new Set(); App.fileSelectMode = false;
+    save({ silent: true }); filesRender();
+    App.toast(folder ? `ย้าย ${keys.length} รายการเข้า "${folder}" แล้ว` : `นำ ${keys.length} รายการออกจากโฟลเดอร์แล้ว`);
+  },
   'file-upload': async el => {
     const files = [...(el.files || [])];
     el.value = '';
@@ -3372,7 +3539,8 @@ const Changes = {
     file.text().then(txt => {
       const data = JSON.parse(txt);
       if (!Array.isArray(data.subjects)) throw new Error('ไฟล์ไม่ถูกต้อง');
-      if (!confirm('นำเข้าข้อมูลนี้แทนข้อมูลปัจจุบัน?')) return;
+      const isEmpty = !DB.subjects.length && !DB.tasks.length && !DB.classes.length;
+      if (!isEmpty && !confirm('นำเข้าข้อมูลนี้แทนข้อมูลปัจจุบัน?')) return;
       data.updatedAt = Date.now(); replaceDB(sanitizeIncoming(data)); App.toast('นำเข้าข้อมูลเรียบร้อย ✓');
     }).catch(e => App.toast('นำเข้าไม่สำเร็จ: ' + e.message));
   },
@@ -3410,6 +3578,20 @@ function calHoverHTML(iso) {
 
 function bindEvents() {
   const modalBody = document.getElementById('modalBody');
+  const fileMenuPop = document.createElement('div');
+  fileMenuPop.id = 'fileMenuPop';
+  fileMenuPop.className = 'file-menu-pop';
+  fileMenuPop.hidden = true;
+  document.body.appendChild(fileMenuPop);
+  document.addEventListener('click', e => {
+    if (!fileMenuPop.hidden && !e.target.closest('#fileMenuPop') && !e.target.closest('[data-act="file-menu"]')) {
+      fileMenuPop.hidden = true;
+    }
+    if (!fileMenuPop.hidden && e.target.closest('#fileMenuPop .file-menu-item')) {
+      setTimeout(() => { fileMenuPop.hidden = true; }, 0);
+    }
+  });
+  modalBody?.addEventListener('scroll', () => { fileMenuPop.hidden = true; }, { passive: true });
   const tip = document.createElement('div');
   tip.id = 'calHoverTip';
   tip.className = 'cal-hover-tip';

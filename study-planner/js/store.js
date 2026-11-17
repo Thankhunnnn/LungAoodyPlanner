@@ -15,7 +15,7 @@ const defaultData = () => ({
   flashcards: [], // {id,subjectId,chapterId,q,a,known}
   classes: [],    // {id,day,start,end,subjectId,title,room,color}
   prefs: {
-    theme: 'navy', dark: true,
+    theme: 'sky', dark: true,
     chaptersPerDay: 3, reviewDayBefore: true,
     pomo: { work: 25, short: 5, long: 15, every: 4 },
     notify: false, notifyTime: '08:00',
