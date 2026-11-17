@@ -972,11 +972,13 @@ function showUploadProgress(done, total, name, ratio, label) {
 }
 async function saveLocalFiles(sid, files) {
   let n = 0;
-  for (const f of files) { try { await FileStore.add(sid, f); n++; } catch { /* device storage full */ } }
+  const folder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
+  for (const f of files) { try { await FileStore.add(sid, f, { folder }); n++; } catch { /* device storage full */ } }
   return n;
 }
 async function runDriveUploads(sid, files, localIds, tokenPromise) {
   let ok = 0;
+  const folder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
   try {
     showUploadProgress(0, files.length, files[0].name, 0, 'กำลังขอสิทธิ์ Google Drive…');
     await tokenPromise;
@@ -986,10 +988,14 @@ async function runDriveUploads(sid, files, localIds, tokenPromise) {
       const f = files[i];
       showUploadProgress(i, files.length, f.name, 0);
       const meta = await Drive.uploadToSubject(subject, f, ratio => showUploadProgress(i, files.length, f.name, ratio));
+      if (folder && meta && meta.id) {
+        const df = (subject.driveFiles || []).find(x => x.id === meta.id);
+        if (df) { df.folder = folder; save({ silent: true }); }
+      }
       ok++;
       try {
         if (localIds && localIds[i]) await FileStore.markDrive(localIds[i], sid, meta.id);
-        else await FileStore.add(sid, f, { driveId: meta.id });
+        else await FileStore.add(sid, f, { driveId: meta.id, folder });
       } catch { /* Drive copy is enough if this device cannot cache the blob */ }
     }
     App.toast(`อัปโหลด ${ok} ไฟล์ขึ้น Drive แล้ว`);
@@ -1013,67 +1019,95 @@ async function filesRender() {
   const s = subjectById(sid); if (!s) return;
   const all = await FileStore.list(sid).catch(() => []);
   if (gen !== _filesGen || App.filesSid !== sid) return;
-  const local = (all || []).filter(f => f && !f.driveId);
-  const driveFiles = (s.driveFiles || []).filter(f => f && safeDriveId(f.id))
+  const folders = s.folders || (s.folders = ['เนื้อหา', 'แบบฝึกหัด', 'เฉลย']);
+  const curFolder = App.fileFolder || '';
+  const matchF = f => !curFolder ? true : curFolder === '__none__' ? !f.folder : f.folder === curFolder;
+  const allLocal = (all || []).filter(f => f && !f.driveId);
+  const allDrive = (s.driveFiles || []).filter(f => f && safeDriveId(f.id))
     .slice().sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')));
-  const links = s.links || [];
+  const allLinks = s.links || [];
+  const local = allLocal.filter(matchF);
+  const driveFiles = allDrive.filter(matchF);
+  const links = allLinks.filter(matchF);
+  const countIn = fn => allDrive.filter(fn).length + allLocal.filter(fn).length + allLinks.filter(fn).length;
+  const folderSelect = (kind, id, cur) => `<select class="folder-sel" data-chg="move-file-folder" data-kind="${kind}" data-id="${esc(id)}" aria-label="เลือกโฟลเดอร์">
+    <option value="" ${!cur ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
+    ${folders.map(fn => `<option value="${esc(fn)}" ${cur === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
+  </select>`;
   const signed = !!Sync.user;
   const driveRow = f => `<div class="item">
       <span>${fileIcon(f.mimeType, f.name)}</span>
       <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.modifiedTime))}</small></span>
       <span class="item-actions">
+        ${folderSelect('drive', f.id, f.folder)}
         <button class="mini-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
-        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}">ลบ</button>
+        <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">✕</button>
       </span>
     </div>`;
   const localRow = f => `<div class="item">
       <span>${fileIcon(f.type, f.name)}</span>
       <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small></span>
       <span class="item-actions">
+        ${folderSelect('local', f.id, f.folder)}
         <button class="mini-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
-        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}">⬇️</button>
+        <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}" aria-label="ดาวน์โหลด">⬇️</button>
         <button class="mini-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
-        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}">✕</button>
+        <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">✕</button>
       </span>
     </div>`;
+  const linkRow = l => {
+    let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch { }
+    return `<div class="item">
+      <span>🔗</span>
+      <span class="grow"><a href="${esc(l.url)}" target="_blank" rel="noopener"><b>${esc(l.title)}</b></a>${host ? `<br><small class="muted">${esc(host)}</small>` : ''}</span>
+      <span class="item-actions">
+        ${folderSelect('link', l.id, l.folder)}
+        <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}" aria-label="ลบลิงก์">✕</button>
+      </span>
+    </div>`;
+  };
   const dest = fileGoesToDrive() ? 'drive' : 'local';
   setModalBody(`
-    ${signed ? `<div class="pills file-dest">
-      <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
-      <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
-    </div>` : ''}
+    <div class="folder-bar">
+      <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${countIn(() => true)})</button>
+      ${folders.map(fn => `<span class="folder-chip"><button type="button" class="chip ${curFolder === fn ? 'accent' : ''}" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button>${!['เนื้อหา', 'แบบฝึกหัด', 'เฉลย'].includes(fn) ? `<button type="button" class="mini-btn" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button>` : ''}</span>`).join('')}
+      ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
+      <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
+    </div>
+    <div class="row wrap" style="margin-bottom:8px">
+      ${signed ? `<div class="pills file-dest" style="margin:0">
+        <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
+        <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
+      </div>` : '<button class="btn small" data-act="login">ล็อกอินเพื่อ sync / ขึ้น Drive</button>'}
+    </div>
     <label class="upload-box">
       <input type="file" multiple data-chg="file-upload" hidden>
-      <div>📤 <b>เลือกไฟล์จากเครื่อง</b> (PDF, รูปภาพ, สไลด์, เอกสาร — เลือกได้หลายไฟล์)</div>
+      <div>📤 <b>เลือกไฟล์จากเครื่อง</b>${curFolder && curFolder !== '__none__' ? ` → ใส่ในโฟลเดอร์ <b>${esc(curFolder)}</b>` : ''}</div>
       <div class="muted small">${esc(driveNote(s))}</div>
     </label>
-    ${signed ? '' : '<div class="row"><button class="btn small" data-act="login">ล็อกอินเพื่อ sync</button></div>'}
     <div id="upProg" class="up-prog" role="status" hidden></div>
+
+    <details class="link-add-box">
+      <summary>+ 🔗 เพิ่มลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</summary>
+      <form data-form="link-add" class="link-form" novalidate>
+        <div class="grid2-sm">
+          <label class="field"><span>ชื่อเอกสาร</span><input name="title" maxlength="200" placeholder="เช่น สไลด์บท 1" required></label>
+          <label class="field"><span>ลิงก์ URL</span><input name="url" type="text" inputmode="url" maxlength="500" placeholder="https://..." autocomplete="url" required><small class="field-error" data-url-error hidden></small></label>
+        </div>
+        <button class="btn small">+ เพิ่มลิงก์${curFolder && curFolder !== '__none__' ? `ลง "${esc(curFolder)}"` : ''}</button>
+      </form>
+    </details>
+
     ${signed || driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>
-      ${driveFiles.length ? driveFiles.map(driveRow).join('') : '<p class="muted small">ยังไม่มีไฟล์บน Drive</p>'}` : ''}
+      ${driveFiles.length ? driveFiles.map(driveRow).join('') : '<p class="muted small">ยังไม่มีไฟล์บน Drive ในหมวดนี้</p>'}` : ''}
     ${local.length || !driveFiles.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
       ${local.length ? '<button class="btn small ghost" data-act="file-migrate-all">ย้ายทั้งหมดขึ้น Drive</button>' : ''}</div>
-      ${local.length ? local.map(localRow).join('') : `<p class="muted small">${signed ? 'ยังไม่มีไฟล์ในเครื่อง' : 'ยังไม่มีไฟล์'}</p>`}` : ''}
-    <hr>
-    <h3>🔗 ลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
-    <form data-form="link-add" class="link-form" novalidate>
-      <label class="field">ชื่อเอกสาร
-        <input name="title" maxlength="200" placeholder="ชื่อเอกสาร" required>
-      </label>
-      <label class="field">ลิงก์
-        <input name="url" type="text" inputmode="url" maxlength="500" placeholder="ลิงก์ เช่น https://drive.google.com/..." autocomplete="url" required>
-        <small class="field-error" data-url-error hidden></small>
-      </label>
-      <button class="btn small">+ เพิ่ม</button>
-    </form>
-    ${links.length ? links.map(l => `<div class="item">
-      <span>🔗</span>
-      <a class="grow" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>
-      <button class="mini-btn" data-act="link-del" data-id="${esc(l.id)}">✕</button>
-    </div>`).join('') : '<p class="muted small">ยังไม่มีลิงก์ (ลิงก์จะ sync ข้ามเครื่องด้วย)</p>'}`);
+      ${local.length ? local.map(localRow).join('') : `<p class="muted small">${signed ? 'ยังไม่มีไฟล์ในเครื่องในหมวดนี้' : 'ยังไม่มีไฟล์ในหมวดนี้'}</p>`}` : ''}
+    <h3>🔗 ลิงก์เอกสาร (${links.length})</h3>
+    ${links.length ? links.map(linkRow).join('') : '<p class="muted small">ยังไม่มีลิงก์ในหมวดนี้</p>'}`);
 }
 function openFilesModal(sid) {
-  App.filesSid = sid;
+  App.filesSid = sid; App.fileFolder = '';
   openModal(`📎 ไฟล์และเอกสาร — ${esc(subjectName(sid))}`, '<p class="muted">กำลังโหลด…</p>', true);
   if (typeof Drive !== 'undefined') Drive.preload();
   filesRender();
@@ -1648,6 +1682,28 @@ const Actions = {
     saveLocal();
     filesRender();
   },
+  'file-folder': el => { App.fileFolder = el.dataset.f || ''; filesRender(); },
+  'file-folder-add': () => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const name = prompt('ชื่อโฟลเดอร์ใหม่ (เช่น ชีทสรุป, ข้อสอบเก่า)');
+    if (!name || !name.trim()) return;
+    const clean = name.trim().slice(0, 40);
+    s.folders = s.folders || ['เนื้อหา', 'แบบฝึกหัด', 'เฉลย'];
+    if (!s.folders.includes(clean)) s.folders.push(clean);
+    App.fileFolder = clean; save({ silent: true }); filesRender();
+  },
+  'file-folder-del': async el => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const f = el.dataset.f;
+    if (!confirm(`ลบโฟลเดอร์ "${f}"? (ไฟล์ข้างในจะยังอยู่ แค่ย้ายออกเป็นยังไม่จัดหมวด)`)) return;
+    s.folders = (s.folders || []).filter(x => x !== f);
+    (s.driveFiles || []).forEach(x => { if (x.folder === f) x.folder = ''; });
+    (s.links || []).forEach(x => { if (x.folder === f) x.folder = ''; });
+    const all = await FileStore.list(s.id).catch(() => []);
+    for (const r of all) if (r.folder === f) await FileStore.setFolder(r.id, '');
+    if (App.fileFolder === f) App.fileFolder = '';
+    save({ silent: true }); filesRender();
+  },
   'file-open': async el => {
     const r = await FileStore.get(el.dataset.id); if (!r) return;
     window.open(URL.createObjectURL(r.blob), '_blank');
@@ -1987,7 +2043,8 @@ const Forms = {
     const parsed = normalizeLink(d.url);
     if (parsed.error) { if (err) { err.hidden = false; err.textContent = parsed.error; } else App.toast(parsed.error); return; }
     s.links = s.links || [];
-    s.links.unshift({ id: uid(), title, url: parsed.url, addedAt: Date.now() });
+    const folder = App.fileFolder && App.fileFolder !== '__none__' ? App.fileFolder : '';
+    s.links.unshift({ id: uid(), title, url: parsed.url, folder, addedAt: Date.now() });
     f.reset(); save({ silent: true }); filesRender();
   },
   async 'ai-exams'(d) {
@@ -2064,6 +2121,21 @@ const Changes = {
     const files = [...(el.files || [])];
     el.value = '';
     if (files.length) addChatFiles(files);
+  },
+  'move-file-folder': async el => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const { kind, id } = el.dataset, folder = el.value || '';
+    if (kind === 'drive') {
+      const f = (s.driveFiles || []).find(x => x.id === id);
+      if (f) { f.folder = folder; save({ silent: true }); }
+    } else if (kind === 'link') {
+      const l = (s.links || []).find(x => x.id === id);
+      if (l) { l.folder = folder; save({ silent: true }); }
+    } else if (kind === 'local') {
+      await FileStore.setFolder(id, folder);
+    }
+    App.toast(folder ? `ย้ายไปโฟลเดอร์ "${folder}" แล้ว` : 'นำออกจากโฟลเดอร์แล้ว');
+    filesRender();
   },
   'file-upload': async el => {
     const files = [...(el.files || [])];

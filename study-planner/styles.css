@@ -540,6 +540,13 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
   padding: 6px 12px; border-radius: 12px; background: var(--soft);
   border-left: 4px solid var(--c, var(--accent)); font-size: .88rem;
 }
+/* file folders & clean link box */
+.folder-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.folder-chip { display: inline-flex; align-items: center; gap: 2px; }
+.folder-chip .mini-btn { min-width: 24px; min-height: 24px; padding: 2px 4px; font-size: .75rem; }
+.folder-sel { width: auto; max-width: 140px; padding: 4px 8px; font-size: .78rem; border-radius: 10px; background: var(--soft); }
+.link-add-box { background: var(--soft); border: 1px solid var(--border); border-radius: 14px; padding: 8px 12px; margin: 10px 0; }
+.link-add-box summary { margin: 0; font-weight: 500; font-size: .9rem; }
 @media (max-width: 600px) {
   .coach-hero { justify-content: center; }
   .coach-hero-img { height: 132px; }

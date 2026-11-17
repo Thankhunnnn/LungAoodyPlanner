@@ -188,10 +188,15 @@ const FileStore = {
   },
   async add(sid, file, extra) {
     const driveId = safeDriveId(extra && extra.driveId);
-    const rec = { id: uid(), subjectId: sid, name: file.name, type: file.type || '', size: file.size || 0, blob: file, addedAt: Date.now(), driveId };
+    const rec = { id: uid(), subjectId: sid, name: file.name, type: file.type || '', size: file.size || 0, blob: file, addedAt: Date.now(), driveId, folder: (extra && extra.folder) || '' };
     await this._tx('readwrite', s => s.put(rec));
     if (!driveId) this._counts[sid] = (this._counts[sid] || 0) + 1;
     return rec;
+  },
+  async setFolder(id, folder) {
+    const rec = await this.get(id); if (!rec) return;
+    rec.folder = folder || '';
+    await this._tx('readwrite', s => s.put(rec));
   },
   async get(id) { return this._tx('readonly', s => s.get(id)); },
   async markDrive(id, sid, driveId) {
