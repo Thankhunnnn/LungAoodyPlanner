@@ -93,10 +93,12 @@ const App = {
     hdr.classList.toggle('compact', this.tab !== 'home');
     hdr.innerHTML = this.headerHTML();
     const nextEx = upcomingExams()[0];
+    const isFootball = (DB.prefs.theme || 'navy') === 'navy';
     document.getElementById('nav').innerHTML = `
-      <div class="side-brand"><span class="side-logo">🐃</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
+      <div class="side-brand"><span class="side-logo">${isFootball ? '<img src="assets/madrid-crest.png" alt="Real Madrid" class="side-logo-img">' : '🐃'}</span><div><b>LungAoody</b><small>Study Planner</small></div></div>
       <div class="side-tabs">${ALL_TABS.map(([id, ic, label]) =>
         `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${label}</span></button>`).join('')}</div>
+      ${isFootball ? '<div class="side-hala" aria-hidden="true">Hala Madrid</div>' : ''}
       <div class="side-cards">
         <div class="side-quote">
           <img src="assets/coach-moto.webp" alt="อู๊ด">
@@ -252,6 +254,9 @@ function dateField(label, name, value, required) {
   return `<label class="field"><span>${label} <small class="muted">${v ? '(' + fmtDateBE(v) + ')' : ''}</small></span><input type="date" name="${name}" value="${esc(v)}" min="${now - 1}-01-01" max="${now + 5}-12-31" ${required ? 'required' : ''} data-chg="be-hint"></label>`;
 }
 function avatarImg() {
+  if ((DB.prefs.theme || 'navy') === 'navy') {
+    return `<img class="avatar-img madrid-av" src="assets/madrid-crest.png" alt="Real Madrid" width="46" height="46">`;
+  }
   return `<img class="avatar-img" src="assets/avatar-profile.webp" alt="อู๊ด" width="46" height="46" loading="eager" fetchpriority="high" decoding="sync" onerror="if(!this.dataset.fb){this.dataset.fb='1';this.src='assets/avatar-profile.png'}">`;
 }
 function examYearOk(s) {
@@ -391,7 +396,7 @@ const Views = {
     return `
     <div class="ref-row1">
       <section class="card ref-banner ${isFootball ? 'is-football' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
-        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true"><span class="banner-hala" aria-hidden="true">Hala Madrid</span>` : ''}
+        ${isFootball ? `<img class="banner-crest" src="assets/madrid-crest.png" alt="" aria-hidden="true">` : ''}
         <div class="banner-ic" aria-hidden="true">${ico('target', 24)}</div>
         <div class="ref-banner-body">
           <div class="ref-banner-title"><span>เป้าหมายหลักของคุณ</span></div>
