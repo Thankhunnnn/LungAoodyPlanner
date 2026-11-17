@@ -10,9 +10,9 @@ const Notifier = {
     if (!this.supported() || Notification.permission !== 'granted') { App.toast(`${title} — ${body}`, 6000); return; }
     try {
       const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
-      if (reg) { await reg.showNotification(title, { body, icon: 'icon.svg', badge: 'icon.svg', tag: title }); return; }
+      if (reg) { await reg.showNotification(title, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag: title }); return; }
     } catch { }
-    try { new Notification(title, { body, icon: 'icon.svg' }); } catch { App.toast(`${title} — ${body}`, 6000); }
+    try { new Notification(title, { body, icon: 'icon-192.png' }); } catch { App.toast(`${title} — ${body}`, 6000); }
   },
   dailyText() {
     const t = todayStr(), tm = addDays(t, 1);
