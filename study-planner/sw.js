@@ -5,6 +5,7 @@ const SHELL = ['./', './index.html', './styles.css', './manifest.json',
   './assets/bg-blue.webp', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
   './assets/coach-hero-real.webp', './assets/coach-action.webp', './assets/coach-moto.webp',
   './assets/sticker-pencil.webp', './assets/sticker-book.webp', './assets/sticker-rocket.webp', './assets/sticker-sakura.webp',
+  './assets/ooo-chat.webp',
   './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/drive.js', './js/services.js', './js/app.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });

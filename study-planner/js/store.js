@@ -30,6 +30,7 @@ const defaultLocal = () => ({
   geminiKey: '', geminiModel: 'gemini-3.8-flash',
   openaiKey: '', openaiModel: 'gpt-4o-mini',
   firebaseConfig: '',
+  fileDest: 'drive',
   lastNotify: {},
   chat: [],
 });
