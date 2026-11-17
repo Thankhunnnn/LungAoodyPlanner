@@ -133,9 +133,11 @@ html[data-theme="navy"] .tab.active { background: #3b82f6; color: #fff; border-c
 /* cards */
 .card {
   background: var(--card); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); min-width: 0; overflow-wrap: anywhere;
+  padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); min-width: 0; overflow-wrap: break-word;
 }
-h1, h2, h3, .cd-name, .prog-top span, .tag, .item .grow, .item a, .subj-head h3 { overflow-wrap: anywhere; min-width: 0; }
+h1, h2, h3, .cd-name, .prog-top span, .tag, .subj-head h3 { overflow-wrap: break-word; min-width: 0; }
+.item .grow { overflow-wrap: break-word; min-width: 0; }
+.item a { overflow-wrap: anywhere; min-width: 0; }
 .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: .6em; }
 .card-head h2 { margin: 0; flex: 1; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; min-width: 0; }
@@ -143,6 +145,11 @@ h1, h2, h3, .cd-name, .prog-top span, .tag, .item .grow, .item a, .subj-head h3 
 .grid2 > .card { margin-bottom: 0; }
 .grid2 + .grid2, .grid2 + .card, .card + .grid2 { margin-top: 16px; }
 @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+/* Home column, not the viewport: the coach photo reserves ~480px, so .app can be ~800px on a 1280 screen. */
+.main { container-type: inline-size; container-name: planner; }
+@container planner (max-width: 899px) {
+  .home-split { grid-template-columns: 1fr; }
+}
 
 .welcome { text-align: center; padding: 32px 20px; }
 .welcome .row { justify-content: center; max-width: 420px; margin: 12px auto; }
@@ -369,7 +376,8 @@ details summary { cursor: pointer; color: var(--accent); margin: 8px 0; }
 .modal-head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); gap: 8px; }
 .modal-head h3 { margin: 0; flex: 1; font-size: 1.05rem; }
 .modal-body { padding: 16px 18px; overflow: auto; overflow-wrap: anywhere; scrollbar-color: color-mix(in srgb, var(--accent) 55%, var(--muted)) transparent; }
-.modal-body a, .modal-body .grow, .fc-add input { overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+.modal-body a, .fc-add input { overflow-wrap: anywhere; min-width: 0; max-width: 100%; }
+.modal-body .item .grow { overflow-wrap: break-word; min-width: 0; max-width: 100%; }
 @keyframes pop { from { transform: scale(.96); opacity: 0; } }
 @media (max-width: 600px) { .modal { place-items: end center; padding: 0; } .modal-box { border-radius: 24px 24px 0 0; max-height: 92vh; } }
 

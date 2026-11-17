@@ -171,10 +171,13 @@ function avatarImg() {
 }
 function examYearOk(s) {
   if (!s) return true;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
-  const y = Number(s.slice(0, 4));
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
   const now = new Date().getFullYear();
-  return y >= now - 1 && y <= now + 5;
+  if (y < now - 1 || y > now + 5) return false;
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
 }
 function coachBubble(kind) {
   const name = esc(DB.name || 'เพื่อน');
@@ -251,7 +254,7 @@ const Views = {
       ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty('🎉', 'ไม่มีสอบที่กำลังจะมาถึง')}
     </section>
 
-    <div class="grid2">
+    <div class="grid2 home-split">
       <section class="card today">
         <div class="card-head"><h2>📌 ตารางวันนี้ <small class="muted">(${fmtDateLong(t)})</small></h2>
           <span class="chip">${doneToday}/${today.length}</span></div>
@@ -431,7 +434,7 @@ const Views = {
           <small class="muted">${new Date(x.at).toTimeString().slice(0, 5)}</small>
           <button class="mini-btn" data-act="del-session" data-id="${x.id}">✕</button></div>`).join('') : empty('⏳', 'ยังไม่มีบันทึกวันนี้')}
         <h3>+ บันทึกเวลาเอง</h3>
-        <form data-form="session" class="session-form">
+        <form data-form="session" class="session-form" novalidate>
           <label class="field">วิชา<select name="subjectId">${subjectOptions('')}</select></label>
           <div class="grid2-sm">
             <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" max="1440" placeholder="เช่น 45" required></label>
@@ -672,7 +675,7 @@ function taskItemHTML(x) {
 /* ===== Modal contents ===== */
 function subjectForm(s = {}) {
   const color = s.color || SUBJECT_COLORS[DB.subjects.length % SUBJECT_COLORS.length];
-  return `<form data-form="subject" data-id="${s.id || ''}">
+  return `<form data-form="subject" data-id="${s.id || ''}" novalidate>
     <label class="field">ชื่อวิชา<input name="name" required maxlength="120" value="${esc(s.name || '')}" placeholder="เช่น Managerial Accounting"></label>
     <div class="row wrap">
       ${dateField('วันสอบ', 'examDate', s.examDate || '')}
@@ -1296,9 +1299,13 @@ function refreshDayModal() {
 /* ===== Forms ===== */
 const Forms = {
   name(d) { DB.name = d.name.trim(); save(); App.toast('บันทึกแล้ว 🌸'); },
-  'reset-confirm'(d) {
+  async 'reset-confirm'(d) {
     if (d.word.trim() !== 'ลบทั้งหมด') return App.toast('กรุณาพิมพ์คำว่า "ลบทั้งหมด" ให้ตรงกันนะ');
-    closeModal(); replaceDB(defaultData()); App.go('home'); App.toast('ล้างข้อมูลทั้งหมดแล้ว');
+    closeModal();
+    replaceDB(defaultData());
+    try { await FileStore.clearAll(); } catch { /* study data is already gone; files are best-effort */ }
+    App.go('home');
+    App.toast('ล้างข้อมูลทั้งหมดแล้ว');
   },
   subject(d, f) {
     const name = (d.name || '').trim();
