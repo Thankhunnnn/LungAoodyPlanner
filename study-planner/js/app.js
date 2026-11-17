@@ -1680,6 +1680,36 @@ async function filesRender() {
     return;
   }
 
+  const folderPickHTML = (curFolder && curFolder !== '__none__') ? `
+    <div class="row wrap" style="margin:0 0 10px;justify-content:space-between;align-items:center">
+      <span class="muted small">📁 โฟลเดอร์ <b>${esc(curFolder)}</b></span>
+      <button type="button" class="btn small ${App.filePickMode ? '' : 'ghost'}" data-act="file-pick-toggle">${App.filePickMode ? '✓ เสร็จสิ้น' : '☑ ติ๊กเลือกไฟล์เข้าโฟลเดอร์'}</button>
+    </div>` : '';
+
+  if (App.filePickMode && curFolder && curFolder !== '__none__') {
+    const allPick = [
+      ...allDrive.map(f => ({ kind: 'drive', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `โฟลเดอร์: ${f.folder}` : 'ยังไม่จัดหมวด' })),
+      ...allLocal.map(f => ({ kind: 'local', id: f.id, name: f.name, folder: f.folder || '', sub: f.folder ? `ในเครื่อง · ${f.folder}` : 'ในเครื่อง · ยังไม่จัดหมวด' })),
+      ...allLinks.map(l => ({ kind: 'link', id: l.id, name: l.title, folder: l.folder || '', sub: l.folder ? `ลิงก์ · ${l.folder}` : 'ลิงก์ · ยังไม่จัดหมวด' })),
+    ];
+    setModalBody(`${topTabs}
+      <div class="folder-bar">
+        <button type="button" class="chip" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
+        ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
+        ${countIn(x => !x.folder) ? `<button type="button" class="chip" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
+        <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
+      </div>
+      ${folderPickHTML}
+      <div class="ch-file-scroll">
+        ${allPick.length ? allPick.map(r => `<label class="item file-item" style="cursor:pointer">
+          <input type="checkbox" class="cb" data-chg="toggle-folder-file" data-kind="${r.kind}" data-id="${esc(r.id)}" ${r.folder === curFolder ? 'checked' : ''}>
+          <span class="file-ic">${r.kind === 'link' ? ico('link', 16) : ico('folder', 16)}</span>
+          <span class="grow"><b>${esc(r.name)}</b><br><small class="muted">${esc(r.sub)}</small></span>
+        </label>`).join('') : empty('📁', 'ยังไม่มีไฟล์ในวิชานี้')}
+      </div>`);
+    return;
+  }
+
   const hasAny = driveFiles.length || local.length || links.length;
   setModalBody(`${topTabs}
     <div class="folder-bar">
@@ -1688,6 +1718,7 @@ async function filesRender() {
       ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
       <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
     </div>
+    ${folderPickHTML}
     ${!hasAny ? empty('📁', 'ยังไม่มีไฟล์หรือลิงก์ในหมวดนี้', `<button class="btn small" data-act="file-tab" data-t="upload">📤 อัปโหลด / เพิ่มลิงก์</button>`) : `
       ${driveFiles.length ? `<h3>☁️ ไฟล์บน Drive (${driveFiles.length})</h3>${driveFiles.map(driveRow).join('')}` : ''}
       ${local.length ? `<div class="card-head"><h3>📁 ไฟล์ในเครื่อง (${local.length})</h3>
@@ -2515,16 +2546,35 @@ const Actions = {
     saveLocal();
     filesRender();
   },
-  'file-tab': el => { App.fileTab = el.dataset.t || 'list'; filesRender(); },
-  'file-folder': el => { App.fileFolder = el.dataset.f || ''; filesRender(); },
-  'file-folder-add': () => {
+  'file-tab': el => { App.fileTab = el.dataset.t || 'list'; App.filePickMode = false; filesRender(); },
+  'file-folder': el => { App.fileFolder = el.dataset.f || ''; App.filePickMode = false; filesRender(); },
+  'file-pick-toggle': () => { App.filePickMode = !App.filePickMode; filesRender(); },
+  'file-folder-add': el => {
     const s = subjectById(App.filesSid); if (!s) return;
-    const name = prompt('ชื่อโฟลเดอร์ใหม่ (เช่น ชีทสรุป, ข้อสอบเก่า)');
-    if (!name || !name.trim()) return;
-    const clean = name.trim().slice(0, 40);
-    s.folders = s.folders || [];
-    if (!s.folders.includes(clean)) s.folders.push(clean);
-    App.fileFolder = clean; save({ silent: true }); filesRender();
+    const chip = document.createElement('span');
+    chip.className = 'folder-chip active';
+    chip.innerHTML = '📁 <input type="text" class="folder-inline-inp" maxlength="40" placeholder="ชื่อโฟลเดอร์...">';
+    el.replaceWith(chip);
+    const inp = chip.querySelector('input');
+    inp.focus();
+    let done = false;
+    const finish = ok => {
+      if (done) return;
+      done = true;
+      const clean = inp.value.trim().slice(0, 40);
+      if (ok && clean) {
+        s.folders = s.folders || [];
+        if (!s.folders.includes(clean)) s.folders.push(clean);
+        App.fileFolder = clean;
+        save({ silent: true });
+      }
+      filesRender();
+    };
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', () => finish(true));
   },
   'file-folder-del': async el => {
     const s = subjectById(App.filesSid); if (!s) return;
@@ -3031,6 +3081,20 @@ const Changes = {
       await FileStore.setFolder(id, folder);
     }
     App.toast(folder ? `ย้ายไปโฟลเดอร์ "${folder}" แล้ว` : 'นำออกจากโฟลเดอร์แล้ว');
+    filesRender();
+  },
+  'toggle-folder-file': async el => {
+    const s = subjectById(App.filesSid); if (!s) return;
+    const { kind, id } = el.dataset, folder = el.checked ? (App.fileFolder || '') : '';
+    if (kind === 'drive') {
+      const f = (s.driveFiles || []).find(x => x.id === id);
+      if (f) { f.folder = folder; save({ silent: true }); }
+    } else if (kind === 'link') {
+      const l = (s.links || []).find(x => x.id === id);
+      if (l) { l.folder = folder; save({ silent: true }); }
+    } else if (kind === 'local') {
+      await FileStore.setFolder(id, folder);
+    }
     filesRender();
   },
   'file-upload': async el => {
