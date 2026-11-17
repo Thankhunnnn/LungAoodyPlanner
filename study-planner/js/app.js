@@ -65,7 +65,7 @@ const App = {
     const btn = document.getElementById('timerStartBtn');
     if (btn) { btn.textContent = Timer.running ? '⏸ หยุดชั่วคราว' : '▶ เริ่ม'; btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start'; }
     const mini = document.getElementById('timerMini');
-    if (mini) { mini.textContent = `⏱ ${txt}`; mini.style.display = Timer.running ? '' : 'none'; }
+    if (mini) { mini.textContent = `⏱ ${txt}`; mini.hidden = !Timer.running; }
     document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
   },
 
@@ -90,7 +90,7 @@ const App = {
     const isDark = DB.prefs.dark || DB.prefs.theme === 'navy';
     return `${left}
       <div class="head-actions">
-        <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" style="display:${Timer.running ? '' : 'none'}">⏱</button>
+        <button id="timerMini" class="chip accent" data-act="go" data-tab="timer" aria-label="ตัวจับเวลา" ${Timer.running ? '' : 'hidden'}>⏱</button>
         ${this.syncBadgeHTML()}
         <button class="icon-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">⚙️</button>
         <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? '☀️' : '🌙'}</button>
@@ -124,7 +124,9 @@ const App = {
 /* ===== Modal ===== */
 function openModal(title, html, wide = false) {
   const m = document.getElementById('modal');
-  document.getElementById('modalTitle').innerHTML = title;
+  const titleEl = document.getElementById('modalTitle');
+  titleEl.innerHTML = title;
+  titleEl.hidden = !title;
   document.getElementById('modalBody').innerHTML = html;
   m.querySelector('.modal-box').classList.toggle('wide', wide);
   m.classList.remove('hidden');
@@ -134,6 +136,9 @@ function setModalBody(html) { document.getElementById('modalBody').innerHTML = h
 function closeModal() {
   const needRender = !!(App.fc || App.filesSid);
   document.getElementById('modal').classList.add('hidden');
+  const titleEl = document.getElementById('modalTitle');
+  titleEl.innerHTML = '';
+  titleEl.hidden = true;
   App.fc = null; App.quiz = null; App.filesSid = null; App._examImg = null;
   if (needRender) App.render();
 }
@@ -147,7 +152,7 @@ const empty = (icon, text, btn = '', img = '') => `<div class="empty">${img ? `<
 
 function planItemHTML(p, showDate = false) {
   return `<div class="item ${p.done ? 'done' : ''}">
-    <input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''}>
+    <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
     ${tag(p.subjectId)}
     <span class="grow">${p.kind === 'review' ? '🔁 ' : ''}${esc(p.title)}${p.time ? ` <small class="muted">⏰ ${esc(p.time)}${p.remind !== false ? ' 🔔' : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
     <span class="item-actions"><button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">✎</button>
@@ -747,7 +752,7 @@ const firebaseConfig = {
 function taskItemHTML(x) {
   const n = daysBetween(todayStr(), x.date);
   return `<div class="item ${x.done ? 'done' : ''}">
-    <input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''}>
+    <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
     <span>${x.type === 'event' ? '📌' : '📝'}</span>
     ${x.subjectId ? tag(x.subjectId) : ''}
     <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${!x.done && n >= 0 && n <= 1 ? (n === 0 ? ' · <b class="accent-text">วันนี้</b>' : ' · <b class="accent-text">พรุ่งนี้</b>') : ''}</small></span>
@@ -1010,30 +1015,30 @@ async function filesRender() {
     ${folders.map(fn => `<option value="${esc(fn)}" ${cur === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
   </select>`;
   const signed = !!Sync.user;
-  const driveRow = f => `<div class="item">
-      <span>${fileIcon(f.mimeType, f.name)}</span>
+  const driveRow = f => `<div class="item file-item">
+      <span class="file-ic">${fileIcon(f.mimeType, f.name)}</span>
       <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.modifiedTime))}</small></span>
       <span class="item-actions">
         ${folderSelect('drive', f.id, f.folder)}
-        <button class="mini-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
+        <button class="mini-btn pill-btn" data-act="file-drive-open" data-id="${esc(f.id)}">เปิดใน Drive</button>
         <button class="mini-btn" data-act="file-drive-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">✕</button>
       </span>
     </div>`;
-  const localRow = f => `<div class="item">
-      <span>${fileIcon(f.type, f.name)}</span>
+  const localRow = f => `<div class="item file-item">
+      <span class="file-ic">${fileIcon(f.type, f.name)}</span>
       <span class="grow"><b>${esc(f.name)}</b><br><small class="muted">${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small></span>
       <span class="item-actions">
         ${folderSelect('local', f.id, f.folder)}
-        <button class="mini-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
+        <button class="mini-btn pill-btn" data-act="file-open" data-id="${esc(f.id)}">เปิดดู</button>
         <button class="mini-btn" data-act="file-dl" data-id="${esc(f.id)}" aria-label="ดาวน์โหลด">⬇️</button>
-        <button class="mini-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
+        <button class="mini-btn pill-btn" data-act="file-migrate" data-id="${esc(f.id)}">ย้ายขึ้น Drive</button>
         <button class="mini-btn" data-act="file-del" data-id="${esc(f.id)}" aria-label="ลบไฟล์">✕</button>
       </span>
     </div>`;
   const linkRow = l => {
     let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch { }
-    return `<div class="item">
-      <span>🔗</span>
+    return `<div class="item file-item">
+      <span class="file-ic">🔗</span>
       <span class="grow"><a href="${esc(l.url)}" target="_blank" rel="noopener"><b>${esc(l.title)}</b></a>${host ? `<br><small class="muted">${esc(host)}</small>` : ''}</span>
       <span class="item-actions">
         ${folderSelect('link', l.id, l.folder)}
@@ -1057,7 +1062,7 @@ async function filesRender() {
           <button type="button" class="pill ${dest === 'local' ? 'active' : ''}" data-act="file-dest" data-dest="local">เก็บในเครื่อง</button>
           <button type="button" class="pill ${dest === 'drive' ? 'active' : ''}" data-act="file-dest" data-dest="drive">ขึ้น Drive</button>
         </div>` : '<button class="btn small" data-act="login">ล็อกอินเพื่อ sync / ขึ้น Drive</button>'}
-        <label class="inline" style="margin-left:auto">โฟลเดอร์:
+        <label class="inline" style="margin-left:auto">เก็บเข้าโฟลเดอร์:
           <select class="folder-sel" data-chg="upload-folder" aria-label="เลือกโฟลเดอร์ที่จะใส่">
             <option value="" ${!upFolder ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
             ${folders.map(fn => `<option value="${esc(fn)}" ${upFolder === fn ? 'selected' : ''}>📁 ${esc(fn)}</option>`).join('')}
@@ -1065,13 +1070,13 @@ async function filesRender() {
         </label>
         <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
       </div>
-      <label class="upload-box">
+      <label class="upload-box" id="fileDropzone">
         <input type="file" multiple data-chg="file-upload" hidden>
-        <div>📤 <b>เลือกไฟล์จากเครื่อง</b>${upFolder ? ` → ใส่ในโฟลเดอร์ <b>${esc(upFolder)}</b>` : ''}</div>
+        <div>📤 <b>คลิกเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</b>${upFolder ? ` → เก็บเข้าโฟลเดอร์ <b>${esc(upFolder)}</b>` : ''}</div>
         <div class="muted small">${esc(driveNote(s))}</div>
       </label>
       <div id="upProg" class="up-prog" role="status" hidden></div>
-      <hr>
+      <div class="or-divider"><span>หรือเพิ่มลิงก์</span></div>
       <h3>🔗 เพิ่มลิงก์เอกสาร (Google Drive, Notion, YouTube ฯลฯ)</h3>
       <form data-form="link-add" class="link-form" novalidate>
         <div class="grid2-sm">
@@ -1087,7 +1092,7 @@ async function filesRender() {
   setModalBody(`${topTabs}
     <div class="folder-bar">
       <button type="button" class="chip ${!curFolder ? 'accent' : ''}" data-act="file-folder" data-f="">📂 ทั้งหมด (${totalN})</button>
-      ${folders.map(fn => `<span class="folder-chip"><button type="button" class="chip ${curFolder === fn ? 'accent' : ''}" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="mini-btn" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
+      ${folders.map(fn => `<span class="folder-chip ${curFolder === fn ? 'active' : ''}"><button type="button" class="folder-chip-btn" data-act="file-folder" data-f="${esc(fn)}">📁 ${esc(fn)} (${countIn(x => x.folder === fn)})</button><button type="button" class="folder-chip-del" data-act="file-folder-del" data-f="${esc(fn)}" aria-label="ลบโฟลเดอร์ ${esc(fn)}">✕</button></span>`).join('')}
       ${countIn(x => !x.folder) ? `<button type="button" class="chip ${curFolder === '__none__' ? 'accent' : ''}" data-act="file-folder" data-f="__none__">📄 ยังไม่จัดหมวด (${countIn(x => !x.folder)})</button>` : ''}
       <button type="button" class="chip" data-act="file-folder-add">+ โฟลเดอร์</button>
     </div>
@@ -2135,19 +2140,7 @@ const Changes = {
   'file-upload': async el => {
     const files = [...(el.files || [])];
     el.value = '';
-    const sid = App.filesSid;
-    if (!files.length || !sid || App._uploading) return;
-    if (!fileGoesToDrive()) {
-      const n = await saveLocalFiles(sid, files);
-      const tail = Sync.user ? `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว` : `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว — ล็อกอินเพื่ออัปโหลดขึ้น Drive`;
-      App.toast(n ? tail : 'บันทึกไฟล์ในเครื่องไม่สำเร็จ');
-      App.fileTab = 'list'; filesRender();
-      return;
-    }
-    const pending = Drive.ensureToken();
-    App._uploading = true;
-    try { await runDriveUploads(sid, files, null, pending); }
-    finally { App._uploading = false; App.fileTab = 'list'; filesRender(); }
+    await uploadSubjectFiles(App.filesSid, files);
   },
   'exam-img': el => {
     const file = el.files?.[0]; if (!file) return;
@@ -2171,9 +2164,44 @@ const Changes = {
   },
 };
 
+async function uploadSubjectFiles(sid, files) {
+  if (!files.length || !sid || App._uploading) return;
+  if (!fileGoesToDrive()) {
+    const n = await saveLocalFiles(sid, files);
+    const tail = Sync.user ? `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว` : `บันทึก ${n} ไฟล์ในเครื่องนี้แล้ว — ล็อกอินเพื่ออัปโหลดขึ้น Drive`;
+    App.toast(n ? tail : 'บันทึกไฟล์ในเครื่องไม่สำเร็จ');
+    App.fileTab = 'list'; filesRender();
+    return;
+  }
+  const pending = Drive.ensureToken();
+  App._uploading = true;
+  try { await runDriveUploads(sid, files, null, pending); }
+  finally { App._uploading = false; App.fileTab = 'list'; filesRender(); }
+}
+
 function setPath(obj, path, val) { const ks = path.split('.'); let o = obj; ks.slice(0, -1).forEach(k => o = o[k]); o[ks[ks.length - 1]] = val; }
 
 function bindEvents() {
+  const modalBody = document.getElementById('modalBody');
+  modalBody.addEventListener('dragover', e => {
+    const box = e.target.closest('#fileDropzone');
+    if (!box) return;
+    e.preventDefault();
+    box.classList.add('dragover');
+  });
+  modalBody.addEventListener('dragleave', e => {
+    const box = e.target.closest('#fileDropzone');
+    if (!box || box.contains(e.relatedTarget)) return;
+    box.classList.remove('dragover');
+  });
+  modalBody.addEventListener('drop', e => {
+    const box = e.target.closest('#fileDropzone');
+    if (!box) return;
+    e.preventDefault();
+    box.classList.remove('dragover');
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length) uploadSubjectFiles(App.filesSid, files);
+  });
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;
