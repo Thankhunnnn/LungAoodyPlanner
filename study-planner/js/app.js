@@ -185,12 +185,10 @@ function coachActionHTML() {
 function syncGutters() {
   const home = App.tab === 'home';
   document.documentElement.dataset.home = home ? '1' : '0';
-  const left = document.getElementById('gutterLeft');
   const right = document.getElementById('gutterRight');
-  if (!left || !right) return;
-  if (!home) { left.innerHTML = ''; right.innerHTML = ''; return; }
+  if (!right) return;
+  if (!home) { right.innerHTML = ''; return; }
   right.innerHTML = `${coachBubble('hero')}<img src="assets/coach-hero-real.webp" alt="อู๊ด">`;
-  left.innerHTML = `${coachBubble('action')}<img src="assets/coach-action.webp" alt="อู๊ด">`;
 }
 function normalizeLink(raw) {
   let url = String(raw || '').trim();
