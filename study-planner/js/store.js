@@ -11,6 +11,7 @@ const defaultData = () => ({
   plan: [],       // {id,date,subjectId,chapterId,title,kind:'read'|'review'|'custom',done,auto}
   sessions: [],   // {id,subjectId,date,minutes,at}
   flashcards: [], // {id,subjectId,chapterId,q,a,known}
+  classes: [],    // {id,day,start,end,subjectId,title,room,color}
   prefs: {
     theme: 'navy', dark: false,
     chaptersPerDay: 3, reviewDayBefore: true,

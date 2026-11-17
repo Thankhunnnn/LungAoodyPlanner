@@ -4,7 +4,7 @@ const THEMES = [
   ['sky', 'ฟ้าใส', '#4a9be8'], ['peach', 'พีช', '#f08a5d'], ['navy', 'น้ำเงินเข้ม', '#3b82f6'], ['mono', 'มินิมอล', '#555555'],
 ];
 const TABS = [
-  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['subjects', '📚', 'วิชา'], ['calendar', '📅', 'ปฏิทิน'],
+  ['home', '🏠', 'หน้าแรก'], ['plan', '📖', 'ตารางอ่าน'], ['timetable', '🗓️', 'ตารางเรียน'], ['subjects', '📚', 'วิชา'], ['calendar', '📅', 'ปฏิทิน'],
   ['timer', '⏱️', 'จับเวลา'], ['stats', '📊', 'สถิติ'], ['ai', '🐃', 'อู๊ดเอไอ'],
 ];
 const ALL_TABS = [...TABS, ['settings', '⚙️', 'ตั้งค่า']];
@@ -192,7 +192,7 @@ function coachBubble(kind) {
   const name = esc(DB.name || 'เพื่อน');
   const nextEx = upcomingExams()[0];
   if (kind === 'action') {
-    return `<div class="coach-bubble warn"><b>อู๊ด:</b> อย่ามาอู้อ่านหนังสือนะ! 😤<br><span>${nextEx ? `อย่าคิดจะโดดคาบ ${esc(nextEx.name)} นะ!` : 'รีบไปอ่านหนังสือกัน!'}</span></div>`;
+    return `<div class="coach-bubble warn"><b>อู๊ด:</b> อย่ามาอู้อ่านหนังสือนะ! 😤</div>`;
   }
   return `<div class="coach-bubble"><b>อู๊ด:</b> เฮ้ ${name}! วันนี้เราลุยวิชาไหนกันดี?<br><span>อย่าลืมเก็บเช็คลิสต์นะ สู้ๆ 💪</span></div>`;
 }
@@ -251,11 +251,19 @@ const Views = {
     const week = [...Array(7)].map((_, i) => { const d = addDays(ws, i); return { label: TH_DAYS[parseDate(d).getDay()], value: minutesOn(d), hl: d === t }; });
     const weekTotal = week.reduce((a, d) => a + d.value, 0);
     const doneToday = today.filter(p => p.done).length;
-
-
+    const dow = new Date().getDay();
+    const todayClasses = (DB.classes || []).filter(c => c.day === dow).sort((a, b) => a.start.localeCompare(b.start));
 
     return `
     ${coachHeroHTML()}
+    ${todayClasses.length ? `<section class="card">
+      <div class="card-head"><h2>🗓️ ตารางเรียนวันนี้ <small class="muted">(${TH_DAYS_FULL[dow]})</small></h2><button class="mini-btn" data-act="go" data-tab="timetable">ดูทั้งหมด</button></div>
+      <div class="tt-strip">${todayClasses.map(c => {
+        const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
+        const nm = c.title || subjectName(c.subjectId);
+        return `<div class="tt-pill" style="--c:${col}"><b>${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}</b> ${esc(nm)}${c.room ? ` <small class="muted">· ${esc(c.room)}</small>` : ''}</div>`;
+      }).join('')}</div>
+    </section>` : ''}
     <section class="card">
       <h2>⏰ นับถอยหลังสอบ</h2>
       ${exams.length ? `<div class="cd-grid">${exams.map(countdownCard).join('')}</div>` : empty('🎉', 'ไม่มีสอบที่กำลังจะมาถึง')}
@@ -327,6 +335,45 @@ const Views = {
     </section>
     ${past.length ? `<section class="card"><button class="link" data-act="toggle-past">${App.showPast ? '▾ ซ่อน' : '▸ แสดง'}รายการที่อ่านเสร็จแล้ว (${past.length})</button>
       ${App.showPast ? past.sort((a, b) => b.date.localeCompare(a.date)).map(p => planItemHTML(p, true)).join('') : ''}</section>` : ''}`;
+  },
+
+  timetable() {
+    const classes = DB.classes || [];
+    const dow = new Date().getDay();
+    const daysOrder = [1, 2, 3, 4, 5, ...(classes.some(c => c.day === 6) ? [6] : []), ...(classes.some(c => c.day === 0) ? [0] : [])];
+    return `
+    <section class="card">
+      <div class="toolbar">
+        <h2 class="grow">🗓️ ตารางเรียนประจำสัปดาห์ (${classes.length} คาบ)</h2>
+        <button class="btn" data-act="add-class">+ เพิ่มคาบเรียน</button>
+      </div>
+      <p class="muted small">เพิ่มตารางเรียนไว้ดูง่ายๆ และคาบเรียนของวันนี้จะแสดงในหน้าแรกอัตโนมัติ</p>
+    </section>
+    <div class="tt-grid">${daysOrder.map(d => {
+      const list = classes.filter(c => c.day === d).sort((a, b) => a.start.localeCompare(b.start));
+      return `<section class="card tt-day ${d === dow ? 'today' : ''}">
+        <div class="card-head">
+          <h3>วัน${TH_DAYS_FULL[d]}</h3>
+          ${d === dow ? '<span class="chip accent">วันนี้</span>' : ''}
+          <button class="mini-btn right" data-act="add-class" data-day="${d}" aria-label="เพิ่มคาบวัน${TH_DAYS_FULL[d]}">+</button>
+        </div>
+        ${list.length ? list.map(c => {
+          const col = safeColor(c.subjectId ? subjectColor(c.subjectId) : (c.color || '#4a9be8'));
+          const nm = c.title || subjectName(c.subjectId);
+          return `<div class="tt-item" style="--c:${col}">
+            <div class="grow">
+              <div class="tt-time">${esc(c.start)}${c.end ? ' – ' + esc(c.end) : ''}</div>
+              <div class="tt-name">${esc(nm)}</div>
+              ${c.room ? `<div class="muted small">📍 ${esc(c.room)}</div>` : ''}
+            </div>
+            <span class="item-actions">
+              <button class="mini-btn" data-act="edit-class" data-id="${c.id}" aria-label="แก้ไขคาบเรียน">✎</button>
+              <button class="mini-btn" data-act="del-class" data-id="${c.id}" aria-label="ลบคาบเรียน">✕</button>
+            </span>
+          </div>`;
+        }).join('') : '<p class="muted small">ไม่มีเรียน</p>'}
+      </section>`;
+    }).join('')}</div>`;
   },
 
   subjects() {
@@ -731,6 +778,20 @@ function planForm(p = {}) {
 function planChapterOptions(sid, sel) {
   const s = subjectById(sid);
   return `<option value="">— ไม่ระบุบท —</option>` + (s ? s.chapters.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.title)}${c.done ? ' ✓' : ''}</option>`).join('') : '');
+}
+function classForm(c = {}) {
+  const day = c.day != null ? Number(c.day) : 1;
+  return `<form data-form="class" data-id="${c.id || ''}">
+    <div class="row wrap">
+      <label class="field">วัน<select name="day">${[1, 2, 3, 4, 5, 6, 0].map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>วัน${TH_DAYS_FULL[d]}</option>`).join('')}</select></label>
+      <label class="field">เวลาเริ่ม<input type="time" name="start" required value="${esc(c.start || '08:30')}"></label>
+      <label class="field">เวลาจบ<input type="time" name="end" value="${esc(c.end || '')}"></label>
+    </div>
+    <label class="field">วิชา (เลือกจากรายการ หรือพิมพ์ชื่อเองด้านล่าง)<select name="subjectId">${subjectOptions(c.subjectId || '')}</select></label>
+    <label class="field">ชื่อวิชา / หมายเหตุ (ถ้าไม่ได้เลือกด้านบน)<input name="title" value="${esc(c.title || '')}" placeholder="เช่น Gen Ed / สัมมนา"></label>
+    <label class="field">ห้องเรียน / อาคาร<input name="room" value="${esc(c.room || '')}" placeholder="เช่น อาคาร 3 ห้อง 204"></label>
+    <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
+  </form>`;
 }
 function noteModal(s, c) {
   openModal(`📝 ${esc(s.name)} — ${esc(c.title)}`, `
@@ -1395,6 +1456,11 @@ const Actions = {
   'edit-plan': el => { const p = DB.plan.find(x => x.id === el.dataset.id); if (p) openModal('✎ แก้ไขแผนอ่าน', planForm(p)); },
   'del-plan': el => { DB.plan = DB.plan.filter(x => x.id !== el.dataset.id); save(); refreshDayModal(); },
 
+  // timetable
+  'add-class': el => openModal('+ เพิ่มคาบเรียน', classForm({ day: el.dataset.day != null ? Number(el.dataset.day) : 1 })),
+  'edit-class': el => { const c = (DB.classes || []).find(x => x.id === el.dataset.id); if (c) openModal('✎ แก้ไขคาบเรียน', classForm(c)); },
+  'del-class': el => { DB.classes = (DB.classes || []).filter(x => x.id !== el.dataset.id); save(); },
+
   // subjects
   'add-subject': () => openModal('+ เพิ่มวิชา', subjectForm()),
   'edit-subject': el => openModal('✎ แก้ไขวิชา', subjectForm(subjectById(el.dataset.id))),
@@ -1771,6 +1837,18 @@ const Forms = {
     if (!p) { p = { id: uid(), done: false }; DB.plan.push(p); }
     Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, time: d.time || '', remind: !!d.remind, kind: c ? 'read' : 'custom', auto: false });
     if (d.remind && d.time) Notifier.ask();
+    closeModal(); save();
+  },
+  'class'(d, f) {
+    const title = (d.title || '').trim();
+    if (!d.subjectId && !title) return App.toast('เลือกวิชาหรือพิมพ์ชื่อวิชาก่อนนะ');
+    DB.classes = DB.classes || [];
+    let c = DB.classes.find(x => x.id === f.dataset.id);
+    if (!c) { c = { id: uid() }; DB.classes.push(c); }
+    Object.assign(c, {
+      day: Number(d.day), start: d.start || '08:30', end: d.end || '',
+      subjectId: d.subjectId || '', title: title.slice(0, 120), room: (d.room || '').trim().slice(0, 80),
+    });
     closeModal(); save();
   },
   note(d, f) {
