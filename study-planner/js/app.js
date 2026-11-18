@@ -1196,24 +1196,26 @@ const Views = {
         <div class="chapters">${s.chapters.map(c => {
           const cf = Array.isArray(c.files) ? c.files : [];
           const wt = Number(c.weight) || 0;
-          const wtLbl = wt === 3 ? '🔥 ออกเยอะ' : wt === 2 ? '⚡ กลาง' : wt === 1 ? '• น้อย' : 'น้ำหนัก';
+          const conf = Number(c.confidence) || 0;
+          const confMeta = CONF_LEVELS.find(x => x[0] === conf);
+          const revs = chapterReviews(s.id, c.id);
+          const hasTags = wt > 0 || conf > 0 || revs.length > 0;
           return `<div class="item ch-row ${c.done ? 'done' : ''}" data-sid="${s.id}" data-cid="${c.id}">
             <span class="ch-drag" title="ลากขึ้น-ลงเพื่อเรียงลำดับ" aria-label="ลากเพื่อเรียงลำดับ">⋮⋮</span>
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">
-              <span>${esc(c.title)}</span>
+              <span class="ch-title-txt">${esc(c.title)}</span>
+              ${hasTags ? `<div class="ch-tags">
+                ${wt > 0 ? `<button type="button" class="ch-tag wt-${wt}" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}">${wt === 3 ? '🔥 ออกเยอะ' : wt === 2 ? '⚡ ปานกลาง' : '• ออกน้อย'}</button>` : ''}
+                ${conf > 0 && confMeta ? `<button type="button" class="ch-tag cf-${conf}" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}">${confMeta[1]}</button>` : ''}
+                ${revs.length ? `<button type="button" class="ch-tag sr-on" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}">🔁 ทวน ${revs.map(p => fmtDate(p.date)).join(', ')}</button>` : ''}
+              </div>` : ''}
               ${c.pin ? `<small class="ch-pin-line">📌 ${esc(c.pin)}</small>` : ''}
             </span>
-            <span class="item-actions">
-            <button type="button" class="weight-pill" data-w="${wt}" data-act="cycle-weight" data-sid="${s.id}" data-cid="${c.id}" title="คลิกเพื่อเปลี่ยนน้ำหนักออกสอบ">${wtLbl}</button>
-            <select class="conf-sel" data-conf="${c.confidence || 0}" data-chg="ch-conf" data-sid="${s.id}" data-cid="${c.id}" aria-label="ระดับความมั่นใจบท ${esc(c.title)}" title="ระดับความมั่นใจ (1-5)">
-              ${CONF_LEVELS.map(([v, lbl]) => `<option value="${v}" ${(Number(c.confidence) || 0) === v ? 'selected' : ''}>${lbl}</option>`).join('')}
-            </select>
-            <button type="button" class="mini-btn ${c.pin ? 'has' : ''}" data-act="edit-ch-pin" data-sid="${s.id}" data-cid="${c.id}" title="ปักหมุดโน้ต 1 บรรทัด" aria-label="ปักหมุดโน้ตสั้น">📌</button>
-            <button type="button" class="mini-btn" data-act="spaced-review" data-sid="${s.id}" data-cid="${c.id}" title="นัดทบทวนซ้ำ (+1/+3/+7 วัน)" aria-label="นัดทบทวนซ้ำ">🔁</button>
-            <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
-            <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
-            <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
+            <span class="item-actions ch-clean-acts">
+              <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
+              <button type="button" class="mini-btn" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}" title="แก้ไขบท, น้ำหนัก, ประเมิน, โน้ต และนัดทวน" aria-label="แก้ไขบท ${esc(c.title)}">${ico('edit', 14)}</button>
+              <button type="button" class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
             </span>
           </div>`;
         }).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
@@ -3154,6 +3156,10 @@ const Actions = {
   'cmd-open': () => openCmdPalette(),
   'global-undo': () => UndoStack.undo(),
   'spaced-review': el => scheduleSpacedReview(el.dataset.sid, el.dataset.cid),
+  'edit-chapter': el => openChapterEditModal(el.dataset.sid, el.dataset.id),
+  'spaced-review-modal': el => scheduleSpacedReview(el.dataset.sid, el.dataset.cid, true),
+  'spaced-clear-modal': el => clearSpacedReview(el.dataset.sid, el.dataset.cid, true),
+  'clear-pin-inp': () => { const inp = document.getElementById('editChPinInp'); if (inp) { inp.value = ''; inp.focus(); } },
   'cycle-weight': el => {
     const s = subjectById(el.dataset.sid);
     const c = s?.chapters.find(x => x.id === el.dataset.cid);
@@ -3788,6 +3794,19 @@ const Forms = {
       return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind }, f);
     }
     return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind, repeat: d.repeat || '' }, f);
+  },
+  'edit-chapter'(d, f) {
+    const s = subjectById(f.dataset.sid);
+    const c = s?.chapters.find(x => x.id === f.dataset.cid);
+    if (!c) return;
+    const title = (d.title || '').trim();
+    if (!title) return App.toast('ใส่ชื่อบทก่อนนะ');
+    c.title = title.slice(0, 200);
+    c.weight = Number(d.weight) || 0;
+    c.confidence = Number(d.confidence) || 0;
+    c.pin = (d.pin || '').trim().slice(0, 100);
+    closeModal(); save();
+    App.toast('บันทึกการแก้ไขบทแล้ว ✓');
   },
   'ch-pin'(d, f) {
     const s = subjectById(f.dataset.sid);

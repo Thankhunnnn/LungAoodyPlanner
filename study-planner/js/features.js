@@ -314,14 +314,21 @@ function toggleBlackoutDate(iso) {
 }
 
 /* 10. Spaced Repetition (1 / 3 / 7 days skipping blackout & capping before exam) */
-function scheduleSpacedReview(subjectId, chapterId) {
+function chapterReviews(subjectId, chapterId) {
+  const t = todayStr();
+  return DB.plan
+    .filter(p => p.subjectId === subjectId && p.chapterId === chapterId && p.kind === 'review' && !p.done && p.date >= t)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+function scheduleSpacedReview(subjectId, chapterId, refreshModal = false) {
   const s = subjectById(subjectId);
   const c = s?.chapters.find(x => x.id === chapterId);
   if (!s || !c) return;
-  UndoStack.push(`นัดทวนบท ${c.title}`);
   const t = todayStr();
+  const existing = chapterReviews(s.id, c.id);
   const intervals = [1, 3, 7];
-  let added = 0;
+  const addedDates = [];
+  UndoStack.push(`นัดทวนบท ${c.title}`);
   intervals.forEach((off, idx) => {
     let d = addDays(t, off);
     let guard = 0;
@@ -333,11 +340,92 @@ function scheduleSpacedReview(subjectId, chapterId) {
         id: uid(), date: d, subjectId: s.id, chapterId: c.id,
         title: `ทวนรอบที่ ${idx + 1}: ${c.title}`, kind: 'review', done: false, auto: false,
       });
-      added++;
+      addedDates.push(fmtDate(d));
     }
   });
   save();
-  App.toast(added ? `นัดทบทวนซ้ำ (+1/+3/+7 วัน) ${added} รอบให้ "${c.title}" แล้ว 🔁` : 'มีแผนทบทวนครบแล้วหรือเลยวันสอบแล้ว');
+  if (addedDates.length) {
+    App.toast(`นัดทวน "${c.title}" เพิ่ม ${addedDates.length} รอบ (${addedDates.join(', ')}) 🔁`, 4200);
+  } else if (existing.length) {
+    App.toast(`บทนี้มีนัดทวนครบแล้ว: ${existing.map(p => fmtDate(p.date)).join(', ')}`, 4000);
+  } else if (s.examDate && s.examDate <= t) {
+    App.toast('เลยวันสอบของวิชานี้แล้ว จึงไม่ได้นัดทวนเพิ่ม');
+  } else {
+    App.toast('ไม่สามารถเพิ่มรอบทวนได้ (วันสอบใกล้เกินไปหรือตรงวันพักทั้งหมด)');
+  }
+  if (refreshModal) refreshChapterSrBox(subjectId, chapterId);
+}
+function clearSpacedReview(subjectId, chapterId, refreshModal = false) {
+  const s = subjectById(subjectId);
+  const c = s?.chapters.find(x => x.id === chapterId);
+  if (!s || !c) return;
+  const before = DB.plan.length;
+  UndoStack.push(`ยกเลิกนัดทวน ${c.title}`);
+  DB.plan = DB.plan.filter(p => !(p.subjectId === s.id && p.chapterId === c.id && p.kind === 'review' && !p.done));
+  const removed = before - DB.plan.length;
+  save();
+  App.toast(removed ? `ยกเลิกนัดทวน ${removed} รอบแล้ว` : 'ไม่มีนัดทวนที่ค้างอยู่');
+  if (refreshModal) refreshChapterSrBox(subjectId, chapterId);
+}
+function chapterSrBoxHTML(subjectId, chapterId) {
+  const revs = chapterReviews(subjectId, chapterId);
+  return `
+    <div class="row wrap" style="margin:0 0 6px;justify-content:space-between;align-items:center">
+      <b>🔁 Spaced Repetition (นัดทบทวนซ้ำ)</b>
+      <span class="chip ${revs.length ? 'ok' : ''}">${revs.length ? `กำลังทวน ${revs.length} รอบ` : 'ยังไม่ได้นัด'}</span>
+    </div>
+    ${revs.length
+      ? `<div class="sr-dates">${revs.map((p, i) => `<span class="chip">รอบ ${i + 1}: ${fmtDateBE(p.date)}</span>`).join('')}</div>`
+      : `<p class="muted small" style="margin:4px 0 8px">กดปุ่มด้านล่างเพื่อลงปฏิทินทบทวนอัตโนมัติในอีก +1, +3 และ +7 วัน (ไม่เกินวันสอบ)</p>`}
+    <div class="row wrap" style="margin:8px 0 0;gap:6px">
+      <button type="button" class="btn small ghost" data-act="spaced-review-modal" data-sid="${subjectId}" data-cid="${chapterId}">🔁 นัดทวน (+1/+3/+7 วัน)</button>
+      ${revs.length ? `<button type="button" class="btn small danger" data-act="spaced-clear-modal" data-sid="${subjectId}" data-cid="${chapterId}">✕ ยกเลิกนัดทวน</button>` : ''}
+    </div>`;
+}
+function refreshChapterSrBox(subjectId, chapterId) {
+  const box = document.getElementById('chSrBox');
+  if (box) box.innerHTML = chapterSrBoxHTML(subjectId, chapterId);
+}
+function openChapterEditModal(subjectId, chapterId, opts = {}) {
+  const s = subjectById(subjectId);
+  const c = s?.chapters.find(x => x.id === chapterId);
+  if (!s || !c) return;
+  const wt = Number(c.weight) || 0;
+  const cf = Number(c.confidence) || 0;
+  openModal(`✎ แก้ไขบท — ${esc(s.name)}`, `
+    <form data-form="edit-chapter" data-sid="${s.id}" data-cid="${c.id}">
+      <label class="field">ชื่อบท
+        <input name="title" required maxlength="200" value="${esc(c.title)}">
+      </label>
+      <div class="grid2-sm">
+        <label class="field">น้ำหนักออกสอบ
+          <select name="weight">
+            <option value="0" ${wt === 0 ? 'selected' : ''}>— ไม่ระบุ —</option>
+            <option value="3" ${wt === 3 ? 'selected' : ''}>🔥 ออกเยอะ</option>
+            <option value="2" ${wt === 2 ? 'selected' : ''}>⚡ ปานกลาง</option>
+            <option value="1" ${wt === 1 ? 'selected' : ''}>• ออกน้อย</option>
+          </select>
+        </label>
+        <label class="field">ระดับความมั่นใจ (1–5)
+          <select name="confidence">
+            ${CONF_LEVELS.map(([v, lbl]) => `<option value="${v}" ${cf === v ? 'selected' : ''}>${lbl}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+      <div class="field">
+        <span>โน้ตปักหมุด 1 บรรทัด (📌)</span>
+        <div class="row" style="margin:0;gap:6px">
+          <input id="editChPinInp" name="pin" maxlength="100" value="${esc(c.pin || '')}" placeholder="เช่น เน้นสูตรบท 3 หน้า 14">
+          <button type="button" class="btn small danger" data-act="clear-pin-inp" title="ลบโน้ตปักหมุด">🗑️ ลบโน้ต</button>
+        </div>
+      </div>
+      <div id="chSrBox" class="sr-box">${chapterSrBoxHTML(s.id, c.id)}</div>
+      <div class="row end" style="margin-top:14px">
+        <button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button>
+        <button class="btn">💾 บันทึก</button>
+      </div>
+    </form>
+  `, false, opts);
 }
 
 /* 11. Free-Slot Finder (gaps >= 45m between 08:00 and 22:00) */

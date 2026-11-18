@@ -2095,3 +2095,26 @@ html.modal-open, body.modal-open { overflow: hidden !important; overflow-y: hidd
 @media (max-width: 600px) {
   .exam-fields-grid { grid-template-columns: 1fr; }
 }
+
+/* Clean Unified Chapter Tags & Spaced Repetition Box (v136) */
+.ch-row .ch-clean-acts { flex: 0 0 auto; width: auto; flex-wrap: nowrap; }
+.ch-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.ch-tag {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px;
+  font: inherit; font-size: .72rem; font-weight: 500; cursor: pointer;
+  border: 1px solid var(--border); background: var(--soft); color: var(--text); white-space: nowrap;
+}
+.ch-tag.wt-3 { color: #ef4444; border-color: rgba(239, 68, 68, .55); background: color-mix(in srgb, #ef4444 16%, var(--card)); font-weight: 600; }
+.ch-tag.wt-2 { color: #f59e0b; border-color: rgba(245, 158, 11, .55); background: color-mix(in srgb, #f59e0b 16%, var(--card)); }
+.ch-tag.wt-1 { color: #60a5fa; border-color: rgba(96, 165, 250, .45); background: color-mix(in srgb, #60a5fa 14%, var(--card)); }
+.ch-tag.cf-1 { color: #ef4444; border-color: rgba(239, 68, 68, .55); background: color-mix(in srgb, #ef4444 16%, var(--card)); }
+.ch-tag.cf-2 { color: #f97316; border-color: rgba(249, 115, 22, .55); background: color-mix(in srgb, #f97316 16%, var(--card)); }
+.ch-tag.cf-3 { color: #eab308; border-color: rgba(234, 179, 8, .55); background: color-mix(in srgb, #eab308 16%, var(--card)); }
+.ch-tag.cf-4 { color: #3b82f6; border-color: rgba(59, 130, 246, .55); background: color-mix(in srgb, #3b82f6 16%, var(--card)); }
+.ch-tag.cf-5 { color: #10b981; border-color: rgba(16, 185, 129, .55); background: color-mix(in srgb, #10b981 16%, var(--card)); }
+.ch-tag.sr-on { color: #38bdf8; border-color: rgba(56, 189, 248, .55); background: color-mix(in srgb, #38bdf8 16%, var(--card)); }
+.sr-box {
+  margin-top: 10px; padding: 12px; border-radius: 14px;
+  border: 1px solid var(--border); background: color-mix(in srgb, var(--soft) 55%, transparent);
+}
+.sr-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
