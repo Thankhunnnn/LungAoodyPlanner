@@ -796,6 +796,39 @@ const Views = {
     const isFootball = theme === 'navy';
     const isManU = theme === 'manutd';
     const isMono = isMinimalTheme(theme);
+    const urgentExams = exams.filter(s => daysBetween(t, s.examDate) <= 7);
+    const readinessSubs = urgentExams.length ? urgentExams : exams.slice(0, 3);
+    const readinessHTML = readinessSubs.length ? `
+    <section class="card ref-readiness">
+      <div class="card-head">
+        <h2>${ico('target', 17)} ความพร้อมก่อนสอบแยกวิชา</h2>
+        ${urgentExams.length ? `<span class="chip warn">ใกล้สอบ ≤ 7 วัน (${urgentExams.length} วิชา)</span>` : `<span class="chip">${readinessSubs.length} วิชาถัดไป</span>`}
+      </div>
+      <div class="readiness-grid">
+        ${readinessSubs.map(s => {
+          const dLeft = daysBetween(t, s.examDate);
+          const p = subjectProgress(s);
+          const col = safeColor(s.color);
+          return `<div class="readiness-item" style="--c:${col}">
+            <div class="readiness-top">
+              <button type="button" class="readiness-name" data-act="open-subject" data-id="${s.id}" title="ดูรายละเอียดวิชา">
+                <span class="readiness-dot" style="background:${col}"></span>
+                <b>${esc(s.name)}</b>
+              </button>
+              <span class="chip ${dLeft <= 3 ? 'err' : dLeft <= 7 ? 'warn' : ''}">${dLeft === 0 ? 'สอบวันนี้!' : `อีก ${dLeft} วัน`}</span>
+            </div>
+            <div class="readiness-mid">
+              ${progressBar(p.pct, col)}
+              <div class="readiness-meta">
+                <small class="muted">${p.done}/${p.total} บท · <b>${p.pct}%</b></small>
+                <button type="button" class="btn small readiness-go" data-act="smart-focus" data-sid="${s.id}">${ico('play', 12)} อ่านเลย</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </section>` : '';
+
     return `
     <div class="ref-row1">
       <section class="card ref-banner ${isFootball ? 'is-football' : isManU ? 'is-manutd' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
@@ -916,6 +949,8 @@ const Views = {
         <div class="spark-days">${week.map(w => `<span>${w.label}</span>`).join('')}</div>
       </section>
     </div>
+
+    ${readinessHTML}
 
     <div class="ref-row3">
       <section class="card ref-sched">
@@ -1218,8 +1253,8 @@ const Views = {
         <div class="cal-num">${parseDate(d).getDate()}</div>
         ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
         ${dayClasses.map(c => `<div class="cal-chip exam" style="--c:${classColor(c)}">${esc(c.start)} ${esc(className(c))}</div>`).join('')}
-        ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
-        ${plan.length ? `<div class="cal-chip plan">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
+        ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}" draggable="true" data-drag-kind="task" data-drag-id="${x.id}" data-drag-date="${d}" title="ลากเพื่อเลื่อนวัน">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
+        ${plan.length ? `<div class="cal-chip plan" draggable="true" data-drag-kind="plan-day" data-drag-date="${d}" title="ลากเพื่อเลื่อนแผนอ่านไปวันอื่น">📖 ${plan.filter(p => p.done).length}/${plan.length}</div>` : ''}
       </div>`;
     }
     return `
@@ -1232,7 +1267,7 @@ const Views = {
         <button class="btn ghost small" data-act="cal-today">วันนี้</button>
       </div>
       <div class="cal-grid">${TH_DAYS.map(d => `<div class="cal-dow">${d}</div>`).join('')}${html}</div>
-      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 งาน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด</p>
+      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 งาน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด หรือลาก 📝/📖 ข้ามวันได้ทันที</p>
     </section>`;
   },
 
@@ -3740,6 +3775,8 @@ function bindEvents() {
   window.addEventListener('scroll', hideTip, { passive: true });
   document.addEventListener('click', hideTip);
   let dragCh = null;
+  let dragCal = null;
+  const clearCalDropMarks = () => document.querySelectorAll('.cal-cell.drop-over, .cal-chip.dragging').forEach(el => el.classList.remove('drop-over', 'dragging'));
   const clearChMarks = () => document.querySelectorAll('.ch-row.drag-over-top, .ch-row.drag-over-bot, .ch-row.dragging').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bot', 'dragging'));
   document.addEventListener('pointerdown', e => {
     const h = e.target.closest('.ch-drag');
@@ -3747,6 +3784,14 @@ function bindEvents() {
     if (row) row.draggable = true;
   });
   document.addEventListener('dragstart', e => {
+    const chip = e.target.closest('.cal-chip[draggable="true"]');
+    if (chip) {
+      dragCal = { kind: chip.dataset.dragKind, id: chip.dataset.dragId || '', fromDate: chip.dataset.dragDate || '' };
+      chip.classList.add('dragging');
+      hideTip();
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragCal.id || dragCal.fromDate); } catch { }
+      return;
+    }
     const row = e.target.closest('.ch-row[draggable="true"]');
     if (!row) return;
     dragCh = { sid: row.dataset.sid, cid: row.dataset.cid };
@@ -3754,6 +3799,14 @@ function bindEvents() {
     try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragCh.cid); } catch { }
   });
   document.addEventListener('dragover', e => {
+    if (dragCal) {
+      const cell = e.target.closest('.cal-cell[data-date]');
+      if (!cell || cell.dataset.date === dragCal.fromDate) return;
+      e.preventDefault();
+      document.querySelectorAll('.cal-cell.drop-over').forEach(c => { if (c !== cell) c.classList.remove('drop-over'); });
+      cell.classList.add('drop-over');
+      return;
+    }
     if (!dragCh) return;
     const row = e.target.closest('.ch-row');
     if (!row || row.dataset.sid !== dragCh.sid || row.dataset.cid === dragCh.cid) return;
@@ -3764,10 +3817,41 @@ function bindEvents() {
     row.classList.toggle('drag-over-bot', !before);
   });
   document.addEventListener('dragleave', e => {
+    if (dragCal) {
+      const cell = e.target.closest('.cal-cell[data-date]');
+      if (cell && (!e.relatedTarget || !cell.contains(e.relatedTarget))) cell.classList.remove('drop-over');
+      return;
+    }
     const row = e.target.closest('.ch-row');
     if (row && (!e.relatedTarget || !row.contains(e.relatedTarget))) row.classList.remove('drag-over-top', 'drag-over-bot');
   });
   document.addEventListener('drop', e => {
+    if (dragCal) {
+      const cell = e.target.closest('.cal-cell[data-date]');
+      const d = dragCal;
+      clearCalDropMarks();
+      dragCal = null;
+      if (!cell || !cell.dataset.date || cell.dataset.date === d.fromDate) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const toDate = cell.dataset.date;
+      if (d.kind === 'task') {
+        const task = DB.tasks.find(x => x.id === d.id);
+        if (!task) return;
+        const prev = task.date;
+        task.date = toDate;
+        save();
+        App.toast(`ย้ายงานไปวันที่ ${fmtDateBE(toDate)} แล้ว ✓`, 4500, () => { task.date = prev; save(); });
+      } else if (d.kind === 'plan-day') {
+        const moved = DB.plan.filter(p => p.date === d.fromDate);
+        if (!moved.length) return;
+        const prevDates = moved.map(p => [p, p.date]);
+        moved.forEach(p => { p.date = toDate; });
+        save();
+        App.toast(`เลื่อนแผนอ่าน ${moved.length} รายการไป ${fmtDateBE(toDate)} แล้ว ✓`, 4500, () => { prevDates.forEach(([p, od]) => { p.date = od; }); save(); });
+      }
+      return;
+    }
     if (!dragCh) return;
     const row = e.target.closest('.ch-row');
     if (!row || row.dataset.sid !== dragCh.sid || row.dataset.cid === dragCh.cid) { clearChMarks(); dragCh = null; return; }
@@ -3790,6 +3874,7 @@ function bindEvents() {
   document.addEventListener('dragend', () => {
     document.querySelectorAll('.ch-row[draggable="true"]').forEach(r => { r.draggable = false; });
     clearChMarks(); dragCh = null;
+    clearCalDropMarks(); dragCal = null;
   });
   modalBody.addEventListener('input', e => {
     if (e.target.id === 'chFileSearch' && App._chFiles) {
