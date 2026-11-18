@@ -1199,24 +1199,28 @@ const Views = {
           const conf = Number(c.confidence) || 0;
           const confMeta = CONF_LEVELS.find(x => x[0] === conf);
           const revs = chapterReviews(s.id, c.id);
+          const pinTxt = String(c.pin || '').trim();
           const hasTags = wt > 0 || conf > 0 || revs.length > 0;
+          const isShortPin = pinTxt.length > 0 && pinTxt.length <= 24;
+          const hasMeta = hasTags || pinTxt.length > 0;
           return `<div class="item ch-row ${c.done ? 'done' : ''}" data-sid="${s.id}" data-cid="${c.id}">
-            <span class="ch-drag" title="ลากขึ้น-ลงเพื่อเรียงลำดับ" aria-label="ลากเพื่อเรียงลำดับ">⋮⋮</span>
-            <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
-            <span class="grow">
+            <div class="ch-head-line">
+              <input type="checkbox" class="cb ch-cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
               <span class="ch-title-txt">${esc(c.title)}</span>
-              ${hasTags ? `<div class="ch-tags">
+              <span class="ch-head-acts">
+                <button type="button" class="ch-ico-btn ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="${cf.length ? `ไฟล์ในบทนี้ (${cf.length})` : 'แนบไฟล์ในบทนี้'}" aria-label="แนบไฟล์ ${esc(c.title)}">${ico('paperclip', 14)}${cf.length ? `<span class="ch-fc-badge">${cf.length}</span>` : ''}</button>
+                <button type="button" class="ch-ico-btn ch-more-btn" data-act="ch-menu" data-sid="${s.id}" data-id="${c.id}" title="ตัวเลือกบท" aria-label="เมนูบท ${esc(c.title)}">⋮</button>
+              </span>
+            </div>
+            ${hasMeta ? `<div class="ch-meta-block">
+              ${(hasTags || isShortPin) ? `<div class="ch-tags">
                 ${wt > 0 ? `<button type="button" class="ch-tag wt-${wt}" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}">${wt === 3 ? '🔥 ออกเยอะ' : wt === 2 ? '⚡ ปานกลาง' : '• ออกน้อย'}</button>` : ''}
                 ${conf > 0 && confMeta ? `<button type="button" class="ch-tag cf-${conf}" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}">${confMeta[1]}</button>` : ''}
                 ${revs.length ? `<button type="button" class="ch-tag sr-on" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}">🔁 ทวน ${revs.map(p => fmtDate(p.date)).join(', ')}</button>` : ''}
+                ${isShortPin ? `<button type="button" class="ch-note-chip" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}" title="แก้ไขหรือลบโน้ต">📌 ${esc(pinTxt)}</button>` : ''}
               </div>` : ''}
-              ${c.pin ? `<small class="ch-pin-line">📌 ${esc(c.pin)}</small>` : ''}
-            </span>
-            <span class="item-actions ch-clean-acts">
-              <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
-              <button type="button" class="mini-btn" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}" title="แก้ไขบท, น้ำหนัก, ประเมิน, โน้ต และนัดทวน" aria-label="แก้ไขบท ${esc(c.title)}">${ico('edit', 14)}</button>
-              <button type="button" class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
-            </span>
+              ${pinTxt && !isShortPin ? `<button type="button" class="ch-note-box" data-act="edit-chapter" data-sid="${s.id}" data-id="${c.id}" title="แก้ไขหรือลบโน้ต">📌 ${esc(pinTxt)}</button>` : ''}
+            </div>` : ''}
           </div>`;
         }).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
         <div class="row wrap subj-foot-row">
@@ -3310,6 +3314,7 @@ const Actions = {
     if (!pop || !s) return;
     const { kind, id, folder } = el.dataset;
     if (!pop.hidden && pop.dataset.for === `${kind}:${id}`) { pop.hidden = true; return; }
+    pop.classList.remove('ch-pop');
     const folders = s.folders || [];
     const folderSel = `<select class="folder-sel" data-chg="move-file-folder" data-kind="${kind}" data-id="${esc(id)}" aria-label="เลือกโฟลเดอร์">
       <option value="" ${!folder ? 'selected' : ''}>ไม่มีโฟลเดอร์</option>
@@ -3334,6 +3339,31 @@ const Actions = {
     pop.style.left = `${left}px`;
     pop.style.right = 'auto';
     const popH = pop.offsetHeight || 150;
+    if (window.innerHeight - r.bottom < popH + 12 && r.top > popH + 12) {
+      pop.style.top = 'auto';
+      pop.style.bottom = `${window.innerHeight - r.top + 4}px`;
+    } else {
+      pop.style.bottom = 'auto';
+      pop.style.top = `${Math.max(8, Math.min(r.bottom + 4, window.innerHeight - popH - 8))}px`;
+    }
+  },
+  'ch-menu': el => {
+    const pop = document.getElementById('fileMenuPop');
+    if (!pop) return;
+    const sid = el.dataset.sid, cid = el.dataset.id;
+    const key = `ch:${sid}:${cid}`;
+    if (!pop.hidden && pop.dataset.for === key) { pop.hidden = true; return; }
+    pop.classList.add('ch-pop');
+    pop.dataset.for = key;
+    pop.innerHTML = `<button type="button" class="file-menu-item" data-act="edit-chapter" data-sid="${esc(sid)}" data-id="${esc(cid)}">${ico('edit', 14)} แก้ไขบท</button>
+      <button type="button" class="file-menu-item danger" data-act="del-chapter" data-sid="${esc(sid)}" data-id="${esc(cid)}">${ico('trash', 14)} ลบบท</button>`;
+    pop.hidden = false;
+    const r = el.getBoundingClientRect();
+    const popW = pop.offsetWidth || 156;
+    const left = Math.max(8, Math.min(r.right - popW, window.innerWidth - popW - 8));
+    pop.style.left = `${left}px`;
+    pop.style.right = 'auto';
+    const popH = pop.offsetHeight || 92;
     if (window.innerHeight - r.bottom < popH + 12 && r.top > popH + 12) {
       pop.style.top = 'auto';
       pop.style.bottom = `${window.innerHeight - r.top + 4}px`;
@@ -4153,7 +4183,7 @@ function bindEvents() {
   fileMenuPop.hidden = true;
   document.body.appendChild(fileMenuPop);
   document.addEventListener('click', e => {
-    if (!fileMenuPop.hidden && !e.target.closest('#fileMenuPop') && !e.target.closest('[data-act="file-menu"]')) {
+    if (!fileMenuPop.hidden && !e.target.closest('#fileMenuPop') && !e.target.closest('[data-act="file-menu"], [data-act="ch-menu"]')) {
       fileMenuPop.hidden = true;
     }
     if (!fileMenuPop.hidden && e.target.closest('#fileMenuPop .file-menu-item')) {
@@ -4161,6 +4191,7 @@ function bindEvents() {
     }
   });
   modalBody?.addEventListener('scroll', () => { fileMenuPop.hidden = true; }, { passive: true });
+  window.addEventListener('scroll', () => { if (!fileMenuPop.hidden) fileMenuPop.hidden = true; }, { passive: true });
   const tip = document.createElement('div');
   tip.id = 'calHoverTip';
   tip.className = 'cal-hover-tip';
@@ -4195,8 +4226,8 @@ function bindEvents() {
   const clearCalDropMarks = () => document.querySelectorAll('.cal-cell.drop-over, .cal-chip.dragging').forEach(el => el.classList.remove('drop-over', 'dragging'));
   const clearChMarks = () => document.querySelectorAll('.ch-row.drag-over-top, .ch-row.drag-over-bot, .ch-row.dragging').forEach(el => el.classList.remove('drag-over-top', 'drag-over-bot', 'dragging'));
   document.addEventListener('pointerdown', e => {
-    const h = e.target.closest('.ch-drag');
-    const row = h?.closest('.ch-row');
+    if (e.target.closest('button, input, a, select, textarea, label')) return;
+    const row = e.target.closest('.ch-row');
     if (row) row.draggable = true;
   });
   document.addEventListener('dragstart', e => {
@@ -4263,23 +4294,38 @@ function bindEvents() {
   document.addEventListener('touchstart', e => {
     if (e.touches.length !== 1) return;
     const chip = e.target.closest('.cal-chip[draggable="true"]');
-    if (!chip) return;
+    const chRow = !chip && !e.target.closest('button, input, a, select, textarea, label') ? e.target.closest('.ch-row') : null;
+    if (!chip && !chRow) return;
     const t0 = e.touches[0];
     touchStartPos = { x: t0.clientX, y: t0.clientY };
     clearTimeout(touchTimer);
     touchTimer = setTimeout(() => {
-      const ghost = chip.cloneNode(true);
-      ghost.classList.add('cal-drag-ghost');
-      ghost.style.left = `${t0.clientX}px`;
-      ghost.style.top = `${t0.clientY}px`;
-      document.body.appendChild(ghost);
-      chip.classList.add('dragging');
-      touchDrag = {
-        kind: chip.dataset.dragKind, id: chip.dataset.dragId || '',
-        fromDate: chip.dataset.dragDate || '', chip, ghost
-      };
+      if (chip) {
+        const ghost = chip.cloneNode(true);
+        ghost.classList.add('cal-drag-ghost');
+        ghost.style.left = `${t0.clientX}px`;
+        ghost.style.top = `${t0.clientY}px`;
+        document.body.appendChild(ghost);
+        chip.classList.add('dragging');
+        touchDrag = {
+          kind: chip.dataset.dragKind, id: chip.dataset.dragId || '',
+          fromDate: chip.dataset.dragDate || '', chip, ghost
+        };
+      } else if (chRow) {
+        const ghost = chRow.cloneNode(true);
+        ghost.classList.add('ch-drag-ghost');
+        ghost.style.width = `${chRow.offsetWidth}px`;
+        ghost.style.left = `${t0.clientX}px`;
+        ghost.style.top = `${t0.clientY}px`;
+        document.body.appendChild(ghost);
+        chRow.classList.add('dragging');
+        touchDrag = {
+          kind: 'chapter', sid: chRow.dataset.sid, cid: chRow.dataset.cid,
+          row: chRow, ghost
+        };
+      }
       try { navigator.vibrate?.(15); } catch { }
-    }, 300);
+    }, 320);
   }, { passive: true });
   document.addEventListener('touchmove', e => {
     if (touchTimer && touchStartPos && e.touches.length === 1) {
@@ -4296,6 +4342,17 @@ function bindEvents() {
     touchDrag.ghost.hidden = true;
     const elUnder = document.elementFromPoint(t0.clientX, t0.clientY);
     touchDrag.ghost.hidden = false;
+    if (touchDrag.kind === 'chapter') {
+      const row = elUnder?.closest?.('.ch-row');
+      document.querySelectorAll('.ch-row.drag-over-top, .ch-row.drag-over-bot').forEach(r => { if (r !== row) r.classList.remove('drag-over-top', 'drag-over-bot'); });
+      if (row && row.dataset.sid === touchDrag.sid && row.dataset.cid !== touchDrag.cid) {
+        const r = row.getBoundingClientRect();
+        const before = t0.clientY < r.top + r.height / 2;
+        row.classList.toggle('drag-over-top', before);
+        row.classList.toggle('drag-over-bot', !before);
+      }
+      return;
+    }
     const cell = elUnder?.closest?.('.cal-cell[data-date]');
     document.querySelectorAll('.cal-cell.drop-over').forEach(c => { if (c !== cell) c.classList.remove('drop-over'); });
     if (cell && cell.dataset.date !== touchDrag.fromDate) cell.classList.add('drop-over');
@@ -4308,6 +4365,26 @@ function bindEvents() {
     td.ghost.hidden = true;
     const elUnder = t0 ? document.elementFromPoint(t0.clientX, t0.clientY) : null;
     td.ghost.remove();
+    if (td.kind === 'chapter') {
+      const row = elUnder?.closest?.('.ch-row');
+      clearChMarks();
+      if (row && row.dataset.sid === td.sid && row.dataset.cid !== td.cid) {
+        const s = subjectById(td.sid);
+        if (s) {
+          const from = s.chapters.findIndex(c => c.id === td.cid);
+          let to = s.chapters.findIndex(c => c.id === row.dataset.cid);
+          const r = row.getBoundingClientRect();
+          const after = t0.clientY >= r.top + r.height / 2;
+          if (from !== -1 && to !== -1) {
+            const [moved] = s.chapters.splice(from, 1);
+            if (from < to) to--;
+            s.chapters.splice(after ? to + 1 : to, 0, moved);
+            save();
+          }
+        }
+      }
+      return;
+    }
     clearCalDropMarks();
     const cell = elUnder?.closest?.('.cal-cell[data-date]');
     if (cell && cell.dataset.date && cell.dataset.date !== td.fromDate) {
