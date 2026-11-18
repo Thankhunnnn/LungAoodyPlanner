@@ -294,6 +294,7 @@ const App = {
     if (tab === 'plan') { this.todoSub = ''; }
     else if (tab === 'calendar' && this.tab !== 'calendar') { this.calView = 'month'; }
     location.hash = tab; this.tab = tab; this.render(); window.scrollTo({ top: 0 });
+    const tipEl = document.getElementById('calHoverTip'); if (tipEl) tipEl.hidden = true;
     const main = document.getElementById('main');
     if (main) { main.classList.remove('view-active'); void main.offsetWidth; main.classList.add('view-active'); }
   },
@@ -319,6 +320,7 @@ const App = {
       <div class="side-tabs">${ALL_TABS.map(([id, ic, label]) =>
         `<button class="tab ${this.tab === id ? 'active' : ''}" data-act="go" data-tab="${id}"><span class="ic">${ic}</span><span>${id === 'ai' ? aiTabLabel() : label}</span></button>`).join('')}</div>
       ${isFootball ? '<div class="side-hala" aria-hidden="true">Hala Madrid</div>' : isManU ? '<div class="side-hala" aria-hidden="true">Glory Glory Man United</div>' : ''}`;
+    const tipEl = document.getElementById('calHoverTip'); if (tipEl) tipEl.hidden = true;
     const main = document.getElementById('main');
     main.innerHTML = (Views[this.tab] || Views.home)();
     const mobStack = document.getElementById('mobNavStack');
@@ -763,7 +765,8 @@ const Views = {
       const hasExam = DB.subjects.some(s => s.examDate === iso);
       calCells.push({ day: d, muted: false, iso, isToday: iso === t, hasPlan, hasTask, hasExam });
     }
-    while (calCells.length % 7 !== 0) calCells.push({ day: calCells.length % 7 + 1, muted: true, iso: '' });
+    let nextDay = 1;
+    while (calCells.length % 7 !== 0) calCells.push({ day: nextDay++, muted: true, iso: '' });
 
     // Today's combined todo items (up to 4)
     const todayTodos = [
@@ -1142,18 +1145,27 @@ const Views = {
               ${hours.map(h => `<div class="tt-hr">${h}</div>`).join('')}
             </div>
             ${daysOrder.map(d => {
-              const list = classes.filter(c => c.day === d).sort((a, b) => a.start.localeCompare(b.start));
+              const list = classes.filter(c => c.day === d).sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+              const lanes = [];
+              const placed = list.map(c => {
+                const sm = Math.max(minH * 60, toMin(c.start));
+                const em = Math.min(maxH * 60, Math.max(sm + 30, toMin(c.end) || sm + 60));
+                let li = lanes.findIndex(endMin => endMin <= sm);
+                if (li === -1) { li = lanes.length; lanes.push(em); } else lanes[li] = em;
+                return { c, sm, em, li };
+              });
+              const laneTotal = Math.max(1, lanes.length);
               return `<div class="tt-row ${d === dow ? 'today' : ''}">
                 <div class="tt-day-lbl">${EN_DAYS[d]}</div>
-                <div class="tt-lane">
-                  <div class="tt-cells">${hours.map(h => `<button type="button" class="tt-cell" data-act="add-class" data-day="${d}" data-start="${pad(h)}:00" aria-label="เพิ่มคาบวัน${TH_DAYS_FULL[d]} เวลา ${h}:00"></button>`).join('')}</div>
-                  ${list.map(c => {
-                    const sm = Math.max(minH * 60, toMin(c.start));
-                    const em = Math.min(maxH * 60, Math.max(sm + 30, toMin(c.end) || sm + 60));
+                <div class="tt-lane" style="min-height:${Math.max(68, laneTotal * 44)}px">
+                  <div class="tt-cells" style="min-height:${Math.max(68, laneTotal * 44)}px">${hours.map(h => `<button type="button" class="tt-cell" data-act="add-class" data-day="${d}" data-start="${pad(h)}:00" aria-label="เพิ่มคาบวัน${TH_DAYS_FULL[d]} เวลา ${h}:00"></button>`).join('')}</div>
+                  ${placed.map(({ c, sm, em, li }) => {
                     const left = ((sm - minH * 60) / totalMin * 100).toFixed(3);
                     const width = ((em - sm) / totalMin * 100).toFixed(3);
+                    const topPct = (li / laneTotal * 100).toFixed(2);
+                    const hPct = (100 / laneTotal).toFixed(2);
                     const col = classColor(c), nm = className(c);
-                    return `<button type="button" class="tt-block" data-act="edit-class" data-id="${c.id}" style="left:${left}%;width:${width}%;--c:${col}" title="${esc(nm)} (${esc(c.start)}–${esc(c.end || '')})">
+                    return `<button type="button" class="tt-block" data-act="edit-class" data-id="${c.id}" style="left:${left}%;width:${width}%;top:calc(${topPct}% + 3px);height:calc(${hPct}% - 6px);bottom:auto;--c:${col}" title="${esc(nm)} (${esc(c.start)}–${esc(c.end || '')})">
                       <span class="tt-bname">${esc(nm)}</span>
                       <span class="tt-broom">${esc(c.room || `${c.start}${c.end ? '–' + c.end : ''}`)}</span>
                     </button>`;
@@ -1165,7 +1177,7 @@ const Views = {
         </div>`}
         <div class="toolbar" style="margin-top:12px;margin-bottom:0">
           <button class="btn ghost small" data-act="tt-png">⬇️ PNG</button>
-          <button class="btn small" data-act="add-class">+ เพิ่มคาบเรียน</button>
+          ${(ttMode === 'grid' || agClasses.length > 0) ? `<button class="btn small" data-act="add-class">+ เพิ่มคาบเรียน</button>` : ''}
           <span class="grow"></span>
         </div>`}
       </section>
@@ -1291,7 +1303,7 @@ const Views = {
     return `
     
     <section class="card">
-      <div class="toolbar">
+      <div class="toolbar stats-week-nav">
         <button class="icon-btn" data-act="week-nav" data-dir="-1" aria-label="สัปดาห์ก่อน">${ico('chevron-left', 17)}</button>
         <h2>สัปดาห์ ${fmtDateBE(ws)} – ${fmtDateBE(days[6])}</h2>
         <button class="icon-btn" data-act="week-nav" data-dir="1" aria-label="สัปดาห์ถัดไป">${ico('chevron-right', 17)}</button>
