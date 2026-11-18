@@ -2234,3 +2234,7 @@ html[data-dark="1"] .ch-note-box {
   border: 1px solid var(--border); background: color-mix(in srgb, var(--soft) 55%, transparent);
 }
 .sr-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.subj-head { align-items: center; margin-bottom: 6px; }
+.subj-head h3 { margin: 0; }
+.subj-meta { margin-bottom: 10px; line-height: 1.5; }
+.exam-days-nowrap { white-space: nowrap; display: inline-block; }

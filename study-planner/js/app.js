@@ -1185,11 +1185,13 @@ const Views = {
       const cls = (DB.classes || []).filter(c => c.subjectId === s.id).sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
       return `<section class="card subj" id="subj-${s.id}" style="--c:${safeColor(s.color)}">
         <div class="subj-head">
-          <div class="grow"><h3>${esc(s.name)}</h3>
-            <div class="muted small">${s.examDate ? `${ico('target', 13)} สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text">(อีก ${n} วัน)</b>` : '<i>(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div>
-            ${cls.length ? `<div class="muted small" style="margin-top:2px;cursor:pointer" data-act="go-timetable" title="ดูในตารางเรียน">${ico('calendar', 13)} เรียน ${cls.map(c => `${TH_DAYS[c.day]} ${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}${c.room ? ` (${esc(c.room)})` : ''}`).join(' · ')}</div>` : ''}</div>
+          <h3 class="grow">${esc(s.name)}</h3>
           <button class="mini-btn" data-act="edit-subject" data-id="${s.id}" aria-label="แก้ไขวิชา ${esc(s.name)}">${ico('edit', 15)} แก้ไข</button>
           <button class="mini-btn" data-act="del-subject" data-id="${s.id}" aria-label="ลบวิชา ${esc(s.name)}">${ico('trash', 15)}</button>
+        </div>
+        <div class="subj-meta">
+          <div class="muted small">${s.examDate ? `${ico('target', 13)} สอบ ${fmtDateLong(s.examDate)}${s.examTime ? ' · ' + esc(s.examTime) : ''}${roomText(s.room) ? ' · ห้อง ' + esc(roomText(s.room)) : ''} ${n >= 0 ? `<b class="accent-text exam-days-nowrap">${n === 0 ? '(สอบวันนี้!)' : `(อีก ${n} วัน)`}</b>` : '<i class="exam-days-nowrap">(สอบแล้ว)</i>'}` : 'ยังไม่กำหนดวันสอบ'}</div>
+          ${cls.length ? `<div class="muted small" style="margin-top:2px;cursor:pointer" data-act="go-timetable" title="ดูในตารางเรียน">${ico('calendar', 13)} เรียน ${cls.map(c => `${TH_DAYS[c.day]} ${esc(c.start)}${c.end ? '–' + esc(c.end) : ''}${c.room ? ` (${esc(c.room)})` : ''}`).join(' · ')}</div>` : ''}
         </div>
         <div class="prog-top"><span>ความคืบหน้า</span><span>${p.done}/${p.total} บท (${p.pct}%)</span></div>
         ${progressBar(p.pct, s.color)}
