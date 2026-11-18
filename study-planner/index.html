@@ -56,6 +56,30 @@
     <button type="button" id="mobMenuBtn" class="bubble-trigger menu-trigger" data-act="toggle-mob-nav" aria-label="เปิดเมนูนำทาง" aria-expanded="false">≡</button>
   </div>
 
+  <div id="focusOverlay" class="focus-overlay" hidden>
+    <div class="focus-top">
+      <div class="focus-meta">
+        <span id="focusModeChip" class="chip accent">โฟกัส</span>
+        <b id="focusSubj">อ่านหนังสือ</b>
+      </div>
+      <button type="button" class="btn ghost small" data-act="focus-close">✕ ออกจากโหมดโฟกัส</button>
+    </div>
+    <div class="focus-center">
+      <div id="focusRing" class="focus-ring work">
+        <div class="focus-ring-inner">
+          <div id="focusDisplay" class="focus-time">25:00</div>
+          <div id="focusHint" class="muted">รอบที่ 1 · ตั้งใจอ่านนะ</div>
+        </div>
+      </div>
+      <div class="row center wrap focus-ctrls">
+        <button type="button" id="focusStartBtn" class="btn big" data-act="timer-start">▶ เริ่ม</button>
+        <button type="button" class="btn ghost" data-act="timer-reset">รีเซ็ต</button>
+        <button type="button" class="btn ghost" data-act="timer-stoplog">หยุด+บันทึก</button>
+        <button type="button" class="btn ghost" data-act="timer-skip">ข้าม</button>
+      </div>
+    </div>
+  </div>
+
   <div id="modal" class="modal hidden">
     <div class="modal-box">
       <div class="modal-head"><h3 id="modalTitle" hidden></h3><div class="row" style="margin:0;gap:6px"><button id="modalBack" class="icon-btn" data-act="modal-back" aria-label="ย้อนกลับ" hidden><svg class="svg-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button><button class="icon-btn" data-act="close-modal" aria-label="ปิดหน้าต่าง"><svg class="svg-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div></div>

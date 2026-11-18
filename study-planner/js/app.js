@@ -252,6 +252,15 @@ function smartActionData() {
   }
 }
 
+const CONF_LEVELS = [
+  [0, '⚪ ประเมิน'],
+  [1, '🔴 1/5 งงมาก'],
+  [2, '🟠 2/5 พอคุ้น'],
+  [3, '🟡 3/5 พอได้'],
+  [4, '🔵 4/5 แม่น'],
+  [5, '🟢 5/5 แม่นเป๊ะ'],
+];
+
 const App = {
   tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
   agendaDay: new Date().getDay(), ttView: '',
@@ -346,6 +355,24 @@ const App = {
       btn.innerHTML = btn.dataset.mini ? (Timer.running ? ico('pause', 13) : ico('play', 13)) : (Timer.running ? `${ico('pause')} พัก` : `${ico('play')} เริ่ม`);
       btn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start';
     }
+    const fDisp = document.getElementById('focusDisplay');
+    if (fDisp) fDisp.textContent = txt;
+    const fRing = document.getElementById('focusRing');
+    if (fRing) {
+      fRing.style.setProperty('--p', (1 - sec / Timer.dur()) * 100);
+      fRing.className = `focus-ring ${Timer.mode}`;
+    }
+    const fBtn = document.getElementById('focusStartBtn');
+    if (fBtn) {
+      fBtn.innerHTML = Timer.running ? `${ico('pause')} พัก` : `${ico('play')} เริ่ม`;
+      fBtn.dataset.act = Timer.running ? 'timer-pause' : 'timer-start';
+    }
+    const fSubj = document.getElementById('focusSubj');
+    if (fSubj) fSubj.textContent = Timer.subjectId ? subjectName(Timer.subjectId) : 'อ่านหนังสือทั่วไป';
+    const fMode = document.getElementById('focusModeChip');
+    if (fMode) fMode.textContent = Timer.mode === 'work' ? 'โฟกัส' : Timer.mode === 'short' ? 'พักสั้น' : 'พักยาว';
+    const fHint = document.getElementById('focusHint');
+    if (fHint) fHint.textContent = `รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}`;
     const clk = document.getElementById('liveClock');
     if (clk) clk.innerHTML = `${ico('clock', 14)} ${liveTimeStr()}`;
     document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
@@ -829,6 +856,30 @@ const Views = {
       </div>
     </section>` : '';
 
+    const weakChapters = [];
+    DB.subjects.forEach(s => {
+      (s.chapters || []).forEach(c => {
+        const cf = Number(c.confidence) || 0;
+        if (cf === 1 || cf === 2) weakChapters.push({ s, c, cf, ex: s.examDate || '9999-99-99' });
+      });
+    });
+    weakChapters.sort((a, b) => a.cf - b.cf || a.ex.localeCompare(b.ex));
+    const weakHTML = weakChapters.length ? `
+    <section class="card ref-weak">
+      <div class="card-head">
+        <h2>${ico('alert', 17)} บทที่ควรทบทวนด่วน</h2>
+        <span class="chip err">${weakChapters.length} บท (ความมั่นใจ 1–2/5)</span>
+      </div>
+      <div class="weak-list">
+        ${weakChapters.slice(0, 6).map(({ s, c, cf }) => `<div class="weak-item">
+          <span class="conf-badge" data-conf="${cf}">${cf === 1 ? '🔴 1/5' : '🟠 2/5'}</span>
+          <span class="grow"><b>${esc(c.title)}</b> <small class="muted">· ${esc(s.name)}</small></span>
+          <button type="button" class="btn small ghost" data-act="open-subject" data-id="${s.id}">เปิดบท</button>
+          <button type="button" class="btn small" data-act="smart-focus" data-sid="${s.id}">${ico('play', 12)} ทบทวน</button>
+        </div>`).join('')}
+      </div>
+    </section>` : '';
+
     return `
     <div class="ref-row1">
       <section class="card ref-banner ${isFootball ? 'is-football' : isManU ? 'is-manutd' : ''}" data-act="all-exams" style="cursor:pointer" title="กดเพื่อดูนับถอยหลังสอบทั้งหมด">
@@ -951,6 +1002,7 @@ const Views = {
     </div>
 
     ${readinessHTML}
+    ${weakHTML}
 
     <div class="ref-row3">
       <section class="card ref-sched">
@@ -1059,7 +1111,7 @@ const Views = {
         <button class="btn" data-act="add-todo" data-date="${t}">${ico('plus', 15)} สิ่งที่ต้องทำ</button>
       </div>
     </section>`}
-    ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2></div>${overdue.map(renderTodoEntry).join('')}</section>` : ''}
+    ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2><button type="button" class="btn small" data-act="auto-reschedule">✨ จัดตารางงานค้างใหม่</button></div>${overdue.map(renderTodoEntry).join('')}</section>` : ''}
     <section class="card">
       ${filterBar}
       ${dates.length ? dates.map(day).join('') : empty('🗓️', DB.subjects.length ? 'ยังไม่มีรายการ — กด "+ สิ่งที่ต้องทำ" ด้านบนได้เลย' : 'เพิ่มวิชาก่อนนะ', DB.subjects.length ? '' : `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
@@ -1100,6 +1152,9 @@ const Views = {
               <span>${esc(c.title)}</span>
             </span>
             <span class="item-actions">
+            <select class="conf-sel" data-conf="${c.confidence || 0}" data-chg="ch-conf" data-sid="${s.id}" data-cid="${c.id}" aria-label="ระดับความมั่นใจบท ${esc(c.title)}" title="ระดับความมั่นใจ (1-5)">
+              ${CONF_LEVELS.map(([v, lbl]) => `<option value="${v}" ${(Number(c.confidence) || 0) === v ? 'selected' : ''}>${lbl}</option>`).join('')}
+            </select>
             <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
             <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
@@ -1281,7 +1336,10 @@ const Views = {
     return `
     <div class="grid2">
       <section class="card timer-card">
-        <div class="pills">${modes.map(([k, l]) => `<button class="pill ${Timer.mode === k ? 'active' : ''}" data-act="timer-mode" data-mode="${k}">${l}</button>`).join('')}</div>
+        <div class="row wrap center" style="justify-content:space-between;margin-bottom:8px">
+          <div class="pills" style="margin:0">${modes.map(([k, l]) => `<button class="pill ${Timer.mode === k ? 'active' : ''}" data-act="timer-mode" data-mode="${k}">${l}</button>`).join('')}</div>
+          <button type="button" class="btn ghost small" data-act="focus-open" title="เปิดโหมดโฟกัสเต็มจอ">⛶ โหมดโฟกัส</button>
+        </div>
         <div id="timerRing" class="ring ${Timer.mode}"><div class="ring-inner"><div id="timerDisplay" class="time">--:--</div>
           <div class="muted small">รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}</div></div></div>
         <label class="field">อ่านวิชา<select data-chg="timer-subject">${subjectOptions(Timer.subjectId)}</select></label>
@@ -2883,6 +2941,47 @@ const Actions = {
     App.render();
     App.toast(`เริ่มโฟกัส${sid ? ' ' + subjectName(sid) : ''} แล้ว 🔥`);
   },
+  'focus-open': () => {
+    const ov = document.getElementById('focusOverlay');
+    if (!ov) return;
+    ov.hidden = false;
+    document.body.classList.add('focus-active');
+    App.renderTimerBits();
+    try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { }
+  },
+  'focus-close': () => {
+    const ov = document.getElementById('focusOverlay');
+    if (ov) ov.hidden = true;
+    document.body.classList.remove('focus-active');
+    try { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); } catch { }
+  },
+  'auto-reschedule': () => {
+    const t = todayStr();
+    const odPlans = DB.plan.filter(p => !p.done && p.date < t);
+    const odTasks = DB.tasks.filter(x => !x.done && x.date && x.date < t);
+    const total = odPlans.length + odTasks.length;
+    if (!total) return App.toast('ไม่มีงานค้างที่ต้องจัดตารางใหม่แล้ว ✓');
+    const prevPlans = odPlans.map(p => [p, p.date]);
+    const prevTasks = odTasks.map(x => [x, x.date]);
+    const bySub = {};
+    odPlans.forEach(p => { const k = p.subjectId || '_'; (bySub[k] = bySub[k] || []).push(p); });
+    Object.entries(bySub).forEach(([sid, list]) => {
+      const s = subjectById(sid);
+      const daysUntil = s?.examDate && s.examDate > t ? Math.max(1, daysBetween(t, s.examDate)) : 1;
+      const span = Math.min(daysUntil, Math.max(1, list.length));
+      list.forEach((p, idx) => {
+        const offset = span > 1 ? Math.floor((idx * span) / list.length) : 0;
+        p.date = addDays(t, offset);
+      });
+    });
+    odTasks.forEach(x => { x.date = t; });
+    save();
+    App.toast(`จัดตารางงานค้าง ${total} รายการใหม่แล้ว ✨`, 5000, () => {
+      prevPlans.forEach(([p, d]) => { p.date = d; });
+      prevTasks.forEach(([x, d]) => { x.date = d; });
+      save();
+    });
+  },
   'go-timetable': () => { App.calView = 'timetable'; App.go('calendar'); },
   'timer-stoplog': () => Timer.stopAndLog(),
   'timer-skip': () => { Timer.mode = Timer.mode === 'work' ? 'short' : 'work'; Timer.reset(); App.render(); },
@@ -3604,6 +3703,13 @@ const Changes = {
     el.value = '';
     if (files.length) addChatFiles(files);
   },
+  'ch-conf': el => {
+    const s = subjectById(el.dataset.sid);
+    const c = s?.chapters.find(x => x.id === el.dataset.cid);
+    if (!c) return;
+    c.confidence = Number(el.value) || 0;
+    save();
+  },
   'upload-folder': el => { App.fileFolder = el.value || ''; filesRender(); },
   'toggle-chapter-file': el => {
     const target = _chFilesTarget(); if (!target) return;
@@ -3825,6 +3931,81 @@ function bindEvents() {
     const row = e.target.closest('.ch-row');
     if (row && (!e.relatedTarget || !row.contains(e.relatedTarget))) row.classList.remove('drag-over-top', 'drag-over-bot');
   });
+  const moveCalItem = (d, toDate) => {
+    if (!d || !toDate || toDate === d.fromDate) return;
+    if (d.kind === 'task') {
+      const task = DB.tasks.find(x => x.id === d.id);
+      if (!task) return;
+      const prev = task.date;
+      task.date = toDate;
+      save();
+      App.toast(`ย้ายงานไปวันที่ ${fmtDateBE(toDate)} แล้ว ✓`, 4500, () => { task.date = prev; save(); });
+    } else if (d.kind === 'plan-day') {
+      const moved = DB.plan.filter(p => p.date === d.fromDate);
+      if (!moved.length) return;
+      const prevDates = moved.map(p => [p, p.date]);
+      moved.forEach(p => { p.date = toDate; });
+      save();
+      App.toast(`เลื่อนแผนอ่าน ${moved.length} รายการไป ${fmtDateBE(toDate)} แล้ว ✓`, 4500, () => { prevDates.forEach(([p, od]) => { p.date = od; }); save(); });
+    }
+  };
+  let touchDrag = null, touchTimer = null, touchStartPos = null;
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    const chip = e.target.closest('.cal-chip[draggable="true"]');
+    if (!chip) return;
+    const t0 = e.touches[0];
+    touchStartPos = { x: t0.clientX, y: t0.clientY };
+    clearTimeout(touchTimer);
+    touchTimer = setTimeout(() => {
+      const ghost = chip.cloneNode(true);
+      ghost.classList.add('cal-drag-ghost');
+      ghost.style.left = `${t0.clientX}px`;
+      ghost.style.top = `${t0.clientY}px`;
+      document.body.appendChild(ghost);
+      chip.classList.add('dragging');
+      touchDrag = {
+        kind: chip.dataset.dragKind, id: chip.dataset.dragId || '',
+        fromDate: chip.dataset.dragDate || '', chip, ghost
+      };
+      try { navigator.vibrate?.(15); } catch { }
+    }, 300);
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (touchTimer && touchStartPos && e.touches.length === 1) {
+      const t0 = e.touches[0];
+      if (Math.hypot(t0.clientX - touchStartPos.x, t0.clientY - touchStartPos.y) > 10) {
+        clearTimeout(touchTimer); touchTimer = null;
+      }
+    }
+    if (!touchDrag || e.touches.length !== 1) return;
+    e.preventDefault();
+    const t0 = e.touches[0];
+    touchDrag.ghost.style.left = `${t0.clientX}px`;
+    touchDrag.ghost.style.top = `${t0.clientY}px`;
+    touchDrag.ghost.hidden = true;
+    const elUnder = document.elementFromPoint(t0.clientX, t0.clientY);
+    touchDrag.ghost.hidden = false;
+    const cell = elUnder?.closest?.('.cal-cell[data-date]');
+    document.querySelectorAll('.cal-cell.drop-over').forEach(c => { if (c !== cell) c.classList.remove('drop-over'); });
+    if (cell && cell.dataset.date !== touchDrag.fromDate) cell.classList.add('drop-over');
+  }, { passive: false });
+  const endTouchDrag = e => {
+    clearTimeout(touchTimer); touchTimer = null; touchStartPos = null;
+    if (!touchDrag) return;
+    const td = touchDrag; touchDrag = null;
+    const t0 = e.changedTouches?.[0];
+    td.ghost.hidden = true;
+    const elUnder = t0 ? document.elementFromPoint(t0.clientX, t0.clientY) : null;
+    td.ghost.remove();
+    clearCalDropMarks();
+    const cell = elUnder?.closest?.('.cal-cell[data-date]');
+    if (cell && cell.dataset.date && cell.dataset.date !== td.fromDate) {
+      moveCalItem(td, cell.dataset.date);
+    }
+  };
+  document.addEventListener('touchend', endTouchDrag);
+  document.addEventListener('touchcancel', endTouchDrag);
   document.addEventListener('drop', e => {
     if (dragCal) {
       const cell = e.target.closest('.cal-cell[data-date]');
@@ -3834,22 +4015,7 @@ function bindEvents() {
       if (!cell || !cell.dataset.date || cell.dataset.date === d.fromDate) return;
       e.preventDefault();
       e.stopPropagation();
-      const toDate = cell.dataset.date;
-      if (d.kind === 'task') {
-        const task = DB.tasks.find(x => x.id === d.id);
-        if (!task) return;
-        const prev = task.date;
-        task.date = toDate;
-        save();
-        App.toast(`ย้ายงานไปวันที่ ${fmtDateBE(toDate)} แล้ว ✓`, 4500, () => { task.date = prev; save(); });
-      } else if (d.kind === 'plan-day') {
-        const moved = DB.plan.filter(p => p.date === d.fromDate);
-        if (!moved.length) return;
-        const prevDates = moved.map(p => [p, p.date]);
-        moved.forEach(p => { p.date = toDate; });
-        save();
-        App.toast(`เลื่อนแผนอ่าน ${moved.length} รายการไป ${fmtDateBE(toDate)} แล้ว ✓`, 4500, () => { prevDates.forEach(([p, od]) => { p.date = od; }); save(); });
-      }
+      moveCalItem(d, cell.dataset.date);
       return;
     }
     if (!dragCh) return;
@@ -3870,6 +4036,12 @@ function bindEvents() {
       }
     }
     clearChMarks(); dragCh = null;
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const ov = document.getElementById('focusOverlay');
+      if (ov && !ov.hidden) { ov.hidden = true; document.body.classList.remove('focus-active'); }
+    }
   });
   document.addEventListener('dragend', () => {
     document.querySelectorAll('.ch-row[draggable="true"]').forEach(r => { r.draggable = false; });
