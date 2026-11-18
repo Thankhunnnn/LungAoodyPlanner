@@ -2083,3 +2083,15 @@ html.modal-open, body.modal-open { overflow: hidden !important; overflow-y: hidd
 @media (max-width: 600px) {
   .pills { border-radius: 14px; justify-content: center; }
 }
+
+/* Fix Queue (v135): File row no-wrap, folder chip tap, iOS exam date grid no-overlap */
+.item.file-item { flex-wrap: nowrap !important; align-items: center !important; }
+.item.file-item .grow { min-width: 0; overflow: hidden; }
+.folder-chip-btn { min-height: 36px; position: relative; z-index: 1; }
+.exam-fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.exam-fields-grid > label:last-child { grid-column: 1 / -1; }
+.exam-fields-grid .field { min-width: 0; margin-bottom: 0; }
+.exam-fields-grid input[type="date"] { width: 100%; max-width: 100%; min-width: 0; }
+@media (max-width: 600px) {
+  .exam-fields-grid { grid-template-columns: 1fr; }
+}

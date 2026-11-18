@@ -314,6 +314,9 @@ const App = {
   },
 
   render() {
+    const keepScroll = this._lastTab === this.tab;
+    const savedY = keepScroll ? window.scrollY : 0;
+    this._lastTab = this.tab;
     const hdr = document.getElementById('header');
     hdr.classList.toggle('compact', this.tab !== 'home');
     hdr.innerHTML = this.headerHTML();
@@ -347,6 +350,10 @@ const App = {
     }
     syncGutters();
     if (this.tab === 'ai') { const box = document.getElementById('chatBox'); if (box) box.scrollTop = box.scrollHeight; }
+    else if (keepScroll && savedY > 0) {
+      window.scrollTo(0, savedY);
+      requestAnimationFrame(() => window.scrollTo(0, savedY));
+    }
   },
 
   renderTimerBits() {
@@ -1198,8 +1205,6 @@ const Views = {
               ${c.pin ? `<small class="ch-pin-line">📌 ${esc(c.pin)}</small>` : ''}
             </span>
             <span class="item-actions">
-            <button type="button" class="mini-btn ch-mv" data-act="move-ch" data-sid="${s.id}" data-cid="${c.id}" data-dir="-1" aria-label="เลื่อนขึ้น">↑</button>
-            <button type="button" class="mini-btn ch-mv" data-act="move-ch" data-sid="${s.id}" data-cid="${c.id}" data-dir="1" aria-label="เลื่อนลง">↓</button>
             <button type="button" class="weight-pill" data-w="${wt}" data-act="cycle-weight" data-sid="${s.id}" data-cid="${c.id}" title="คลิกเพื่อเปลี่ยนน้ำหนักออกสอบ">${wtLbl}</button>
             <select class="conf-sel" data-conf="${c.confidence || 0}" data-chg="ch-conf" data-sid="${s.id}" data-cid="${c.id}" aria-label="ระดับความมั่นใจบท ${esc(c.title)}" title="ระดับความมั่นใจ (1-5)">
               ${CONF_LEVELS.map(([v, lbl]) => `<option value="${v}" ${(Number(c.confidence) || 0) === v ? 'selected' : ''}>${lbl}</option>`).join('')}
@@ -1768,7 +1773,7 @@ function subjectForm(s = {}) {
         <span>วันสอบ (ไม่บังคับ)</span>
         <button type="button" class="btn small ghost" data-act="subj-exam-toggle" id="subjExamToggle">${hasExam ? 'ซ่อนวันสอบ' : `${ico('plus', 13)} เพิ่มวันสอบ`}</button>
       </div>
-      <div id="subjExamFields" class="row wrap" ${hasExam ? '' : 'hidden'}>
+      <div id="subjExamFields" class="exam-fields-grid" ${hasExam ? '' : 'hidden'}>
         ${dateField('วันสอบ', 'examDate', s.examDate || '')}
         <label class="field">เวลาสอบ${time24HTML('examTime', s.examTime || '', { aria: 'เวลาสอบ' })}</label>
         <label class="field">ห้องสอบ / หมายเหตุ<input name="room" value="${esc(s.room || '')}" placeholder="เช่น ห้อง 301"></label>
@@ -3110,6 +3115,7 @@ const Actions = {
     try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { }
   },
   'focus-close': () => {
+    AmbientAudio.stopAll();
     const ov = document.getElementById('focusOverlay');
     if (ov) ov.hidden = true;
     document.body.classList.remove('focus-active');
@@ -3317,7 +3323,10 @@ const Actions = {
     pop.innerHTML = `<label class="file-menu-folder"><span>📁 โฟลเดอร์</span>${folderSel}</label>${items}`;
     pop.hidden = false;
     const r = el.getBoundingClientRect();
-    pop.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+    const popW = pop.offsetWidth || 200;
+    const left = Math.max(8, Math.min(r.right - popW, window.innerWidth - popW - 8));
+    pop.style.left = `${left}px`;
+    pop.style.right = 'auto';
     const popH = pop.offsetHeight || 150;
     if (window.innerHeight - r.bottom < popH + 12 && r.top > popH + 12) {
       pop.style.top = 'auto';
@@ -4327,7 +4336,7 @@ function bindEvents() {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       const ov = document.getElementById('focusOverlay');
-      if (ov && !ov.hidden) { ov.hidden = true; document.body.classList.remove('focus-active'); }
+      if (ov && !ov.hidden) { AmbientAudio.stopAll(); ov.hidden = true; document.body.classList.remove('focus-active'); }
     }
   });
   document.addEventListener('dragend', () => {

@@ -47,49 +47,84 @@ const AmbientAudio = {
     const src = ctx.createBufferSource();
     src.buffer = this.makeNoiseBuffer(ctx, ch);
     src.loop = true;
-    const filter = ctx.createBiquadFilter();
-    if (ch === 'rain') { filter.type = 'bandpass'; filter.frequency.value = 1200; filter.Q.value = 0.6; }
-    else if (ch === 'cafe') { filter.type = 'lowpass'; filter.frequency.value = 650; }
-    else if (ch === 'ocean') { filter.type = 'lowpass'; filter.frequency.value = 380; }
-    else { filter.type = 'lowpass'; filter.frequency.value = 260; }
-    const gain = ctx.createGain();
-    gain.gain.value = 0;
-    src.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.masterGain);
+    const hp = ctx.createBiquadFilter();
+    const lp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    lp.type = 'lowpass';
+    if (ch === 'rain') {
+      hp.frequency.value = 600;
+      lp.frequency.value = 3600;
+    } else if (ch === 'cafe') {
+      // Remove low airplane/engine rumble (< 280Hz) & harsh highs (> 2200Hz) for warm soft murmur
+      hp.frequency.value = 300;
+      lp.frequency.value = 1800;
+    } else if (ch === 'ocean') {
+      hp.frequency.value = 120;
+      lp.frequency.value = 700;
+    } else {
+      // brown noise
+      hp.frequency.value = 40;
+      lp.frequency.value = 320;
+    }
+    const modGain = ctx.createGain();
+    modGain.gain.value = 1;
+    const volGain = ctx.createGain();
+    volGain.gain.value = 0;
+    src.connect(hp);
+    hp.connect(lp);
+    lp.connect(modGain);
+    modGain.connect(volGain);
+    volGain.connect(this.masterGain);
     src.start();
-    let lfo = null;
-    if (ch === 'ocean') {
+    let lfo = null, lfoGain = null;
+    if (ch === 'ocean' || ch === 'cafe') {
       lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      lfo.frequency.value = 0.12;
-      lfoGain.gain.value = 0.18;
+      lfoGain = ctx.createGain();
+      lfo.frequency.value = ch === 'ocean' ? 0.14 : 0.35;
+      lfoGain.gain.value = ch === 'ocean' ? 0.42 : 0.16;
       lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
+      lfoGain.connect(modGain.gain);
       lfo.start();
     }
-    this.nodes[ch] = { src, filter, gain, lfo };
+    this.nodes[ch] = { src, hp, lp, modGain, gain: volGain, lfo, lfoGain };
     return this.nodes[ch];
+  },
+  stopChannel(ch) {
+    const n = this.nodes[ch];
+    if (!n) return;
+    try {
+      if (this.ctx) n.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03);
+      setTimeout(() => {
+        try { n.src.stop(); } catch { }
+        try { n.lfo?.stop(); } catch { }
+        try { n.src.disconnect(); n.hp.disconnect(); n.lp.disconnect(); n.modGain.disconnect(); n.gain.disconnect(); n.lfo?.disconnect(); n.lfoGain?.disconnect(); } catch { }
+      }, 90);
+    } catch { }
+    delete this.nodes[ch];
   },
   setVolume(ch, pct) {
     const v = Math.max(0, Math.min(100, Number(pct) || 0));
     this.vols[ch] = v;
-    if (v > 0) {
-      const n = this.startChannel(ch);
-      if (n && this.ctx) n.gain.gain.setTargetAtTime((v / 100) * 0.38, this.ctx.currentTime, 0.08);
-    } else if (this.nodes[ch] && this.ctx) {
-      this.nodes[ch].gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.08);
+    if (v <= 0) {
+      this.stopChannel(ch);
+      return;
+    }
+    const n = this.startChannel(ch);
+    if (n && this.ctx) {
+      const scale = ch === 'cafe' ? 0.24 : ch === 'rain' ? 0.28 : 0.32;
+      n.gain.gain.setTargetAtTime((v / 100) * scale, this.ctx.currentTime, 0.06);
     }
   },
   toggleMute() {
     this.muted = !this.muted;
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 1, this.ctx.currentTime, 0.06);
+      this.masterGain.gain.setTargetAtTime(this.muted ? 0 : 1, this.ctx.currentTime, 0.05);
     }
     return this.muted;
   },
   stopAll() {
     Object.keys(this.vols).forEach(k => this.setVolume(k, 0));
+    document.querySelectorAll('[data-sound]').forEach(el => { el.value = '0'; });
   },
   anyActive() { return Object.values(this.vols).some(v => v > 0); },
 };
