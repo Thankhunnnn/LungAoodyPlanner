@@ -1923,3 +1923,56 @@ body.focus-active { overflow: hidden; }
 }
 .conf-badge[data-conf="1"] { background: color-mix(in srgb, #ef4444 18%, var(--card)); color: #ef4444; }
 .conf-badge[data-conf="2"] { background: color-mix(in srgb, #f97316 18%, var(--card)); color: #f97316; }
+
+/* ===== Multi-Device QA Polish (iPhone, iPad Pro 11, Desktop Widescreen) ===== */
+html.modal-open, body.modal-open { overflow: hidden !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toast-undo { white-space: nowrap; flex-shrink: 0; }
+.fc-pill { min-width: 0; overflow: hidden; }
+.fc-pill b { font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.subj { display: flex; flex-direction: column; }
+.subj > .row.wrap:last-child { margin-top: auto; }
+.tt-wrap { -webkit-overflow-scrolling: touch; }
+.tt-table { min-width: 980px; }
+.cal-chip[draggable="true"] { touch-action: none; user-select: none; -webkit-touch-callout: none; }
+.ch-mv { display: none; }
+
+@media (min-width: 960px) {
+  .bubble-backdrop { display: none !important; }
+  .app { padding-bottom: 28px; }
+  .nav { height: auto; max-height: calc(100vh - 36px); }
+}
+@media (max-width: 1360px) {
+  .ref-row3 { grid-template-columns: 1fr 1fr; }
+  .ref-sched { grid-column: 1 / -1; }
+}
+@media (max-width: 1100px) {
+  .ref-row1 > .card:last-child { grid-column: 1 / -1; }
+}
+@media (max-width: 959px) {
+  .app { padding-bottom: 92px; }
+  .nav { flex-wrap: wrap !important; }
+  .side-term { flex-shrink: 0; }
+  .side-tabs { display: flex !important; flex: 1 1 100%; flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; gap: 6px; }
+  .side-tabs::-webkit-scrollbar { display: none; }
+  .conf-sel, .round-chip, .mini-btn, .pill, .btn.small { min-height: 40px; }
+}
+@media (max-width: 959px), (pointer: coarse) {
+  .ch-mv { display: inline-flex; }
+}
+@media (max-width: 720px) {
+  .cal-dnd-hint { display: none; }
+  .focus-overlay {
+    padding-top: max(56px, calc(env(safe-area-inset-top) + 14px));
+    padding-bottom: max(34px, calc(env(safe-area-inset-bottom) + 16px));
+  }
+  .app {
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-bottom: calc(108px + env(safe-area-inset-bottom));
+  }
+  .mob-menu-wrap, .fab-wrap { bottom: calc(26px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(92px + env(safe-area-inset-bottom)) !important; }
+  .modal-box { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .conf-sel, .quick-add-btn, .quick-add-row input, .tt-agenda-days .pill, .pill, .btn.small, .mini-btn, .icon-btn { min-height: 44px; }
+  .weak-item { flex-direction: column; align-items: stretch; }
+}

@@ -276,6 +276,7 @@ const App = {
     autoLinkClassesToSubjects();
     window.addEventListener('hashchange', () => { setHash(location.hash.slice(1)); this.render(); });
     changeListeners.push(() => { this.applyTheme(); this.render(); refreshFilesIfOpen(); });
+    window.matchMedia('(min-width: 960px)').addEventListener('change', e => { if (e.matches) closeBubbles(); });
     bindEvents();
     this.render();
     FileStore.refreshCounts().then(() => this.render()).catch(() => { });
@@ -470,6 +471,8 @@ function openModal(title, html, wide = false, opts = {}) {
   document.getElementById('modalBody').innerHTML = html;
   m.querySelector('.modal-box').classList.toggle('wide', wide);
   m.classList.remove('hidden');
+  document.documentElement.classList.add('modal-open');
+  document.body.classList.add('modal-open');
   _updateModalBackBtn();
   setTimeout(() => m.querySelector('input:not([type=checkbox]):not([type=color]):not([type=file]),textarea')?.focus(), 50);
 }
@@ -490,6 +493,8 @@ function setModalBody(html) { document.getElementById('modalBody').innerHTML = h
 function closeModal() {
   const needRender = !!(App.fc || App.filesSid);
   document.getElementById('modal').classList.add('hidden');
+  document.documentElement.classList.remove('modal-open');
+  document.body.classList.remove('modal-open');
   const titleEl = document.getElementById('modalTitle');
   titleEl.innerHTML = '';
   titleEl.hidden = true;
@@ -1152,6 +1157,8 @@ const Views = {
               <span>${esc(c.title)}</span>
             </span>
             <span class="item-actions">
+            <button type="button" class="mini-btn ch-mv" data-act="move-ch" data-sid="${s.id}" data-cid="${c.id}" data-dir="-1" aria-label="เลื่อนขึ้น">↑</button>
+            <button type="button" class="mini-btn ch-mv" data-act="move-ch" data-sid="${s.id}" data-cid="${c.id}" data-dir="1" aria-label="เลื่อนลง">↓</button>
             <select class="conf-sel" data-conf="${c.confidence || 0}" data-chg="ch-conf" data-sid="${s.id}" data-cid="${c.id}" aria-label="ระดับความมั่นใจบท ${esc(c.title)}" title="ระดับความมั่นใจ (1-5)">
               ${CONF_LEVELS.map(([v, lbl]) => `<option value="${v}" ${(Number(c.confidence) || 0) === v ? 'selected' : ''}>${lbl}</option>`).join('')}
             </select>
@@ -1200,7 +1207,7 @@ const Views = {
       const EN_DAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
       const dow = new Date().getDay();
       const uniqueSubs = new Set(classes.map(c => c.subjectId || c.title)).size;
-      const ttMode = App.ttView || (window.innerWidth <= 720 ? 'agenda' : 'grid');
+      const ttMode = App.ttView || (window.innerWidth <= 959 ? 'agenda' : 'grid');
       const agDay = App.agendaDay ?? dow;
       const agDays = [1, 2, 3, 4, 5, 6, 0];
       const agClasses = classes.filter(c => c.day === agDay).sort((a, b) => (a.start || '').localeCompare(b.start || ''));
@@ -1322,7 +1329,7 @@ const Views = {
         <button class="btn ghost small" data-act="cal-today">วันนี้</button>
       </div>
       <div class="cal-grid">${TH_DAYS.map(d => `<div class="cal-dow">${d}</div>`).join('')}${html}</div>
-      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 งาน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด หรือลาก 📝/📖 ข้ามวันได้ทันที</p>
+      <p class="muted small">🎯 วันสอบ · 🗓️ ตารางเรียน · 📝 งาน · 📌 กิจกรรม · 📖 แผนอ่าน — แตะวันเพื่อดูรายละเอียด<span class="cal-dnd-hint"> หรือลาก 📝/📖 ข้ามวันได้ทันที</span></p>
     </section>`;
   },
 
@@ -1414,7 +1421,7 @@ const Views = {
       <section class="card"><h2>แยกตามวิชา (สัปดาห์นี้)</h2>
         ${perSub.map(({ s, m }) => `<div class="prog-row"><div class="prog-top"><span style="color:${safeColor(s.color)}">${esc(s.name)}</span><span class="muted">${fmtMin(m)}</span></div>${progressBar(m / maxSub * 100, s.color)}</div>`).join('')}
         ${other ? `<div class="prog-row"><div class="prog-top"><span>ทั่วไป</span><span class="muted">${fmtMin(other)}</span></div>${progressBar(other / maxSub * 100, '#aaa')}</div>` : ''}
-        ${!DB.subjects.length ? empty('📊', 'ยังไม่มีข้อมูล') : ''}
+        ${!DB.subjects.length && !other ? empty('📊', 'ยังไม่มีข้อมูล') : ''}
       </section>
       <section class="card"><h2>แนวโน้ม 8 สัปดาห์ (ชม.)</h2>
         ${barChart(weeks, v => (v / 60).toFixed(1))}
@@ -2778,6 +2785,14 @@ const Actions = {
   },
   'ch-files-edit': () => { if (App._chFiles) { App._chFiles.editing = !App._chFiles.editing; renderChapterFilesModal(); } },
   'modal-back': () => modalBack(),
+  'move-ch': el => {
+    const s = subjectById(el.dataset.sid); if (!s) return;
+    const i = s.chapters.findIndex(c => c.id === el.dataset.cid);
+    const j = i + Number(el.dataset.dir || 0);
+    if (i === -1 || j < 0 || j >= s.chapters.length) return;
+    [s.chapters[i], s.chapters[j]] = [s.chapters[j], s.chapters[i]];
+    save();
+  },
   'ch-file-folder': el => { if (App._chFiles) { App._chFiles.folder = el.dataset.f || ''; renderChapterFilesModal(); } },
   'ch-files-bulk': el => {
     const st = App._chFiles; if (!st) return;
@@ -3521,6 +3536,7 @@ const Forms = {
     DB.tasks.push({ id: uid(), title: title.slice(0, 200), type: 'homework', date: todayStr(), time: '', subjectId: '', remind: false, done: false });
     save();
     App.toast('เพิ่มใน Today list แล้ว ✓');
+    setTimeout(() => document.querySelector('[data-form="quick-todo"] input[name="title"]')?.focus(), 20);
   },
   task(d, f) {
     const title = (d.title || '').trim();
