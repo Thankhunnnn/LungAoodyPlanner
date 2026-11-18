@@ -352,7 +352,9 @@ const GCal = {
 
     const events = [];
     // 1. Exams
-    DB.subjects.filter(s => s.examDate).forEach(s => {
+    const gf = DB.prefs?.gcalFilter || {};
+    const allowSub = sid => !Array.isArray(gf.subjectIds) || !gf.subjectIds.length || !sid || gf.subjectIds.includes(sid);
+    if (gf.exams !== false) DB.subjects.filter(s => s.examDate && allowSub(s.id)).forEach(s => {
       events.push({
         key: `exam_${s.id}`,
         body: {
@@ -369,7 +371,7 @@ const GCal = {
     // 2. Weekly classes
     const today = todayStr();
     const todayDow = parseDate(today).getDay();
-    (DB.classes || []).forEach(c => {
+    if (gf.classes !== false) (DB.classes || []).filter(c => allowSub(c.subjectId)).forEach(c => {
       const diff = (Number(c.day) - todayDow + 7) % 7;
       const startDate = addDays(today, diff);
       events.push({
@@ -387,7 +389,7 @@ const GCal = {
     });
 
     // 3. Undone plans & tasks
-    DB.plan.filter(p => !p.done && p.date).forEach(p => {
+    if (gf.plans !== false) DB.plan.filter(p => !p.done && p.date && allowSub(p.subjectId)).forEach(p => {
       const sub = p.subjectId ? subjectName(p.subjectId) : '';
       events.push({
         key: `plan_${p.id}`,
@@ -400,7 +402,7 @@ const GCal = {
         },
       });
     });
-    DB.tasks.filter(x => !x.done && x.date && !x.gcalId).forEach(x => {
+    if (gf.tasks !== false) DB.tasks.filter(x => !x.done && x.date && !x.gcalId && allowSub(x.subjectId)).forEach(x => {
       const sub = x.subjectId ? subjectName(x.subjectId) : '';
       events.push({
         key: `task_${x.id}`,

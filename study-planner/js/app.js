@@ -262,8 +262,8 @@ const CONF_LEVELS = [
 ];
 
 const App = {
-  tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
-  agendaDay: new Date().getDay(), ttView: '',
+  tab: 'home', calView: 'month', calMonth: todayStr().slice(0, 7), tlDate: todayStr(), statWeek: weekStart(todayStr()), showPast: false, todoSub: '',
+  agendaDay: new Date().getDay(), ttView: '', batchMode: false, batchSel: new Set(), focusFlip: false,
   aiSub: '', aiCh: '', aiBusy: false, chatAttach: [], replanPreview: null, fc: null, quiz: null,
 
   init() {
@@ -275,8 +275,11 @@ const App = {
     setHash(location.hash.slice(1));
     autoLinkClassesToSubjects();
     window.addEventListener('hashchange', () => { setHash(location.hash.slice(1)); this.render(); });
-    changeListeners.push(() => { this.applyTheme(); this.render(); refreshFilesIfOpen(); });
+    changeListeners.push(() => { NetStatus.markPending(); this.applyTheme(); this.render(); refreshFilesIfOpen(); });
     window.matchMedia('(min-width: 960px)').addEventListener('change', e => { if (e.matches) closeBubbles(); });
+    NetStatus.init();
+    IdleGuard.init();
+    Keymap.init();
     bindEvents();
     this.render();
     FileStore.refreshCounts().then(() => this.render()).catch(() => { });
@@ -290,6 +293,7 @@ const App = {
     document.documentElement.dataset.theme = DB.prefs.theme || 'sky';
     document.documentElement.dataset.home = this.tab === 'home' ? '1' : '0';
     document.documentElement.dataset.dark = DB.prefs.dark ? '1' : '0';
+    applyCustomAccent();
     const c = (THEMES.find(t => t[0] === DB.prefs.theme) || THEMES[0])[2];
     document.querySelector('meta[name=theme-color]')?.setAttribute('content', DB.prefs.dark ? '#1d1a1f' : c);
     const tc = DB.prefs.tagColors || {};
@@ -358,10 +362,13 @@ const App = {
     }
     const fDisp = document.getElementById('focusDisplay');
     if (fDisp) fDisp.textContent = txt;
+    const fMin = document.getElementById('flipMin'), fSec = document.getElementById('flipSec');
+    if (fMin && fSec) { const [mm, ss] = txt.split(':'); fMin.textContent = mm || '00'; fSec.textContent = ss || '00'; }
     const fRing = document.getElementById('focusRing');
     if (fRing) {
-      fRing.style.setProperty('--p', (1 - sec / Timer.dur()) * 100);
-      fRing.className = `focus-ring ${Timer.mode}`;
+      const pct = Timer.flowMode ? ((sec % 3600) / 3600) * 100 : (1 - sec / Timer.dur()) * 100;
+      fRing.style.setProperty('--p', pct);
+      fRing.className = `focus-ring ${Timer.flowMode ? 'work' : Timer.mode}`;
     }
     const fBtn = document.getElementById('focusStartBtn');
     if (fBtn) {
@@ -371,9 +378,11 @@ const App = {
     const fSubj = document.getElementById('focusSubj');
     if (fSubj) fSubj.textContent = Timer.subjectId ? subjectName(Timer.subjectId) : 'อ่านหนังสือทั่วไป';
     const fMode = document.getElementById('focusModeChip');
-    if (fMode) fMode.textContent = Timer.mode === 'work' ? 'โฟกัส' : Timer.mode === 'short' ? 'พักสั้น' : 'พักยาว';
+    if (fMode) fMode.textContent = Timer.flowMode ? 'Flowtime' : (Timer.mode === 'work' ? 'โฟกัส' : Timer.mode === 'short' ? 'พักสั้น' : 'พักยาว');
     const fHint = document.getElementById('focusHint');
-    if (fHint) fHint.textContent = `รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}`;
+    if (fHint) fHint.textContent = Timer.flowMode ? 'จับเวลาเดินหน้าต่อเนื่อง · กดหยุด+บันทึกเมื่อพอ' : `รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}`;
+    const fSkip = document.getElementById('focusSkipBtn');
+    if (fSkip) fSkip.hidden = !!Timer.flowMode;
     const clk = document.getElementById('liveClock');
     if (clk) clk.innerHTML = `${ico('clock', 14)} ${liveTimeStr()}`;
     document.title = Timer.running ? `${txt} · ${Timer.mode === 'work' ? 'โฟกัส' : 'พัก'} — LungAoodyPlanner` : 'LungAoodyPlanner 🐃';
@@ -414,6 +423,8 @@ const App = {
         <span class="chip date-pill">${ico('calendar', 14)} ${fmtDateLong(t)}</span>
         <span id="liveClock" class="chip date-pill live-clock" aria-label="เวลาปัจจุบัน">${ico('clock', 14)} ${liveTimeStr()}</span>
         ${this.syncBadgeHTML()}
+        <button class="icon-btn" data-act="cmd-open" title="ค้นหาด่วน (Ctrl+K)" aria-label="ค้นหาด่วน">🔎</button>
+        ${UndoStack.canUndo() ? `<button class="icon-btn" data-act="global-undo" title="ย้อนกลับ: ${esc(UndoStack.lastLabel())} (Ctrl+Z)" aria-label="ย้อนกลับ">↩️</button>` : ''}
         <button class="chip theme-pick-btn" data-act="open-themes" style="--th-c:${thMeta[2]}" title="คลิกเพื่อเปลี่ยนธีม"><span class="theme-pick-dot"></span><span>ธีม: ${esc(thMeta[1])}</span><span class="theme-pick-caret">▾</span></button>
         <button class="icon-btn head-settings-btn ${this.tab === 'settings' ? 'active' : ''}" data-act="go" data-tab="settings" title="ตั้งค่า" aria-label="ตั้งค่า">${ico('settings', 17)}</button>
         <button class="icon-btn" data-act="toggle-dark" title="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}" aria-label="${isDark ? 'โหมดสว่าง' : 'โหมดมืด'}">${isDark ? ico('sun', 17) : ico('moon', 17)}</button>
@@ -421,6 +432,9 @@ const App = {
   },
 
   syncBadgeHTML() {
+    if (typeof NetStatus !== 'undefined' && !NetStatus.online) {
+      return `<button id="syncBadge" class="chip warn" data-act="go" data-tab="settings" title="ไม่มีอินเทอร์เน็ต ข้อมูลจะเก็บในเครื่องก่อน">📡 ออฟไลน์${NetStatus.pending ? ` (${NetStatus.pending})` : ''}</button>`;
+    }
     const m = {
       off: ['💾 เก็บในเครื่อง', ''], loading: ['⏳ กำลังเชื่อมต่อ', ''], signedout: ['🔑 ล็อกอินเพื่อ sync', 'warn'],
       syncing: ['🔄 กำลัง sync', ''], synced: ['☁️ sync แล้ว', 'ok'], error: ['⚠️ sync ผิดพลาด', 'err'],
@@ -777,8 +791,9 @@ const Views = {
     const nextDays = nextEx ? daysBetween(t, nextEx.examDate) : null;
     const todayMin = minutesOn(t);
     const todayHrs = (todayMin / 60).toFixed(1).replace(/\.0$/, '');
-    const goalHrs = Math.max(1, Math.round((DB.prefs.dailyGoalMin || 180) / 60));
-    const todayHrPct = Math.min(100, Math.round((todayMin / (goalHrs * 60)) * 100));
+    const dynGoal = effectiveDailyGoalMin();
+    const goalHrs = Math.max(1, Math.round(dynGoal.min / 60));
+    const todayHrPct = Math.min(100, Math.round((todayMin / Math.max(1, dynGoal.min)) * 100));
     const pendingCount = DB.tasks.filter(x => !x.done).length;
     const pendingPct = Math.min(100, pendingCount * 15);
 
@@ -879,6 +894,7 @@ const Views = {
         ${weakChapters.slice(0, 6).map(({ s, c, cf }) => `<div class="weak-item">
           <span class="conf-badge" data-conf="${cf}">${cf === 1 ? '🔴 1/5' : '🟠 2/5'}</span>
           <span class="grow"><b>${esc(c.title)}</b> <small class="muted">· ${esc(s.name)}</small></span>
+          <button type="button" class="btn small ghost" data-act="spaced-review" data-sid="${s.id}" data-cid="${c.id}" title="นัดทบทวนซ้ำ +1/+3/+7 วัน">🔁 นัดทวน</button>
           <button type="button" class="btn small ghost" data-act="open-subject" data-id="${s.id}">เปิดบท</button>
           <button type="button" class="btn small" data-act="smart-focus" data-sid="${s.id}">${ico('play', 12)} ทบทวน</button>
         </div>`).join('')}
@@ -1109,16 +1125,38 @@ const Views = {
       </div>`;
     };
 
+    const urgent24 = DB.tasks.filter(x => !x.done && x.date && daysBetween(t, x.date) >= 0 && daysBetween(t, x.date) <= 1 && bySub(x));
+    const urgent72 = DB.tasks.filter(x => !x.done && x.date && daysBetween(t, x.date) > 1 && daysBetween(t, x.date) <= 3 && bySub(x));
+    const urgentStrip = (urgent24.length || urgent72.length) ? `<section class="card urgent-strip">
+      <div class="row wrap" style="margin:0;align-items:center;justify-content:space-between;gap:8px">
+        <div class="row wrap" style="margin:0;gap:6px">
+          ${urgent24.length ? `<span class="chip err">🔥 ภายใน 24 ชม. (${urgent24.length})</span>` : ''}
+          ${urgent72.length ? `<span class="chip warn">⏳ ภายใน 3 วัน (${urgent72.length})</span>` : ''}
+          <small class="muted">${urgent24[0] ? `ด่วนสุด: ${esc(urgent24[0].title)}` : `ถัดไป: ${esc(urgent72[0].title)}`}</small>
+        </div>
+      </div>
+    </section>` : '';
+    const batchBar = App.batchMode ? `<div class="batch-bar" style="margin-bottom:12px;padding-top:0;border-top:none">
+      <span class="chip accent">เลือกแล้ว ${App.batchSel.size} รายการ</span>
+      <button type="button" class="btn small ghost" data-act="batch-move" data-days="1" ${App.batchSel.size ? '' : 'disabled'}>📅 เลื่อน +1 วัน</button>
+      <button type="button" class="btn small ghost" data-act="batch-move" data-days="7" ${App.batchSel.size ? '' : 'disabled'}>📅 เลื่อน +7 วัน</button>
+      <button type="button" class="btn small danger" data-act="batch-del" ${App.batchSel.size ? '' : 'disabled'}>🗑️ ลบที่เลือก</button>
+      <button type="button" class="btn small ghost" data-act="batch-toggle" style="margin-left:auto">เสร็จสิ้น</button>
+    </div>` : '';
+
     return `
     ${embedded ? '' : `<section class="card">
       <div class="toolbar">
         <h2 class="grow">${ico('book', 18)} To do list</h2>
+        <button type="button" class="btn small ${App.batchMode ? '' : 'ghost'}" data-act="batch-toggle">${App.batchMode ? '✓ เสร็จสิ้น' : '☑ เลือกหลายรายการ'}</button>
         <button class="btn" data-act="add-todo" data-date="${t}">${ico('plus', 15)} สิ่งที่ต้องทำ</button>
       </div>
     </section>`}
+    ${urgentStrip}
     ${overdue.length ? `<section class="card warn-card"><div class="card-head"><h2>⚠️ ค้างอยู่ (${overdue.length})</h2><button type="button" class="btn small" data-act="auto-reschedule">✨ จัดตารางงานค้างใหม่</button></div>${overdue.map(renderTodoEntry).join('')}</section>` : ''}
     <section class="card">
       ${filterBar}
+      ${batchBar}
       ${dates.length ? dates.map(day).join('') : empty('🗓️', DB.subjects.length ? 'ยังไม่มีรายการ — กด "+ สิ่งที่ต้องทำ" ด้านบนได้เลย' : 'เพิ่มวิชาก่อนนะ', DB.subjects.length ? '' : `<button class="btn" data-act="add-subject">+ เพิ่มวิชา</button>`)}
     </section>
     ${past.length ? `<section class="card"><button class="link" data-act="toggle-past">${App.showPast ? '▾ ซ่อน' : '▸ แสดง'}รายการที่ทำเสร็จแล้ว (${past.length})</button>
@@ -1150,27 +1188,34 @@ const Views = {
         ${progressBar(p.pct, s.color)}
         <div class="chapters">${s.chapters.map(c => {
           const cf = Array.isArray(c.files) ? c.files : [];
+          const wt = Number(c.weight) || 0;
+          const wtLbl = wt === 3 ? '🔥 ออกเยอะ' : wt === 2 ? '⚡ กลาง' : wt === 1 ? '• น้อย' : 'น้ำหนัก';
           return `<div class="item ch-row ${c.done ? 'done' : ''}" data-sid="${s.id}" data-cid="${c.id}">
             <span class="ch-drag" title="ลากขึ้น-ลงเพื่อเรียงลำดับ" aria-label="ลากเพื่อเรียงลำดับ">⋮⋮</span>
             <input type="checkbox" class="cb" data-act="toggle-chapter" data-sid="${s.id}" data-id="${c.id}" ${c.done ? 'checked' : ''} aria-label="ติ๊กจบบท ${esc(c.title)}">
             <span class="grow">
               <span>${esc(c.title)}</span>
+              ${c.pin ? `<small class="ch-pin-line">📌 ${esc(c.pin)}</small>` : ''}
             </span>
             <span class="item-actions">
             <button type="button" class="mini-btn ch-mv" data-act="move-ch" data-sid="${s.id}" data-cid="${c.id}" data-dir="-1" aria-label="เลื่อนขึ้น">↑</button>
             <button type="button" class="mini-btn ch-mv" data-act="move-ch" data-sid="${s.id}" data-cid="${c.id}" data-dir="1" aria-label="เลื่อนลง">↓</button>
+            <button type="button" class="weight-pill" data-w="${wt}" data-act="cycle-weight" data-sid="${s.id}" data-cid="${c.id}" title="คลิกเพื่อเปลี่ยนน้ำหนักออกสอบ">${wtLbl}</button>
             <select class="conf-sel" data-conf="${c.confidence || 0}" data-chg="ch-conf" data-sid="${s.id}" data-cid="${c.id}" aria-label="ระดับความมั่นใจบท ${esc(c.title)}" title="ระดับความมั่นใจ (1-5)">
               ${CONF_LEVELS.map(([v, lbl]) => `<option value="${v}" ${(Number(c.confidence) || 0) === v ? 'selected' : ''}>${lbl}</option>`).join('')}
             </select>
+            <button type="button" class="mini-btn ${c.pin ? 'has' : ''}" data-act="edit-ch-pin" data-sid="${s.id}" data-cid="${c.id}" title="ปักหมุดโน้ต 1 บรรทัด" aria-label="ปักหมุดโน้ตสั้น">📌</button>
+            <button type="button" class="mini-btn" data-act="spaced-review" data-sid="${s.id}" data-cid="${c.id}" title="นัดทบทวนซ้ำ (+1/+3/+7 วัน)" aria-label="นัดทบทวนซ้ำ">🔁</button>
             <button type="button" class="round-chip ${cf.length ? 'has' : ''}" data-act="chapter-files" data-sid="${s.id}" data-id="${c.id}" title="ดู/เลือกไฟล์ในบทนี้" aria-label="ไฟล์ในบท ${esc(c.title)}">${ico('paperclip', 12)} <span>${cf.length ? `${cf.length} ไฟล์` : 'แนบไฟล์'}</span></button>
             <button class="mini-btn" data-act="rename-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="เปลี่ยนชื่อบท ${esc(c.title)}">${ico('edit', 14)}</button>
             <button class="mini-btn" data-act="del-chapter" data-sid="${s.id}" data-id="${c.id}" aria-label="ลบบท ${esc(c.title)}">${ico('close', 14)}</button>
             </span>
           </div>`;
         }).join('') || '<p class="muted small">ยังไม่มีบท</p>'}</div>
-        <div class="row wrap">
+        <div class="row wrap subj-foot-row">
           <button class="btn small" data-act="add-chapters" data-sid="${s.id}">${ico('plus', 14)} เพิ่มบท</button>
           <button class="btn small ghost" data-act="files" data-sid="${s.id}">${ico('paperclip', 14)} ไฟล์ (${fileN})</button>
+          ${(s.links || []).filter(l => l.pinned).slice(0, 3).map(l => `<a class="pin-link-pill" href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc(l.url)}">🔗 ${esc(l.title || 'ลิงก์')}</a>`).join('')}
         </div>
       </section>`;
     }).join('')}</div>`;
@@ -1179,14 +1224,19 @@ const Views = {
   calendar() {
     const view = App.calView === 'exams' ? 'timetable' : App.calView === 'todo' ? 'month' : (App.calView || 'month');
     const switcher = `<section class="card"><div class="toolbar">
-      <h2 class="grow">${view === 'timetable' ? `${ico('calendar', 18)} ตารางเรียน &amp; ตารางสอบ` : `${ico('calendar', 18)} ปฏิทิน`}</h2>
+      <h2 class="grow">${view === 'timetable' ? `${ico('calendar', 18)} ตารางเรียน &amp; ตารางสอบ` : view === 'timeline' ? `${ico('clock', 18)} ไทม์ไลน์รายวัน` : `${ico('calendar', 18)} ปฏิทิน`}</h2>
       <div class="pills" style="margin:0">
         <button class="pill ${view === 'month' ? 'active' : ''}" data-act="cal-view" data-v="month">ปฏิทิน</button>
+        <button class="pill ${view === 'timeline' ? 'active' : ''}" data-act="cal-view" data-v="timeline">ไทม์ไลน์รายวัน</button>
         <button class="pill ${view === 'timetable' ? 'active' : ''}" data-act="cal-view" data-v="timetable">ตารางเรียน &amp; สอบ</button>
       </div>
       <button class="btn ghost small" data-act="gcal-sync" title="ซิงก์วันสอบ ตารางเรียน และสิ่งที่ต้องทำขึ้น Google Calendar">📅 ซิงก์ Google Cal</button>
       <button class="btn" data-act="add-todo">${ico('plus', 15)} สิ่งที่ต้องทำ</button>
     </div></section>`;
+
+    if (view === 'timeline') {
+      return `${switcher}<section class="card">${timelineHTML(App.tlDate || todayStr())}</section>`;
+    }
 
     if (view === 'timetable') {
       const t = todayStr();
@@ -1311,8 +1361,8 @@ const Views = {
       const tasks = DB.tasks.filter(x => x.date === d);
       const plan = DB.plan.filter(p => p.date === d);
       const dayClasses = classesOnDate(d);
-      html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''}" data-act="cal-day" data-date="${d}">
-        <div class="cal-num">${parseDate(d).getDate()}</div>
+      html += `<div class="cal-cell ${inMonth ? '' : 'out'} ${d === t ? 'today' : ''} ${isBlackoutDate(d) ? 'blackout' : ''}" data-act="cal-day" data-date="${d}">
+        <div class="cal-num">${parseDate(d).getDate()}${isBlackoutDate(d) ? ' 🌴' : ''}</div>
         ${exams.map(s => `<div class="cal-chip exam" style="--c:${safeColor(s.color)}">🎯 ${esc(s.name)}</div>`).join('')}
         ${dayClasses.map(c => `<div class="cal-chip exam" style="--c:${classColor(c)}">${esc(c.start)} ${esc(className(c))}</div>`).join('')}
         ${tasks.map(x => `<div class="cal-chip task ${x.done ? 'done' : ''}" draggable="true" data-drag-kind="task" data-drag-id="${x.id}" data-drag-date="${d}" title="ลากเพื่อเลื่อนวัน">${x.type === 'event' ? '📌' : '📝'} ${esc(x.title)}</div>`).join('')}
@@ -1344,29 +1394,42 @@ const Views = {
     <div class="grid2">
       <section class="card timer-card">
         <div class="row wrap center" style="justify-content:space-between;margin-bottom:8px">
-          <div class="pills" style="margin:0">${modes.map(([k, l]) => `<button class="pill ${Timer.mode === k ? 'active' : ''}" data-act="timer-mode" data-mode="${k}">${l}</button>`).join('')}</div>
+          <div class="pills" style="margin:0">
+            ${modes.map(([k, l]) => `<button class="pill ${!Timer.flowMode && Timer.mode === k ? 'active' : ''}" data-act="timer-mode" data-mode="${k}">${l}</button>`).join('')}
+            <button class="pill ${Timer.flowMode ? 'active' : ''}" data-act="timer-flow">⏱️ Flowtime</button>
+          </div>
           <button type="button" class="btn ghost small" data-act="focus-open" title="เปิดโหมดโฟกัสเต็มจอ">⛶ โหมดโฟกัส</button>
         </div>
-        <div id="timerRing" class="ring ${Timer.mode}"><div class="ring-inner"><div id="timerDisplay" class="time">--:--</div>
-          <div class="muted small">รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}</div></div></div>
+        <div id="timerRing" class="ring ${Timer.flowMode ? 'work' : Timer.mode}"><div class="ring-inner"><div id="timerDisplay" class="time">--:--</div>
+          <div class="muted small">${Timer.flowMode ? 'จับเวลาเดินหน้าต่อเนื่อง' : `รอบที่ ${Timer.round + 1} · ${Timer.mode === 'work' ? 'ตั้งใจอ่านนะ' : 'พักสายตาหน่อย'}`}</div></div></div>
         <label class="field">อ่านวิชา<select data-chg="timer-subject">${subjectOptions(Timer.subjectId)}</select></label>
         <div class="row center wrap">
           <button id="timerStartBtn" class="btn big" data-act="timer-start">${ico('play')} เริ่ม</button>
           <button class="btn ghost" data-act="timer-reset">${ico('reset')} รีเซ็ต</button>
-          ${Timer.mode === 'work' ? `<button class="btn ghost" data-act="timer-stoplog">${ico('square')} หยุด+บันทึก</button>` : ''}
-          <button class="btn ghost" data-act="timer-skip">${ico('skip')} ข้าม</button>
+          ${(Timer.flowMode || Timer.mode === 'work') ? `<button class="btn ghost" data-act="timer-stoplog">${ico('square')} หยุด+บันทึก</button>` : ''}
+          ${!Timer.flowMode ? `<button class="btn ghost" data-act="timer-skip">${ico('skip')} ข้าม</button>` : ''}
         </div>
-        <details class="settings-mini"><summary>ตั้งค่าเวลา</summary>
+        <details class="settings-mini"><summary>ตั้งค่าเวลา &amp; เสียงแจ้งเตือน</summary>
           <div class="row wrap">
             <label class="inline">โฟกัส <input type="number" class="num" min="1" data-bind="prefs.pomo.work" value="${p.work}"> น.</label>
             <label class="inline">พักสั้น <input type="number" class="num" min="1" data-bind="prefs.pomo.short" value="${p.short}"> น.</label>
             <label class="inline">พักยาว <input type="number" class="num" min="1" data-bind="prefs.pomo.long" value="${p.long}"> น.</label>
             <label class="inline">พักยาวทุก <input type="number" class="num" min="1" data-bind="prefs.pomo.every" value="${p.every}"> รอบ</label>
-          </div></details>
+          </div>
+          <div class="row wrap" style="margin-top:8px;justify-content:space-between">
+            <label class="inline"><input type="checkbox" data-bind="prefs.autoStartTimer" ${DB.prefs.autoStartTimer ? 'checked' : ''}> เริ่มรอบถัดไปอัตโนมัติ</label>
+            <label class="inline">เสียงจบ:
+              <select style="width:auto;padding:4px 8px" data-chg="chime-sel" aria-label="เลือกเสียงกระดิ่ง">
+                ${[['bell', '🔔 ระฆังนุ่ม'], ['piano', '🎹 เปียโน'], ['digital', '📟 ดิจิทัล'], ['silent', '🔇 เงียบ']].map(([v, l]) => `<option value="${v}" ${(DB.prefs.chime || 'bell') === v ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+              <button type="button" class="mini-btn" data-act="test-chime" title="ลองฟังเสียง">▶</button>
+            </label>
+          </div>
+        </details>
       </section>
       <section class="card">
         <div class="card-head"><h2>${ico('book', 18)} บันทึกการอ่านวันนี้</h2><span class="chip accent">${fmtMin(total)}</span></div>
-        ${sessions.length ? sessions.map(x => `<div class="item">${tag(x.subjectId)}<span class="grow">${fmtMin(x.minutes)}</span>
+        ${sessions.length ? sessions.map(x => `<div class="item">${tag(x.subjectId)}<span class="grow">${fmtMin(x.minutes)}${x.note ? `<br><small class="muted">💭 ${esc(x.note)}</small>` : ''}</span>
           <small class="muted">${new Date(x.at).toTimeString().slice(0, 5)}</small>
           <button class="mini-btn" data-act="del-session" data-id="${x.id}" aria-label="ลบบันทึก">${ico('close', 14)}</button></div>`).join('') : empty(ico('clock', 30), 'ยังไม่มีบันทึกวันนี้')}
         <h3>${ico('plus', 15)} บันทึกเวลาเอง</h3>
@@ -1376,6 +1439,7 @@ const Views = {
             <label class="field"><span>นาที</span><input name="minutes" type="number" min="1" max="1440" placeholder="เช่น 45" required></label>
             <label class="field"><span>วันที่ <small class="muted">(${fmtDateBE(t)})</small></span><input name="date" type="date" value="${t}" min="${new Date().getFullYear() - 1}-01-01" max="${new Date().getFullYear() + 5}-12-31" data-chg="be-hint"></label>
           </div>
+          <label class="field"><span>โน้ตสั้นๆ รอบนี้ <small class="muted">(ไม่บังคับ)</small></span><input name="note" maxlength="140" placeholder="เช่น อ่านจบ บท 3 + ทำแบบฝึกหัด"></label>
           <button class="btn small full">${ico('save', 15)} บันทึกเวลา</button>
         </form>
       </section>
@@ -1399,6 +1463,12 @@ const Views = {
     const allCh = DB.subjects.reduce((a, s) => a + s.chapters.length, 0), allDone = DB.subjects.reduce((a, s) => a + s.chapters.filter(c => c.done).length, 0);
 
 
+    const prevWs = addDays(ws, -7);
+    const prevTotal = [...Array(7)].reduce((a, _, i) => a + minutesOn(addDays(prevWs, i)), 0);
+    const cmpPct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : (total > 0 ? 100 : 0);
+    const cmpBadge = (total > 0 || prevTotal > 0)
+      ? `<span class="chip ${cmpPct >= 0 ? 'ok' : 'warn'}">${cmpPct >= 0 ? `+${cmpPct}% 📈` : `${cmpPct}% 📉`} เทียบสัปดาห์ก่อน</span>`
+      : '';
     const weekSessions = DB.sessions.filter(x => x.date >= ws && x.date <= days[6]).sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
     return `
     
@@ -1407,6 +1477,10 @@ const Views = {
         <button class="icon-btn" data-act="week-nav" data-dir="-1" aria-label="สัปดาห์ก่อน">${ico('chevron-left', 17)}</button>
         <h2>สัปดาห์ ${fmtDateBE(ws)} – ${fmtDateBE(days[6])}</h2>
         <button class="icon-btn" data-act="week-nav" data-dir="1" aria-label="สัปดาห์ถัดไป">${ico('chevron-right', 17)}</button>
+      </div>
+      <div class="row wrap" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+        ${cmpBadge || '<span></span>'}
+        <button type="button" class="btn small ghost" data-act="term-wrap">🎓 สรุปผลจบเทอม</button>
       </div>
       <div class="tiles">
         <div class="tile"><div class="tile-v">${(total / 60).toFixed(1)}</div><div class="muted small">ชั่วโมงที่อ่าน</div></div>
@@ -1524,7 +1598,46 @@ const Views = {
       <div class="theme-group-lbl muted small" style="margin-top:10px">ธีมพิเศษ</div>
       <div class="theme-grid">${THEMES.filter(([k]) => !isMinimalTheme(k)).map(([k, l, c]) => `<button class="theme-sw ${DB.prefs.theme === k ? 'active' : ''}" data-act="theme" data-theme="${k}" style="--c:${c}"><span class="dot"></span>${l}</button>`).join('')}</div>
       <label class="switch"><input type="checkbox" data-bind="prefs.dark" ${DB.prefs.dark ? 'checked' : ''}><span></span> โหมดมืด 🌙</label>
-      <div style="margin-top:8px"><button type="button" class="btn small ghost" data-act="tag-colors">🎨 เลือกสีแท็ก (อ่านหนังสือ / วันสอบ / งาน / กิจกรรม)</button></div>
+      <div style="margin-top:8px" class="row wrap">
+        <button type="button" class="btn small ghost" data-act="tag-colors">🎨 เลือกสีแท็ก (อ่านหนังสือ / วันสอบ / งาน / กิจกรรม)</button>
+        <label class="inline" style="margin-left:auto">สี Accent เอง:
+          <input type="color" style="width:36px;height:32px;padding:2px;border-radius:8px" value="${esc(DB.prefs.customAccent || '#4ea8ff')}" data-chg="custom-accent" aria-label="เลือกสี Accent เอง">
+          ${DB.prefs.customAccent ? `<button type="button" class="mini-btn" data-act="reset-accent" title="คืนค่าสีธีมเดิม">รีเซ็ต</button>` : ''}
+        </label>
+      </div>
+    </section>
+
+    <section class="card"><h2>🎯 เป้าหมายการอ่าน &amp; Google Calendar</h2>
+      <div class="row wrap" style="margin-bottom:8px">
+        <label class="inline">เป้าอ่านปกติ <input type="number" class="num" min="30" step="30" data-bind="prefs.dailyGoalMin" value="${DB.prefs.dailyGoalMin || 180}"> น./วัน</label>
+        <label class="switch" style="margin:0"><input type="checkbox" data-bind="prefs.dynamicGoal" ${DB.prefs.dynamicGoal ? 'checked' : ''}><span></span> ปรับเป้าอัตโนมัติเมื่อใกล้สอบ (≤ 7 วัน)</label>
+      </div>
+      ${DB.prefs.dynamicGoal ? `<label class="inline" style="margin-bottom:10px">เป้าช่วงใกล้สอบ <input type="number" class="num" min="60" step="30" data-bind="prefs.examGoalMin" value="${DB.prefs.examGoalMin || 270}"> น./วัน</label>` : ''}
+      <div class="muted small" style="margin:8px 0 4px">เลือกประเภทที่จะซิงก์ขึ้น Google Calendar:</div>
+      <div class="row wrap">
+        ${[['exams', '🎯 วันสอบ'], ['classes', '🏫 ตารางเรียน'], ['plans', '📖 แผนอ่าน'], ['tasks', '📝 งาน/กิจกรรม']].map(([k, l]) => {
+          const on = (DB.prefs.gcalFilter || {})[k] !== false;
+          return `<label class="inline"><input type="checkbox" data-chg="gcal-filter" data-k="${k}" ${on ? 'checked' : ''}> ${l}</label>`;
+        }).join('')}
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>⌨️ คีย์ลัด &amp; ไกด์ใช้งาน</h2>
+        <div class="row" style="margin:0;gap:6px">
+          <button type="button" class="btn ghost small" data-act="tour-open">🗺️ ดูไกด์แนะนำแอป</button>
+          <button type="button" class="btn ghost small" data-act="reset-keys">รีเซ็ตคีย์ลัด</button>
+        </div>
+      </div>
+      <p class="muted small" style="margin-top:0">คลิกที่ปุ่มคีย์ลัดแล้วกดปุ่มใหม่บนคีย์บอร์ดเพื่อตั้งเองได้ทันที (กด Esc เพื่อยกเลิก)</p>
+      <div class="shortcut-grid">
+        ${Object.entries(SHORTCUT_LABELS).map(([id, lbl]) => {
+          const cur = Keymap.get()[id] || '';
+          const cap = Keymap.capturing === id;
+          return `<div class="shortcut-row"><span>${lbl}</span><button type="button" class="key-cap ${cap ? 'capturing' : ''}" data-act="rebind-key" data-k="${id}">${cap ? 'กดปุ่ม...' : Keymap.fmtKey(cur)}</button></div>`;
+        }).join('')}
+      </div>
     </section>
 
     <section class="card"><h2>🔔 การแจ้งเตือน</h2>
@@ -1611,11 +1724,12 @@ function taskItemHTML(x, cat = '') {
   const n = x.date ? daysBetween(todayStr(), x.date) : null;
   const tf = Array.isArray(x.files) ? x.files : [];
   const cd = !x.done && n !== null ? (n < 0 ? `<small class="warn-text">เลย ${Math.abs(n)} วัน</small>` : n === 0 ? '<b class="accent-text">วันนี้</b>' : n === 1 ? '<b class="accent-text">พรุ่งนี้</b>' : `<small class="muted">อีก ${n} วัน</small>`) : '';
+  const bKey = `task:${x.id}`;
   return `<div class="item ${x.done ? 'done' : ''}">
-    <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
+    ${App.batchMode && App.tab === 'plan' ? `<input type="checkbox" class="cb" data-act="batch-pick" data-k="${bKey}" ${App.batchSel.has(bKey) ? 'checked' : ''} aria-label="เลือกรายการ">` : `<label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>`}
     ${cat || `<span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>`}
     ${x.subjectId ? tag(x.subjectId) : ''}
-    <span class="grow">${esc(x.title)} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}</small>${cd ? ` · ${cd}` : ''}</span>
+    <span class="grow">${esc(x.title)}${x.repeat ? ` <span class="chip" style="padding:1px 6px;font-size:.7rem">🔁 ${x.repeat === 'daily' ? 'ทุกวัน' : 'ทุกสัปดาห์'}</span>` : ''} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}</small>${cd ? ` · ${cd}` : ''}</span>
     <span class="item-actions"><button class="mini-btn ${tf.length ? 'has' : ''}" data-act="task-files" data-id="${x.id}" title="แนบ/ดูไฟล์ (${tf.length})" aria-label="แนบไฟล์ ${esc(x.title)}">${ico('paperclip', 14)}${tf.length ? `<small class="ch-fc">${tf.length}</small>` : ''}</button>
     <button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
     <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">${ico('close', 15)}</button></span>
@@ -1690,6 +1804,7 @@ function todoForm(opts = {}) {
     <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
     <div id="todoTaskFields" ${isPlan ? 'hidden' : ''}>
       <label class="field">ชื่องาน / กิจกรรม<input name="taskTitle" maxlength="200" placeholder="เช่น ส่งรายงานกลุ่ม หรือ ประชุมโปรเจกต์"></label>
+      <label class="field">ทำซ้ำ (Recurring)<select name="repeat"><option value="">ไม่ซ้ำ</option><option value="daily">ทุกวัน</option><option value="weekly">ทุกสัปดาห์</option></select></label>
     </div>
     <div id="todoPlanFields" ${isPlan ? '' : 'hidden'}>
       <label class="field">บท (เลือก หรือพิมพ์เองด้านล่าง)<select name="chapterId" id="planCh">${planChapterOptions(sid, '')}</select></label>
@@ -1697,8 +1812,8 @@ function todoForm(opts = {}) {
     </div>
     <div class="row wrap">
       ${dateField('วันที่', 'date', opts.date || todayStr(), true)}
-      <label class="field">เวลาเริ่ม <small class="muted">(ไม่บังคับ)</small>${time24HTML('time', '', { aria: 'เวลาเริ่ม' })}</label>
-      <label class="field" id="todoEndWrap" ${isPlan ? '' : 'hidden'}>เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', '', { aria: 'เวลาสิ้นสุด' })}</label>
+      <label class="field">เวลาเริ่ม <small class="muted">(ไม่บังคับ)</small>${time24HTML('time', opts.time || '', { aria: 'เวลาเริ่ม' })}</label>
+      <label class="field" id="todoEndWrap" ${isPlan ? '' : 'hidden'}>เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', opts.endTime || '', { aria: 'เวลาสิ้นสุด' })}</label>
     </div>
     <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" checked> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
@@ -2014,7 +2129,7 @@ async function filesRender() {
   const localRow = f => `<div class="item file-item">
       <span class="file-ic">${fileIcon(f.type, f.name)}</span>
       <span class="grow">
-        <button type="button" class="file-name-btn" data-act="file-open" data-id="${esc(f.id)}"><b>${esc(f.name)}</b></button>
+        <button type="button" class="file-name-btn" data-act="preview-file" data-kind="local" data-id="${esc(f.id)}" data-name="${esc(f.name)}"><b>${esc(f.name)}</b></button>
         <small class="muted file-meta"><span class="file-loc">💻 ในเครื่อง</span>${!curFolder && f.folder ? ` · 📁 ${esc(f.folder)}` : ''} · ${fmtSize(Number(f.size) || 0)} · ${esc(fmtStamp(f.addedAt))}</small>
       </span>
       ${fileMenuBtn('local', f.id, f.folder)}
@@ -2027,6 +2142,7 @@ async function filesRender() {
         <a href="${esc(l.url)}" target="_blank" rel="noopener" class="file-name-link"><b>${esc(l.title)}</b></a>
         <small class="muted file-meta"><span class="file-loc">🔗 ลิงก์</span>${!curFolder && l.folder ? ` · 📁 ${esc(l.folder)}` : ''}${host ? ` · ${esc(host)}` : ''}</small>
       </span>
+      <button type="button" class="mini-btn ${l.pinned ? 'has' : ''}" data-act="toggle-pin-link" data-id="${esc(l.id)}" title="${l.pinned ? 'เลิกปักหมุดหน้าการ์ดวิชา' : 'ปักหมุดเป็นทางลัดบนการ์ดวิชา'}" aria-label="ปักหมุดลิงก์">📌</button>
       ${fileMenuBtn('link', l.id, l.folder)}
     </div>`;
   };
@@ -2815,7 +2931,15 @@ const Actions = {
     }
     save(); renderChapterFilesModal();
   },
-  'toggle-chapter': el => { setChapterDone(el.dataset.sid, el.dataset.id, el.checked); save(); },
+  'toggle-chapter': el => {
+    setChapterDone(el.dataset.sid, el.dataset.id, el.checked);
+    const s = subjectById(el.dataset.sid);
+    if (el.checked && s && s.chapters.length && s.chapters.every(c => c.done)) {
+      launchConfetti();
+      App.toast(`เก่งมาก! อ่านจบครบทุกบทของ ${s.name} แล้ว 🎉`, 4000);
+    }
+    save();
+  },
   'add-chapters': el => openModal('+ เพิ่มบท/หัวข้อ', `<form data-form="chapters" data-sid="${el.dataset.sid}">
       <label class="field">บรรทัดละ 1 บท<textarea name="list" rows="6" placeholder="Ch1 ...&#10;Ch2 ..."></textarea></label>
       <p class="muted small">หรือสร้างอัตโนมัติ:</p>
@@ -2936,7 +3060,28 @@ const Actions = {
   'add-task': el => openModal('+ งาน / กิจกรรม', taskForm({ date: el.dataset.date })),
   'edit-task': el => openModal('✎ แก้ไข', taskForm(DB.tasks.find(x => x.id === el.dataset.id))),
   'del-task': el => { DB.tasks = DB.tasks.filter(x => x.id !== el.dataset.id); save(); refreshDayModal(); },
-  'toggle-task': el => { const x = DB.tasks.find(x => x.id === el.dataset.id); if (x) { x.done = el.checked; save(); refreshDayModal(); } },
+  'toggle-task': el => {
+    const x = DB.tasks.find(x => x.id === el.dataset.id);
+    if (!x) return;
+    x.done = el.checked;
+    if (x.done && x.repeat && x.date) {
+      const nextDate = addDays(x.date, x.repeat === 'daily' ? 1 : 7);
+      const exists = DB.tasks.some(o => o.title === x.title && o.date === nextDate && !o.done);
+      if (!exists) {
+        DB.tasks.push({ id: uid(), title: x.title, type: x.type, date: nextDate, time: x.time, subjectId: x.subjectId, remind: x.remind, repeat: x.repeat, done: false });
+        App.toast(`สร้างงานซ้ำรอบถัดไป ${fmtDateBE(nextDate)} แล้ว 🔁`);
+      }
+    }
+    if (x.done) {
+      const t = todayStr();
+      const tTasks = DB.tasks.filter(o => o.date === t), tPlans = planForDate(t);
+      if (tTasks.length + tPlans.length > 0 && tTasks.every(o => o.done) && tPlans.every(o => o.done)) {
+        launchConfetti();
+        App.toast('สุดยอด! เคลียร์ Today list ครบ 100% แล้ว 🎉', 4000);
+      }
+    }
+    save(); refreshDayModal();
+  },
 
   // calendar
   'cal-nav': el => { const [y, m] = App.calMonth.split('-').map(Number); const d = new Date(y, m - 1 + Number(el.dataset.dir), 1); App.calMonth = toDateStr(d).slice(0, 7); App.render(); },
@@ -2970,12 +3115,117 @@ const Actions = {
     document.body.classList.remove('focus-active');
     try { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); } catch { }
   },
+  'timer-flow': () => { Timer.setFlow(true); App.render(); },
+  'focus-flip-toggle': () => {
+    App.focusFlip = !App.focusFlip;
+    const r = document.getElementById('focusRing'), f = document.getElementById('focusFlip');
+    if (r) r.hidden = App.focusFlip;
+    if (f) f.hidden = !App.focusFlip;
+  },
+  'focus-sound-toggle': () => {
+    const p = document.getElementById('focusSoundPanel');
+    if (p) p.hidden = !p.hidden;
+  },
+  'sound-mute': () => {
+    const m = AmbientAudio.toggleMute();
+    App.toast(m ? 'ปิดเสียงบรรยากาศชั่วคราว 🔇' : 'เปิดเสียงบรรยากาศแล้ว 🎧');
+  },
+  'focus-formula-toggle': () => {
+    const d = document.getElementById('focusFormulaDrawer');
+    if (!d) return;
+    d.hidden = !d.hidden;
+    if (!d.hidden) renderFormulaDrawer();
+  },
+  'save-formula': el => {
+    const s = subjectById(el.dataset.sid);
+    const txt = document.getElementById('formulaText')?.value || '';
+    if (!s) return;
+    s.formulas = txt.slice(0, 8000);
+    save({ silent: true });
+    App.toast(`บันทึกสูตรวิชา ${s.name} แล้ว 📖`);
+  },
+  'test-chime': () => ChimeAudio.play(),
+  'cmd-open': () => openCmdPalette(),
+  'global-undo': () => UndoStack.undo(),
+  'spaced-review': el => scheduleSpacedReview(el.dataset.sid, el.dataset.cid),
+  'cycle-weight': el => {
+    const s = subjectById(el.dataset.sid);
+    const c = s?.chapters.find(x => x.id === el.dataset.cid);
+    if (!c) return;
+    c.weight = ((Number(c.weight) || 0) + 1) % 4;
+    save();
+  },
+  'edit-ch-pin': el => {
+    const s = subjectById(el.dataset.sid);
+    const c = s?.chapters.find(x => x.id === el.dataset.cid);
+    if (!c) return;
+    openModal(`📌 ปักหมุดโน้ตสั้น — ${esc(c.title)}`, `
+      <form data-form="ch-pin" data-sid="${s.id}" data-cid="${c.id}">
+        <label class="field">ข้อความเตือนความจำ 1 บรรทัด (ปล่อยว่างเพื่อลบ)
+          <input name="pin" maxlength="100" value="${esc(c.pin || '')}" placeholder="เช่น เน้นสูตรบท 3 หน้า 14">
+        </label>
+        <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
+      </form>
+    `);
+  },
+  'toggle-pin-link': el => {
+    const s = subjectById(App.filesSid);
+    const l = (s?.links || []).find(x => x.id === el.dataset.id);
+    if (!l) return;
+    l.pinned = !l.pinned;
+    save();
+    filesRender();
+    App.toast(l.pinned ? 'ปักหมุดลิงก์บนการ์ดวิชาแล้ว 📌' : 'เลิกปักหมุดลิงก์แล้ว');
+  },
+  'preview-file': el => previewFileModal(el.dataset.kind, el.dataset.id, el.dataset.name, el.dataset.url),
+  'term-wrap': () => openTermWrapModal(),
+  'tl-nav': el => { App.tlDate = addDays(App.tlDate || todayStr(), Number(el.dataset.dir || 0)); App.render(); },
+  'toggle-blackout': el => toggleBlackoutDate(el.dataset.date || todayStr()),
+  'book-slot': el => openModal('+ ลงเวลาอ่านหนังสือ', todoForm({ date: el.dataset.date || todayStr(), kind: 'plan', time: el.dataset.start || '', endTime: el.dataset.end || '' })),
+  'batch-toggle': () => { App.batchMode = !App.batchMode; App.batchSel.clear(); App.render(); },
+  'batch-pick': el => {
+    const k = el.dataset.k;
+    if (el.checked) App.batchSel.add(k); else App.batchSel.delete(k);
+    App.render();
+  },
+  'batch-move': el => {
+    const days = Number(el.dataset.days || 1);
+    if (!App.batchSel.size) return;
+    UndoStack.push(`เลื่อน ${App.batchSel.size} รายการ`);
+    let moved = 0;
+    App.batchSel.forEach(k => {
+      const [kind, id] = k.split(':');
+      if (kind === 'task') { const x = DB.tasks.find(o => o.id === id); if (x && x.date) { x.date = addDays(x.date, days); moved++; } }
+      else if (kind === 'plan') { const p = DB.plan.find(o => o.id === id); if (p && p.date) { p.date = addDays(p.date, days); moved++; } }
+    });
+    App.batchSel.clear(); App.batchMode = false;
+    save();
+    App.toast(`เลื่อน ${moved} รายการไป +${days} วันแล้ว 📅`);
+  },
+  'batch-del': () => {
+    if (!App.batchSel.size || !confirm(`ลบ ${App.batchSel.size} รายการที่เลือก?`)) return;
+    UndoStack.push(`ลบ ${App.batchSel.size} รายการ`);
+    const delTaskIds = new Set(), delPlanIds = new Set();
+    App.batchSel.forEach(k => { const [kind, id] = k.split(':'); if (kind === 'task') delTaskIds.add(id); else if (kind === 'plan') delPlanIds.add(id); });
+    DB.tasks = DB.tasks.filter(x => !delTaskIds.has(x.id));
+    DB.plan = DB.plan.filter(p => !delPlanIds.has(p.id));
+    App.batchSel.clear(); App.batchMode = false;
+    save();
+    App.toast('ลบรายการที่เลือกแล้ว 🗑️');
+  },
+  'reset-accent': () => { delete DB.prefs.customAccent; save(); App.toast('คืนค่าสี Accent ตามธีมแล้ว'); },
+  'rebind-key': el => { Keymap.capturing = el.dataset.k; App.render(); },
+  'reset-keys': () => { delete DB.prefs.shortcuts; Keymap.capturing = null; save(); App.toast('รีเซ็ตคีย์ลัดกลับค่าเริ่มต้นแล้ว ⌨️'); },
+  'tour-open': () => AppTour.open(0),
+  'tour-step': el => AppTour.open(Number(el.dataset.i || 0)),
+  'tour-done': () => AppTour.done(),
   'auto-reschedule': () => {
     const t = todayStr();
     const odPlans = DB.plan.filter(p => !p.done && p.date < t);
     const odTasks = DB.tasks.filter(x => !x.done && x.date && x.date < t);
     const total = odPlans.length + odTasks.length;
     if (!total) return App.toast('ไม่มีงานค้างที่ต้องจัดตารางใหม่แล้ว ✓');
+    UndoStack.push(`จัดตารางงานค้าง ${total} รายการ`);
     const prevPlans = odPlans.map(p => [p, p.date]);
     const prevTasks = odTasks.map(x => [x, x.date]);
     const bySub = {};
@@ -3528,7 +3778,15 @@ const Forms = {
     if (kind === 'plan') {
       return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind }, f);
     }
-    return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind }, f);
+    return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind, repeat: d.repeat || '' }, f);
+  },
+  'ch-pin'(d, f) {
+    const s = subjectById(f.dataset.sid);
+    const c = s?.chapters.find(x => x.id === f.dataset.cid);
+    if (!c) return;
+    c.pin = (d.pin || '').trim().slice(0, 100);
+    closeModal(); save();
+    App.toast(c.pin ? 'ปักหมุดโน้ตสั้นแล้ว 📌' : 'ลบหมุดโน้ตแล้ว');
   },
   'quick-todo'(d) {
     const title = (d.title || '').trim();
@@ -3544,7 +3802,7 @@ const Forms = {
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
-    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind });
+    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind, repeat: d.repeat || x.repeat || '' });
     if (d.remind) Notifier.ask();
     closeModal(); save();
   },
@@ -3602,7 +3860,7 @@ const Forms = {
       closeModal(); save(); App.toast('แก้ไขบันทึกแล้ว');
       return;
     }
-    if (!logSession(d.subjectId, m, d.date)) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
+    if (!logSession(d.subjectId, m, d.date, d.note || '')) return App.toast('ใส่เวลา 1–1440 นาทีนะ');
     if (f?.dataset?.id !== undefined) closeModal();
     App.toast('บันทึกแล้ว');
   },
@@ -3726,6 +3984,14 @@ const Changes = {
     c.confidence = Number(el.value) || 0;
     save();
   },
+  'chime-sel': el => { DB.prefs.chime = el.value || 'bell'; save({ silent: true }); ChimeAudio.play(DB.prefs.chime); },
+  'custom-accent': el => { DB.prefs.customAccent = el.value; save(); },
+  'gcal-filter': el => {
+    DB.prefs.gcalFilter = DB.prefs.gcalFilter || { exams: true, classes: true, plans: true, tasks: true };
+    DB.prefs.gcalFilter[el.dataset.k] = !!el.checked;
+    save({ silent: true });
+  },
+  'formula-sub': el => { Timer.subjectId = el.value; renderFormulaDrawer(); },
   'upload-folder': el => { App.fileFolder = el.value || ''; filesRender(); },
   'toggle-chapter-file': el => {
     const target = _chFilesTarget(); if (!target) return;
@@ -4053,6 +4319,11 @@ function bindEvents() {
     }
     clearChMarks(); dragCh = null;
   });
+  document.addEventListener('input', e => {
+    if (e.target.matches('[data-sound]')) {
+      AmbientAudio.setVolume(e.target.dataset.sound, e.target.value);
+    }
+  });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       const ov = document.getElementById('focusOverlay');
@@ -4125,6 +4396,11 @@ function bindEvents() {
     const f = e.target.closest('form[data-form]'); if (!f) return;
     e.preventDefault();
     const fn = Forms[f.dataset.form]; if (fn) fn(Object.fromEntries(new FormData(f)), f);
+  });
+  document.addEventListener('input', e => {
+    if (e.target.matches('[data-sound]')) {
+      AmbientAudio.setVolume(e.target.dataset.sound, e.target.value);
+    }
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && e.target.matches('.chat-input textarea')) { e.preventDefault(); e.target.form.requestSubmit(); }

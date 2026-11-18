@@ -62,7 +62,19 @@
         <span id="focusModeChip" class="chip accent">โฟกัส</span>
         <b id="focusSubj">อ่านหนังสือ</b>
       </div>
-      <button type="button" class="btn ghost small" data-act="focus-close">✕ ออกจากโหมดโฟกัส</button>
+      <div class="row wrap" style="margin:0;gap:6px">
+        <button type="button" class="btn ghost small" data-act="focus-flip-toggle">🕒 Flip Clock</button>
+        <button type="button" class="btn ghost small" data-act="focus-sound-toggle">🎧 เสียงบรรยากาศ</button>
+        <button type="button" class="btn ghost small" data-act="focus-formula-toggle">📖 สูตรด่วน</button>
+        <button type="button" class="btn ghost small" data-act="focus-close">✕ ออก</button>
+      </div>
+    </div>
+    <div id="focusSoundPanel" class="focus-sound-panel" hidden>
+      <div class="sound-row"><span>🌧️ ฝนตก</span><input type="range" min="0" max="100" value="0" data-sound="rain" aria-label="ระดับเสียงฝนตก"></div>
+      <div class="sound-row"><span>☕ คาเฟ่</span><input type="range" min="0" max="100" value="0" data-sound="cafe" aria-label="ระดับเสียงคาเฟ่"></div>
+      <div class="sound-row"><span>🌊 คลื่นทะเล</span><input type="range" min="0" max="100" value="0" data-sound="ocean" aria-label="ระดับเสียงคลื่นทะเล"></div>
+      <div class="sound-row"><span>📻 Brown Noise</span><input type="range" min="0" max="100" value="0" data-sound="brown" aria-label="ระดับเสียง Brown Noise"></div>
+      <div class="row end" style="margin-top:6px"><button type="button" class="btn ghost small" data-act="sound-mute">🔇 ปิด/เปิดเสียง</button></div>
     </div>
     <div class="focus-center">
       <div id="focusRing" class="focus-ring work">
@@ -71,13 +83,25 @@
           <div id="focusHint" class="muted">รอบที่ 1 · ตั้งใจอ่านนะ</div>
         </div>
       </div>
+      <div id="focusFlip" class="focus-flip" hidden>
+        <div class="flip-card"><span id="flipMin">25</span><small>MIN</small></div>
+        <div class="flip-colon">:</div>
+        <div class="flip-card"><span id="flipSec">00</span><small>SEC</small></div>
+      </div>
       <div class="row center wrap focus-ctrls">
         <button type="button" id="focusStartBtn" class="btn big" data-act="timer-start">▶ เริ่ม</button>
         <button type="button" class="btn ghost" data-act="timer-reset">รีเซ็ต</button>
         <button type="button" class="btn ghost" data-act="timer-stoplog">หยุด+บันทึก</button>
-        <button type="button" class="btn ghost" data-act="timer-skip">ข้าม</button>
+        <button type="button" id="focusSkipBtn" class="btn ghost" data-act="timer-skip">ข้าม</button>
       </div>
     </div>
+    <aside id="focusFormulaDrawer" class="focus-formula-drawer" hidden>
+      <div class="card-head">
+        <h3>📖 สูตร &amp; สรุปด่วน</h3>
+        <button type="button" class="icon-btn" data-act="focus-formula-toggle" aria-label="ปิดลิ้นชักสูตร">✕</button>
+      </div>
+      <div id="focusFormulaBody"></div>
+    </aside>
   </div>
 
   <div id="modal" class="modal hidden">
@@ -94,6 +118,7 @@
   <script src="js/sync.js"></script>
   <script src="js/drive.js"></script>
   <script src="js/services.js"></script>
+  <script src="js/features.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

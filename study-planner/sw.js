@@ -1,12 +1,12 @@
 /* Service worker: offline app shell (network-first, fallback to cache) */
-const CACHE = 'study-planner-v132';
+const CACHE = 'study-planner-v134';
 const SHELL = ['./', './index.html', './styles.css', './manifest.json',
   './icon-16.png', './icon-32.png', './icon-180.png', './icon-192.png', './icon-512.png',
   './assets/bg-blue.webp', './assets/bg-stadium.jpg', './assets/bg-oldtrafford.jpg', './assets/bg-aood.jpg', './assets/bg-mono.jpg', './assets/ronaldo-cutout.png', './assets/madrid-crest.png', './assets/kylian-chat.png', './assets/bruno-cutout.png', './assets/manutd-crest.png', './assets/marcus-chat.png', './assets/avatar.png', './assets/avatar-profile.webp', './assets/avatar-profile.png', './assets/og.jpg',
   './assets/coach-hero-real.webp', './assets/coach-action.webp', './assets/coach-moto.webp',
   './assets/sticker-pencil.webp', './assets/sticker-book.webp', './assets/sticker-rocket.webp', './assets/sticker-sakura.webp',
   './assets/ooo-chat.webp',
-  './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/drive.js', './js/services.js', './js/app.js'];
+  './js/store.js', './js/scheduler.js', './js/ai.js', './js/sync.js', './js/drive.js', './js/services.js', './js/features.js', './js/app.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

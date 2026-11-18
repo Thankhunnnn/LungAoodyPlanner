@@ -63,26 +63,43 @@ const Notifier = {
 
 /* ===== Pomodoro timer ===== */
 const Timer = {
-  mode: 'work', endAt: 0, remaining: null, running: false, round: 0, subjectId: '', startedAt: 0,
+  mode: 'work', flowMode: false, endAt: 0, remaining: null, flowElapsed: 0, running: false, round: 0, subjectId: '', startedAt: 0,
   dur(m = this.mode) { const p = DB.prefs.pomo; return (m === 'short' ? p.short : m === 'long' ? p.long : p.work) * 60; },
-  left() { return this.running ? Math.max(0, Math.round((this.endAt - Date.now()) / 1000)) : (this.remaining ?? this.dur()); },
-  elapsedMin() { return Math.floor((this.dur() - this.left()) / 60); },
+  left() {
+    if (this.flowMode) return this.running ? this.flowElapsed + Math.max(0, Math.round((Date.now() - this.startedAt) / 1000)) : this.flowElapsed;
+    return this.running ? Math.max(0, Math.round((this.endAt - Date.now()) / 1000)) : (this.remaining ?? this.dur());
+  },
+  elapsedMin() {
+    if (this.flowMode) return Math.floor(this.left() / 60);
+    return Math.floor((this.dur() - this.left()) / 60);
+  },
   start() {
     if (this.running) return;
+    if (this.flowMode) { this.startedAt = Date.now(); this.running = true; Notifier.ask(); App.renderTimerBits(); return; }
     if (this.remaining == null) this.startedAt = Date.now();
     this.endAt = Date.now() + this.left() * 1000; this.running = true; Notifier.ask(); App.renderTimerBits();
   },
-  pause() { if (!this.running) return; this.remaining = this.left(); this.running = false; App.renderTimerBits(); },
-  reset() { this.running = false; this.remaining = null; App.renderTimerBits(); },
-  setMode(m) { this.mode = m; this.reset(); },
-  stopAndLog() {
-    const m = this.mode === 'work' ? this.elapsedMin() : 0;
-    if (m >= 1) { logSession(this.subjectId, m); App.toast(`บันทึก ${m} นาทีแล้ว 👍`); }
+  pause() {
+    if (!this.running) return;
+    if (this.flowMode) { this.flowElapsed = this.left(); this.running = false; App.renderTimerBits(); return; }
+    this.remaining = this.left(); this.running = false; App.renderTimerBits();
+  },
+  reset() { this.running = false; this.remaining = null; this.flowElapsed = 0; App.renderTimerBits(); },
+  setMode(m) { this.flowMode = false; this.mode = m; this.reset(); },
+  setFlow(on) { this.flowMode = !!on; this.mode = 'work'; this.reset(); },
+  stopAndLog(note = '') {
+    const m = (this.flowMode || this.mode === 'work') ? this.elapsedMin() : 0;
+    if (m >= 1) {
+      logSession(this.subjectId, m, todayStr(), note);
+      const brk = this.flowMode ? Math.max(5, Math.round(m / 5)) : 0;
+      App.toast(brk ? `บันทึก ${m} นาทีแล้ว 👍 (แนะนำพัก ~${brk} นาที)` : `บันทึก ${m} นาทีแล้ว 👍`);
+    }
     else App.toast('ยังไม่ถึง 1 นาที ไม่ได้บันทึกนะ');
     this.reset();
   },
   finish() {
-    this.running = false; this.remaining = null; beep();
+    this.running = false; this.remaining = null;
+    if (typeof ChimeAudio !== 'undefined') ChimeAudio.play(); else beep();
     if (this.mode === 'work') {
       logSession(this.subjectId, DB.prefs.pomo.work);
       this.round++;
@@ -92,14 +109,18 @@ const Timer = {
       this.mode = 'work';
       Notifier.show('หมดเวลาพักแล้ว ⏰', 'กลับมาอ่านต่อกันเถอะ สู้ๆ');
     }
+    if (DB.prefs?.autoStartTimer) {
+      this.endAt = Date.now() + this.dur() * 1000;
+      this.running = true;
+    }
     App.render();
   },
-  tick() { if (this.running && this.left() <= 0) this.finish(); App.renderTimerBits(); },
+  tick() { if (this.running && !this.flowMode && this.left() <= 0) this.finish(); App.renderTimerBits(); },
 };
-function logSession(subjectId, minutes, date = todayStr()) {
+function logSession(subjectId, minutes, date = todayStr(), note = '') {
   const m = Math.round(Number(minutes));
   if (!(m > 0) || m > 1440) return false;
-  DB.sessions.push({ id: uid(), subjectId: subjectId || '', date, minutes: m, at: Date.now() });
+  DB.sessions.push({ id: uid(), subjectId: subjectId || '', date, minutes: m, note: String(note || '').trim().slice(0, 140), at: Date.now() });
   save();
   return true;
 }

@@ -15,7 +15,12 @@ function autoSchedule() {
 
   const subs = DB.subjects
     .filter(s => s.examDate && s.examDate > today)
-    .map(s => ({ s, queue: s.chapters.filter(c => !c.done && !manualPlanned.has(c.id)) }));
+    .map(s => ({
+      s,
+      queue: s.chapters
+        .filter(c => !c.done && !manualPlanned.has(c.id))
+        .sort((a, b) => (Number(b.weight) || 0) - (Number(a.weight) || 0)),
+    }));
   if (!subs.length) return { added: 0, leftover: 0, noExam: true };
 
   const lastExam = subs.reduce((m, x) => x.s.examDate > m ? x.s.examDate : m, today);
@@ -23,6 +28,7 @@ function autoSchedule() {
   const reviewDay = s => addDays(s.examDate, -1);
 
   for (let d = today; d < lastExam; d = addDays(d, 1)) {
+    if (typeof isBlackoutDate === 'function' && isBlackoutDate(d)) continue;
     let slots = perDay;
     if (review) {
       subs.filter(x => reviewDay(x.s) === d).forEach(x => {
