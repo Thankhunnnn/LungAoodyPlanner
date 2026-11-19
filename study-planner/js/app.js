@@ -3027,8 +3027,19 @@ const Actions = {
     inp.addEventListener('blur', () => finish(true));
   },
   'del-chapter': el => {
-    const s = subjectById(el.dataset.sid); if (!confirm('ลบบทนี้?')) return;
-    s.chapters = s.chapters.filter(c => c.id !== el.dataset.id); DB.plan = DB.plan.filter(p => p.chapterId !== el.dataset.id); save();
+    const s = subjectById(el.dataset.sid);
+    if (!s) return;
+    const idx = s.chapters.findIndex(c => c.id === el.dataset.id);
+    if (idx === -1) return;
+    const [removedCh] = s.chapters.splice(idx, 1);
+    const removedPlan = DB.plan.filter(p => p.chapterId === el.dataset.id);
+    DB.plan = DB.plan.filter(p => p.chapterId !== el.dataset.id);
+    save();
+    App.toast(`ลบบท "${removedCh.title}" แล้ว`, 4500, () => {
+      s.chapters.splice(idx, 0, removedCh);
+      if (removedPlan.length) DB.plan.push(...removedPlan);
+      save();
+    });
   },
   'move-chapter': el => {
     const s = subjectById(el.dataset.sid), i = s.chapters.findIndex(c => c.id === el.dataset.id), j = i + Number(el.dataset.dir);
