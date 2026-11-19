@@ -1733,16 +1733,36 @@ const firebaseConfig = {
   },
 };
 
+const REMIND_DAY_OPTS = [
+  [0, 'ในวันเดดไลน์ (ไม่เตือนล่วงหน้า)'],
+  [1, '1 วันก่อนเดดไลน์'],
+  [2, '2 วันก่อนเดดไลน์'],
+  [3, '3 วันก่อนเดดไลน์'],
+  [4, '4 วันก่อนเดดไลน์'],
+  [5, '5 วันก่อนเดดไลน์'],
+  [6, '6 วันก่อนเดดไลน์'],
+  [7, '7 วันก่อนเดดไลน์ (1 สัปดาห์)'],
+  [10, '10 วันก่อนเดดไลน์'],
+  [14, '14 วันก่อนเดดไลน์ (2 สัปดาห์)'],
+];
+function remindDaysSelectHTML(selected = 1) {
+  const cur = Number(selected ?? 1);
+  const opts = REMIND_DAY_OPTS.some(([v]) => v === cur) ? REMIND_DAY_OPTS : [...REMIND_DAY_OPTS, [cur, `${cur} วันก่อนเดดไลน์`]].sort((a, b) => a[0] - b[0]);
+  return `<select name="remindDays" aria-label="เตือนล่วงหน้าก่อนเดดไลน์">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+}
+
 function taskItemHTML(x, cat = '') {
   const n = x.date ? daysBetween(todayStr(), x.date) : null;
   const tf = Array.isArray(x.files) ? x.files : [];
+  const isHw = x.type !== 'event';
+  const rDays = Number(x.remindDays ?? 1);
   const cd = !x.done && n !== null ? (n < 0 ? `<small class="warn-text">เลย ${Math.abs(n)} วัน</small>` : n === 0 ? '<b class="accent-text">วันนี้</b>' : n === 1 ? '<b class="accent-text">พรุ่งนี้</b>' : `<small class="muted">อีก ${n} วัน</small>`) : '';
   const bKey = `task:${x.id}`;
   return `<div class="item ${x.done ? 'done' : ''}">
     ${App.batchMode && App.tab === 'plan' ? `<input type="checkbox" class="cb" data-act="batch-pick" data-k="${bKey}" ${App.batchSel.has(bKey) ? 'checked' : ''} aria-label="เลือกรายการ">` : `<label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>`}
     ${cat || `<span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>`}
     ${x.subjectId ? tag(x.subjectId) : ''}
-    <span class="grow">${esc(x.title)}${x.repeat ? ` <span class="chip" style="padding:1px 6px;font-size:.7rem">🔁 ${x.repeat === 'daily' ? 'ทุกวัน' : 'ทุกสัปดาห์'}</span>` : ''} <small class="muted">· ${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}</small>${cd ? ` · ${cd}` : ''}</span>
+    <span class="grow">${esc(x.title)}${x.repeat ? ` <span class="chip" style="padding:1px 6px;font-size:.7rem">🔁 ${x.repeat === 'daily' ? 'ทุกวัน' : 'ทุกสัปดาห์'}</span>` : ''} <small class="muted">· ${isHw ? 'เดดไลน์ ' : ''}${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${isHw && x.remind !== false && rDays > 0 ? ` · 🔔 ล่วงหน้า ${rDays} วัน` : ''}</small>${cd ? ` · ${cd}` : ''}</span>
     <span class="item-actions"><button class="mini-btn ${tf.length ? 'has' : ''}" data-act="task-files" data-id="${x.id}" title="แนบ/ดูไฟล์ (${tf.length})" aria-label="แนบไฟล์ ${esc(x.title)}">${ico('paperclip', 14)}${tf.length ? `<small class="ch-fc">${tf.length}</small>` : ''}</button>
     <button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
     <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">${ico('close', 15)}</button></span>
@@ -1807,16 +1827,17 @@ function todoForm(opts = {}) {
   const kind = opts.kind || 'homework';
   const sid = opts.subjectId || DB.subjects[0]?.id || '';
   const isPlan = kind === 'plan';
+  const isHw = kind === 'homework';
   return `<form data-form="todo">
     <input type="hidden" name="todoKind" id="todoKindInput" value="${kind}">
     <div class="pills" style="margin-bottom:12px">
-      <button type="button" class="pill ${kind === 'homework' ? 'active' : ''}" data-act="todo-kind" data-k="homework">📝 งาน</button>
+      <button type="button" class="pill ${isHw ? 'active' : ''}" data-act="todo-kind" data-k="homework">📝 งาน</button>
       <button type="button" class="pill ${kind === 'event' ? 'active' : ''}" data-act="todo-kind" data-k="event">📌 กิจกรรม</button>
       <button type="button" class="pill ${isPlan ? 'active' : ''}" data-act="todo-kind" data-k="plan">📖 อ่านหนังสือ</button>
     </div>
     <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
     <div id="todoTaskFields" ${isPlan ? 'hidden' : ''}>
-      <label class="field">ชื่องาน / กิจกรรม<input name="taskTitle" maxlength="200" placeholder="เช่น ส่งรายงานกลุ่ม หรือ ประชุมโปรเจกต์"></label>
+      <label class="field"><span id="todoTitleLbl">${isHw ? 'ชื่องาน' : 'ชื่อกิจกรรม'}</span><input name="taskTitle" maxlength="200" placeholder="เช่น ส่งรายงานกลุ่ม หรือ ประชุมโปรเจกต์"></label>
       <label class="field">ทำซ้ำ (Recurring)<select name="repeat"><option value="">ไม่ซ้ำ</option><option value="daily">ทุกวัน</option><option value="weekly">ทุกสัปดาห์</option></select></label>
     </div>
     <div id="todoPlanFields" ${isPlan ? '' : 'hidden'}>
@@ -1825,23 +1846,37 @@ function todoForm(opts = {}) {
     </div>
     <div class="row wrap">
       ${dateField('วันที่', 'date', opts.date || todayStr(), true)}
-      <label class="field">เวลาเริ่ม <small class="muted">(ไม่บังคับ)</small>${time24HTML('time', opts.time || '', { aria: 'เวลาเริ่ม' })}</label>
+      <label class="field"><span id="todoTimeLbl">${isHw ? 'เดดไลน์' : 'เวลาเริ่ม'} <small class="muted">(ไม่บังคับ)</small></span>${time24HTML('time', opts.time || '', { aria: isHw ? 'เดดไลน์' : 'เวลาเริ่ม' })}</label>
       <label class="field" id="todoEndWrap" ${isPlan ? '' : 'hidden'}>เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', opts.endTime || '', { aria: 'เวลาสิ้นสุด' })}</label>
     </div>
-    <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" checked> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
+    <div class="remind-box">
+      <label class="inline" style="margin:0"><input type="checkbox" name="remind" checked data-chg="toggle-remind-days"> 🔔 <span id="todoRemindLbl">${isHw ? 'แจ้งเตือนเดดไลน์' : 'แจ้งเตือนเมื่อถึงเวลา'}</span></label>
+      <label class="remind-days-row" id="todoRemindDaysWrap" ${isHw ? '' : 'hidden'}>
+        <span>เตือนล่วงหน้า</span>
+        ${remindDaysSelectHTML(opts.remindDays ?? 1)}
+      </label>
+    </div>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
 function taskForm(x = {}) {
+  const isEv = x.type === 'event';
+  const rOn = x.remind !== false;
   return `<form data-form="task" data-id="${x.id || ''}">
     <input type="hidden" name="type" value="${esc(x.type || 'homework')}">
-    <label class="field">ชื่องาน<input name="title" required maxlength="200" value="${esc(x.title || '')}" placeholder="เช่น ส่งรายงานกลุ่ม"></label>
+    <label class="field">${isEv ? 'ชื่อกิจกรรม' : 'ชื่องาน'}<input name="title" required maxlength="200" value="${esc(x.title || '')}" placeholder="${isEv ? 'เช่น ประชุมโปรเจกต์' : 'เช่น ส่งรายงานกลุ่ม'}"></label>
     <div class="row wrap">
       ${dateField('วันที่', 'date', x.date || todayStr(), true)}
-      <label class="field">เวลา${time24HTML('time', x.time || '', { aria: 'เวลา' })}</label>
+      <label class="field">${isEv ? 'เวลา' : 'เดดไลน์'}${time24HTML('time', x.time || '', { aria: isEv ? 'เวลา' : 'เดดไลน์' })}</label>
     </div>
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
-    <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" ${x.remind !== false ? 'checked' : ''}> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
+    <div class="remind-box">
+      <label class="inline" style="margin:0"><input type="checkbox" name="remind" ${rOn ? 'checked' : ''} data-chg="toggle-remind-days"> 🔔 ${isEv ? 'แจ้งเตือนเมื่อถึงเวลา' : 'แจ้งเตือนเดดไลน์'}</label>
+      ${!isEv ? `<label class="remind-days-row" id="taskRemindDaysWrap" ${rOn ? '' : 'hidden'}>
+        <span>เตือนล่วงหน้า</span>
+        ${remindDaysSelectHTML(x.remindDays ?? 1)}
+      </label>` : ''}
+    </div>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -3066,9 +3101,16 @@ const Actions = {
     const inp = document.getElementById('todoKindInput'); if (inp) inp.value = k;
     el.closest('.pills')?.querySelectorAll('.pill').forEach(b => b.classList.toggle('active', b === el));
     const isPlan = k === 'plan';
+    const isHw = k === 'homework';
     const tf = document.getElementById('todoTaskFields'); if (tf) tf.hidden = isPlan;
     const pf = document.getElementById('todoPlanFields'); if (pf) pf.hidden = !isPlan;
     const ew = document.getElementById('todoEndWrap'); if (ew) ew.hidden = !isPlan;
+    const ttl = document.getElementById('todoTitleLbl'); if (ttl) ttl.textContent = isHw ? 'ชื่องาน' : 'ชื่อกิจกรรม';
+    const tml = document.getElementById('todoTimeLbl'); if (tml) tml.innerHTML = `${isHw ? 'เดดไลน์' : 'เวลาเริ่ม'} <small class="muted">(ไม่บังคับ)</small>`;
+    const rml = document.getElementById('todoRemindLbl'); if (rml) rml.textContent = isHw ? 'แจ้งเตือนเดดไลน์' : 'แจ้งเตือนเมื่อถึงเวลา';
+    const rdw = document.getElementById('todoRemindDaysWrap');
+    const rCb = el.closest('form')?.querySelector('input[name="remind"]');
+    if (rdw) rdw.hidden = !(isHw && (!rCb || rCb.checked));
   },
   'add-task': el => openModal('+ งาน / กิจกรรม', taskForm({ date: el.dataset.date })),
   'edit-task': el => openModal('✎ แก้ไข', taskForm(DB.tasks.find(x => x.id === el.dataset.id))),
@@ -3825,7 +3867,7 @@ const Forms = {
     if (kind === 'plan') {
       return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind }, f);
     }
-    return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind, repeat: d.repeat || '' }, f);
+    return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind, remindDays: d.remindDays, repeat: d.repeat || '' }, f);
   },
   'edit-chapter'(d, f) {
     const s = subjectById(f.dataset.sid);
@@ -3862,7 +3904,9 @@ const Forms = {
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
-    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind, repeat: d.repeat || x.repeat || '' });
+    const isEv = d.type === 'event';
+    const rDays = isEv ? 1 : Math.max(0, Number(d.remindDays ?? x.remindDays ?? 1));
+    Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind, remindDays: rDays, repeat: d.repeat || x.repeat || '' });
     if (d.remind) Notifier.ask();
     closeModal(); save();
   },
@@ -4053,6 +4097,14 @@ const Changes = {
   },
   'formula-sub': el => { Timer.subjectId = el.value; renderFormulaDrawer(); },
   'upload-folder': el => { App.fileFolder = el.value || ''; filesRender(); },
+  'toggle-remind-days': el => {
+    const box = el.closest('.remind-box');
+    const row = box?.querySelector('.remind-days-row');
+    if (!row) return;
+    const kindInp = el.closest('form')?.querySelector('#todoKindInput');
+    const isHw = !kindInp || kindInp.value === 'homework';
+    row.hidden = !(isHw && el.checked);
+  },
   'toggle-chapter-file': el => {
     const target = _chFilesTarget(); if (!target) return;
     target.files = Array.isArray(target.files) ? target.files : [];

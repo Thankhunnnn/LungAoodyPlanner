@@ -21,7 +21,16 @@ const Notifier = {
     parts.push(items.length ? items.map(p => `• ${subjectName(p.subjectId)}: ${p.title}`).join('\n') : 'วันนี้ไม่มีแผนอ่าน 🎉');
     DB.subjects.filter(s => s.examDate === t).forEach(s => parts.push(`🎯 วันนี้สอบ ${s.name} ${s.examTime || ''} สู้ๆ!`));
     DB.subjects.filter(s => s.examDate === tm).forEach(s => parts.push(`⚠️ พรุ่งนี้สอบ ${s.name}`));
-    DB.tasks.filter(x => !x.done && (x.date === t || x.date === tm)).forEach(x => parts.push(`📝 ${x.title} (${x.date === t ? 'วันนี้' : 'พรุ่งนี้'})`));
+    DB.tasks.filter(x => {
+      if (x.done || !x.date) return false;
+      const dLeft = daysBetween(t, x.date);
+      const lead = x.type === 'event' ? 1 : Math.max(0, Number(x.remindDays ?? 1));
+      return dLeft >= 0 && dLeft <= lead;
+    }).forEach(x => {
+      const dLeft = daysBetween(t, x.date);
+      const lbl = dLeft === 0 ? 'วันนี้' : dLeft === 1 ? 'พรุ่งนี้' : `อีก ${dLeft} วัน`;
+      parts.push(`📝 ${x.title} (${x.type === 'event' ? lbl : `เดดไลน์${lbl}`}${x.time ? ' ' + x.time : ''})`);
+    });
     return parts.join('\n');
   },
   check() {
@@ -31,20 +40,28 @@ const Notifier = {
       LOCAL.lastNotify.daily = t; saveLocal();
       this.show('วันนี้ต้องอ่านอะไรบ้าง 📖', this.dailyText());
     }
-    // แจ้งเตือนล่วงหน้า 1 วัน: สอบ + การบ้าน/กิจกรรม
+    // แจ้งเตือนล่วงหน้า: สอบ (1 วัน) + งาน/กิจกรรม (ตามจำนวนวันก่อนเดดไลน์ที่ตั้งไว้)
     DB.subjects.filter(s => s.examDate === tm).forEach(s => {
       const k = 'eve_exam_' + s.id;
       if (LOCAL.lastNotify[k] === t) return;
       LOCAL.lastNotify[k] = t; saveLocal();
       this.show(`⚠️ พรุ่งนี้สอบ ${s.name}!`, `${fmtDateLong(s.examDate)}${s.examTime ? ' เวลา ' + s.examTime : ''}${s.room ? ' · ' + s.room : ''} เตรียมตัวให้พร้อมนะ 💪`);
     });
-    DB.tasks.filter(x => !x.done && x.date === tm && x.remind !== false).forEach(x => {
-      const k = 'eve_task_' + x.id;
+    DB.tasks.filter(x => !x.done && x.date && x.remind !== false).forEach(x => {
+      const dLeft = daysBetween(t, x.date);
+      const lead = x.type === 'event' ? 1 : Math.max(0, Number(x.remindDays ?? 1));
+      if (lead <= 0 || dLeft < 1 || dLeft > lead) return;
+      const k = `eve_task_${x.id}_${t}`;
       if (LOCAL.lastNotify[k] === t) return;
       LOCAL.lastNotify[k] = t; saveLocal();
-      this.show(`⏰ พรุ่งนี้ครบกำหนด: ${x.title}`, `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${x.type === 'event' ? 'กิจกรรม' : 'การบ้าน'}${x.time ? ' เวลา ' + x.time : ''}`);
+      const isEv = x.type === 'event';
+      const whenTxt = dLeft === 1 ? 'พรุ่งนี้' : `อีก ${dLeft} วัน`;
+      this.show(
+        isEv ? `⏰ ${whenTxt}มีกิจกรรม: ${x.title}` : `⏰ ${whenTxt}ถึงเดดไลน์: ${x.title}`,
+        `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${isEv ? 'กิจกรรม' : 'เดดไลน์'} ${fmtDateLong(x.date)}${x.time ? ' ' + x.time : ''}`
+      );
     });
-    // แจ้งเตือนตรงเวลาวันนี้: ตารางอ่าน + การบ้าน/กิจกรรม
+    // แจ้งเตือนตรงเวลาวันนี้: ตารางอ่าน + งาน/กิจกรรม
     DB.plan.filter(p => !p.done && p.date === t && p.time && p.remind !== false && hm >= p.time).forEach(p => {
       const k = 'plan_' + p.id;
       if (LOCAL.lastNotify[k] === t) return;
@@ -55,7 +72,8 @@ const Notifier = {
       const k = 'task_' + x.id;
       if (LOCAL.lastNotify[k] === t) return;
       LOCAL.lastNotify[k] = t; saveLocal();
-      this.show(`⏰ ถึงเวลางาน: ${x.title}`, `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${x.time}`);
+      const isEv = x.type === 'event';
+      this.show(`⏰ ${isEv ? 'ถึงเวลากิจกรรม' : 'ถึงเดดไลน์งาน'}: ${x.title}`, `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${isEv ? 'เวลา ' : 'เดดไลน์ '}${x.time}`);
     });
   },
   start() { this.check(); setInterval(() => this.check(), 30000); },

@@ -2238,3 +2238,17 @@ html[data-dark="1"] .ch-note-box {
 .subj-head h3 { margin: 0; }
 .subj-meta { margin-bottom: 10px; line-height: 1.5; }
 .exam-days-nowrap { white-space: nowrap; display: inline-block; }
+.remind-box {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 12px; margin: 8px 0 12px; padding: 10px 12px;
+  border-radius: 12px; border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--soft) 55%, transparent);
+}
+.remind-days-row {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: .84rem; color: var(--muted); margin: 0;
+}
+.remind-days-row[hidden] { display: none !important; }
+.remind-days-row select {
+  width: auto; min-width: 170px; padding: 6px 10px; font-size: .84rem;
+}
