@@ -430,6 +430,7 @@ const App = {
         <span class="chip date-pill">${ico('calendar', 14)} ${fmtDateLong(t)}</span>
         <span id="liveClock" class="chip date-pill live-clock" aria-label="เวลาปัจจุบัน">${ico('clock', 14)} ${liveTimeStr()}</span>
         ${this.syncBadgeHTML()}
+        <button type="button" class="btn small head-add-btn" data-act="add-todo" data-date="${t}" title="เพิ่ม งาน / กิจกรรม / อ่านหนังสือ (N)" aria-label="เพิ่ม งาน กิจกรรม หรือ อ่านหนังสือ">${ico('plus', 14)}<span class="head-add-lbl">เพิ่ม</span></button>
         <button class="icon-btn" data-act="cmd-open" title="ค้นหาด่วน (Ctrl+K)" aria-label="ค้นหาด่วน">🔎</button>
         ${UndoStack.canUndo() ? `<button class="icon-btn" data-act="global-undo" title="ย้อนกลับ: ${esc(UndoStack.lastLabel())} (Ctrl+Z)" aria-label="ย้อนกลับ">↩️</button>` : ''}
         <button class="chip theme-pick-btn" data-act="open-themes" style="--th-c:${thMeta[2]}" title="คลิกเพื่อเปลี่ยนธีม"><span class="theme-pick-dot"></span><span>ธีม: ${esc(thMeta[1])}</span><span class="theme-pick-caret">▾</span></button>
@@ -550,11 +551,12 @@ function planItemHTML(p, showDate = false, cat = '') {
   const fileBtn = p.chapterId
     ? `<button class="mini-btn ${files.length ? 'has' : ''}" data-act="chapter-files" data-sid="${p.subjectId}" data-id="${p.chapterId}" title="ไฟล์ในบทนี้ (${files.length})" aria-label="ไฟล์ในบท">${ico('paperclip', 14)}${files.length ? `<small class="ch-fc">${files.length}</small>` : ''}</button>`
     : `<button class="mini-btn ${files.length ? 'has' : ''}" data-act="plan-files" data-id="${p.id}" title="แนบ/ดูไฟล์ (${files.length})" aria-label="แนบไฟล์">${ico('paperclip', 14)}${files.length ? `<small class="ch-fc">${files.length}</small>` : ''}</button>`;
+  const rDays = Number(p.remindDays ?? 1);
   return `<div class="item ${p.done ? 'done' : ''}">
     <label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-plan" data-id="${p.id}" ${p.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>
     ${cat}
     ${tag(p.subjectId)}
-    <span class="grow">${p.kind === 'review' ? `${ico('reset', 13)} ` : ''}${esc(p.title)}${p.time ? ` <small class="muted">${ico('clock', 12)} ${esc(p.time)}${p.endTime ? '–' + esc(p.endTime) : ''}${p.remind !== false ? ` ${ico('bell', 12)}` : ''}</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
+    <span class="grow">${p.kind === 'review' ? `${ico('reset', 13)} ` : ''}${esc(p.title)}${p.time ? ` <small class="muted">${ico('clock', 12)} ${esc(p.time)}${p.endTime ? '–' + esc(p.endTime) : ''}</small>` : ''}${p.remind !== false && rDays > 0 ? ` <small class="muted">· 🔔 ล่วงหน้า ${rDays} วัน</small>` : ''}${showDate ? ` <small class="muted">· ${fmtDate(p.date)}</small>` : ''}</span>
     <span class="item-actions">${fileBtn}<button class="mini-btn" data-act="edit-plan" data-id="${p.id}" title="แก้ไข" aria-label="แก้ไขแผนอ่าน">${ico('edit', 15)}</button>
     <button class="mini-btn" data-act="del-plan" data-id="${p.id}" title="ลบ" aria-label="ลบแผนอ่าน">${ico('close', 15)}</button></span>
   </div>`;
@@ -953,7 +955,10 @@ const Views = {
       <section class="card ref-cal">
         <div class="card-head">
           <h2>${ico('calendar', 17)} ปฏิทินการเรียน</h2>
-          <button class="mini-btn" data-act="go" data-tab="calendar">${TH_MONTHS[mo]} ${yr + 543} ›</button>
+          <div class="row" style="margin:0;gap:6px">
+            <button type="button" class="mini-btn" data-act="add-todo" data-date="${t}" data-kind="event" title="เพิ่มกิจกรรม">${ico('plus', 14)} กิจกรรม</button>
+            <button class="mini-btn" data-act="go" data-tab="calendar">${TH_MONTHS[mo]} ${yr + 543} ›</button>
+          </div>
         </div>
         <div class="mini-cal-grid">
           ${['อา','จ','อ','พ','พฤ','ศ','ส'].map(d => `<span class="mc-hd">${d}</span>`).join('')}
@@ -1734,21 +1739,26 @@ const firebaseConfig = {
 };
 
 const REMIND_DAY_OPTS = [
-  [0, 'ในวันเดดไลน์ (ไม่เตือนล่วงหน้า)'],
-  [1, '1 วันก่อนเดดไลน์'],
-  [2, '2 วันก่อนเดดไลน์'],
-  [3, '3 วันก่อนเดดไลน์'],
-  [4, '4 วันก่อนเดดไลน์'],
-  [5, '5 วันก่อนเดดไลน์'],
-  [6, '6 วันก่อนเดดไลน์'],
-  [7, '7 วันก่อนเดดไลน์ (1 สัปดาห์)'],
-  [10, '10 วันก่อนเดดไลน์'],
-  [14, '14 วันก่อนเดดไลน์ (2 สัปดาห์)'],
+  [0, 'ในวันนั้น (ไม่เตือนล่วงหน้า)'],
+  [1, '1 วันก่อนหน้า'],
+  [2, '2 วันก่อนหน้า'],
+  [3, '3 วันก่อนหน้า'],
+  [4, '4 วันก่อนหน้า'],
+  [5, '5 วันก่อนหน้า'],
+  [6, '6 วันก่อนหน้า'],
+  [7, '7 วันก่อนหน้า (1 สัปดาห์)'],
+  [10, '10 วันก่อนหน้า'],
+  [14, '14 วันก่อนหน้า (2 สัปดาห์)'],
 ];
-function remindDaysSelectHTML(selected = 1) {
+function remindDaysSelectHTML(selected = 1, kind = 'homework') {
   const cur = Number(selected ?? 1);
-  const opts = REMIND_DAY_OPTS.some(([v]) => v === cur) ? REMIND_DAY_OPTS : [...REMIND_DAY_OPTS, [cur, `${cur} วันก่อนเดดไลน์`]].sort((a, b) => a[0] - b[0]);
-  return `<select name="remindDays" aria-label="เตือนล่วงหน้าก่อนเดดไลน์">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const suffix = kind === 'homework' ? 'ก่อนเดดไลน์' : 'ก่อนหน้า';
+  const labelFor = v => v === 0
+    ? (kind === 'homework' ? 'ในวันเดดไลน์ (ไม่เตือนล่วงหน้า)' : 'ในวันนั้น (ไม่เตือนล่วงหน้า)')
+    : v === 7 ? `7 วัน${suffix} (1 สัปดาห์)` : v === 14 ? `14 วัน${suffix} (2 สัปดาห์)` : `${v} วัน${suffix}`;
+  const base = REMIND_DAY_OPTS.map(([v]) => [v, labelFor(v)]);
+  const opts = base.some(([v]) => v === cur) ? base : [...base, [cur, labelFor(cur)]].sort((a, b) => a[0] - b[0]);
+  return `<select name="remindDays" aria-label="เตือนล่วงหน้า">${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
 }
 
 function taskItemHTML(x, cat = '') {
@@ -1762,7 +1772,7 @@ function taskItemHTML(x, cat = '') {
     ${App.batchMode && App.tab === 'plan' ? `<input type="checkbox" class="cb" data-act="batch-pick" data-k="${bKey}" ${App.batchSel.has(bKey) ? 'checked' : ''} aria-label="เลือกรายการ">` : `<label class="task-check-wrap"><input type="checkbox" class="cb" data-act="toggle-task" data-id="${x.id}" ${x.done ? 'checked' : ''} aria-label="ทำเครื่องหมายว่าเสร็จแล้ว"></label>`}
     ${cat || `<span>${x.type === 'event' ? ico('calendar', 14) : ico('note', 14)}</span>`}
     ${x.subjectId ? tag(x.subjectId) : ''}
-    <span class="grow">${esc(x.title)}${x.repeat ? ` <span class="chip" style="padding:1px 6px;font-size:.7rem">🔁 ${x.repeat === 'daily' ? 'ทุกวัน' : 'ทุกสัปดาห์'}</span>` : ''} <small class="muted">· ${isHw ? 'เดดไลน์ ' : ''}${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${isHw && x.remind !== false && rDays > 0 ? ` · 🔔 ล่วงหน้า ${rDays} วัน` : ''}</small>${cd ? ` · ${cd}` : ''}</span>
+    <span class="grow">${esc(x.title)}${x.repeat ? ` <span class="chip" style="padding:1px 6px;font-size:.7rem">🔁 ${x.repeat === 'daily' ? 'ทุกวัน' : 'ทุกสัปดาห์'}</span>` : ''} <small class="muted">· ${isHw ? 'เดดไลน์ ' : ''}${fmtDate(x.date)}${x.time ? ' ' + esc(x.time) : ''}${x.remind !== false && rDays > 0 ? ` · 🔔 ล่วงหน้า ${rDays} วัน` : ''}</small>${cd ? ` · ${cd}` : ''}</span>
     <span class="item-actions"><button class="mini-btn ${tf.length ? 'has' : ''}" data-act="task-files" data-id="${x.id}" title="แนบ/ดูไฟล์ (${tf.length})" aria-label="แนบไฟล์ ${esc(x.title)}">${ico('paperclip', 14)}${tf.length ? `<small class="ch-fc">${tf.length}</small>` : ''}</button>
     <button class="mini-btn" data-act="edit-task" data-id="${x.id}" aria-label="แก้ไขงาน ${esc(x.title)}">${ico('edit', 15)}</button>
     <button class="mini-btn" data-act="del-task" data-id="${x.id}" aria-label="ลบงาน ${esc(x.title)}">${ico('close', 15)}</button></span>
@@ -1828,6 +1838,8 @@ function todoForm(opts = {}) {
   const sid = opts.subjectId || DB.subjects[0]?.id || '';
   const isPlan = kind === 'plan';
   const isHw = kind === 'homework';
+  const timeLbl = isHw ? 'เดดไลน์' : isPlan ? 'เวลาเริ่ม' : 'เวลา';
+  const remindLbl = isHw ? 'แจ้งเตือนเดดไลน์' : isPlan ? 'แจ้งเตือนอ่านหนังสือ' : 'แจ้งเตือนเมื่อถึงเวลา';
   return `<form data-form="todo">
     <input type="hidden" name="todoKind" id="todoKindInput" value="${kind}">
     <div class="pills" style="margin-bottom:12px">
@@ -1846,14 +1858,14 @@ function todoForm(opts = {}) {
     </div>
     <div class="row wrap">
       ${dateField('วันที่', 'date', opts.date || todayStr(), true)}
-      <label class="field"><span id="todoTimeLbl">${isHw ? 'เดดไลน์' : 'เวลาเริ่ม'} <small class="muted">(ไม่บังคับ)</small></span>${time24HTML('time', opts.time || '', { aria: isHw ? 'เดดไลน์' : 'เวลาเริ่ม' })}</label>
+      <label class="field"><span id="todoTimeLbl">${timeLbl} <small class="muted">(ไม่บังคับ)</small></span>${time24HTML('time', opts.time || '', { aria: timeLbl })}</label>
       <label class="field" id="todoEndWrap" ${isPlan ? '' : 'hidden'}>เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', opts.endTime || '', { aria: 'เวลาสิ้นสุด' })}</label>
     </div>
     <div class="remind-box">
-      <label class="inline" style="margin:0"><input type="checkbox" name="remind" checked data-chg="toggle-remind-days"> 🔔 <span id="todoRemindLbl">${isHw ? 'แจ้งเตือนเดดไลน์' : 'แจ้งเตือนเมื่อถึงเวลา'}</span></label>
-      <label class="remind-days-row" id="todoRemindDaysWrap" ${isHw ? '' : 'hidden'}>
+      <label class="inline" style="margin:0"><input type="checkbox" name="remind" checked data-chg="toggle-remind-days"> 🔔 <span id="todoRemindLbl">${remindLbl}</span></label>
+      <label class="remind-days-row" id="todoRemindDaysWrap">
         <span>เตือนล่วงหน้า</span>
-        ${remindDaysSelectHTML(opts.remindDays ?? 1)}
+        ${remindDaysSelectHTML(opts.remindDays ?? 1, kind)}
       </label>
     </div>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
@@ -1872,16 +1884,17 @@ function taskForm(x = {}) {
     <label class="field">วิชา<select name="subjectId">${subjectOptions(x.subjectId || '')}</select></label>
     <div class="remind-box">
       <label class="inline" style="margin:0"><input type="checkbox" name="remind" ${rOn ? 'checked' : ''} data-chg="toggle-remind-days"> 🔔 ${isEv ? 'แจ้งเตือนเมื่อถึงเวลา' : 'แจ้งเตือนเดดไลน์'}</label>
-      ${!isEv ? `<label class="remind-days-row" id="taskRemindDaysWrap" ${rOn ? '' : 'hidden'}>
+      <label class="remind-days-row" id="taskRemindDaysWrap" ${rOn ? '' : 'hidden'}>
         <span>เตือนล่วงหน้า</span>
-        ${remindDaysSelectHTML(x.remindDays ?? 1)}
-      </label>` : ''}
+        ${remindDaysSelectHTML(x.remindDays ?? 1, isEv ? 'event' : 'homework')}
+      </label>
     </div>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
 function planForm(p = {}) {
   const sid = p.subjectId || DB.subjects[0]?.id || '';
+  const rOn = p.remind !== false;
   return `<form data-form="plan" data-id="${p.id || ''}">
     <label class="field">วิชา<select name="subjectId" data-chg="plan-sub">${subjectOptions(sid)}</select></label>
     <label class="field">บท (เลือก หรือพิมพ์เองด้านล่าง)<select name="chapterId" id="planCh">${planChapterOptions(sid, p.chapterId)}</select></label>
@@ -1891,7 +1904,13 @@ function planForm(p = {}) {
       <label class="field">เวลาเริ่ม <small class="muted">(ไม่บังคับ)</small>${time24HTML('time', p.time || '', { aria: 'เวลาเริ่ม' })}</label>
       <label class="field">เวลาสิ้นสุด <small class="muted">(ไม่บังคับ)</small>${time24HTML('endTime', p.endTime || '', { aria: 'เวลาสิ้นสุด' })}</label>
     </div>
-    <label class="inline" style="margin:6px 0"><input type="checkbox" name="remind" ${p.remind !== false ? 'checked' : ''}> 🔔 แจ้งเตือนเมื่อถึงเวลา</label>
+    <div class="remind-box">
+      <label class="inline" style="margin:0"><input type="checkbox" name="remind" ${rOn ? 'checked' : ''} data-chg="toggle-remind-days"> 🔔 แจ้งเตือนอ่านหนังสือ</label>
+      <label class="remind-days-row" id="planRemindDaysWrap" ${rOn ? '' : 'hidden'}>
+        <span>เตือนล่วงหน้า</span>
+        ${remindDaysSelectHTML(p.remindDays ?? 1, 'plan')}
+      </label>
+    </div>
     <div class="row end"><button type="button" class="btn ghost" data-act="close-modal">ยกเลิก</button><button class="btn">บันทึก</button></div>
   </form>`;
 }
@@ -3117,11 +3136,17 @@ const Actions = {
     const pf = document.getElementById('todoPlanFields'); if (pf) pf.hidden = !isPlan;
     const ew = document.getElementById('todoEndWrap'); if (ew) ew.hidden = !isPlan;
     const ttl = document.getElementById('todoTitleLbl'); if (ttl) ttl.textContent = isHw ? 'ชื่องาน' : 'ชื่อกิจกรรม';
-    const tml = document.getElementById('todoTimeLbl'); if (tml) tml.innerHTML = `${isHw ? 'เดดไลน์' : 'เวลาเริ่ม'} <small class="muted">(ไม่บังคับ)</small>`;
-    const rml = document.getElementById('todoRemindLbl'); if (rml) rml.textContent = isHw ? 'แจ้งเตือนเดดไลน์' : 'แจ้งเตือนเมื่อถึงเวลา';
+    const timeWord = isHw ? 'เดดไลน์' : isPlan ? 'เวลาเริ่ม' : 'เวลา';
+    const tml = document.getElementById('todoTimeLbl'); if (tml) tml.innerHTML = `${timeWord} <small class="muted">(ไม่บังคับ)</small>`;
+    const rml = document.getElementById('todoRemindLbl'); if (rml) rml.textContent = isHw ? 'แจ้งเตือนเดดไลน์' : isPlan ? 'แจ้งเตือนอ่านหนังสือ' : 'แจ้งเตือนเมื่อถึงเวลา';
     const rdw = document.getElementById('todoRemindDaysWrap');
+    const rSel = rdw?.querySelector('select[name="remindDays"]');
+    if (rSel) {
+      const cur = rSel.value;
+      rSel.outerHTML = remindDaysSelectHTML(cur, k);
+    }
     const rCb = el.closest('form')?.querySelector('input[name="remind"]');
-    if (rdw) rdw.hidden = !(isHw && (!rCb || rCb.checked));
+    if (rdw) rdw.hidden = !(!rCb || rCb.checked);
   },
   'add-task': el => openModal('+ งาน / กิจกรรม', taskForm({ date: el.dataset.date })),
   'edit-task': el => openModal('✎ แก้ไข', taskForm(DB.tasks.find(x => x.id === el.dataset.id))),
@@ -3876,7 +3901,7 @@ const Forms = {
   todo(d, f) {
     const kind = d.todoKind || 'homework';
     if (kind === 'plan') {
-      return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind }, f);
+      return Forms.plan({ subjectId: d.subjectId, chapterId: d.chapterId, title: d.planTitle || '', date: d.date, time: d.time, endTime: d.endTime, remind: d.remind, remindDays: d.remindDays }, f);
     }
     return Forms.task({ title: d.taskTitle || '', type: kind === 'event' ? 'event' : 'homework', date: d.date, time: d.time, subjectId: d.subjectId, remind: d.remind, remindDays: d.remindDays, repeat: d.repeat || '' }, f);
   },
@@ -3915,8 +3940,7 @@ const Forms = {
     if (d.date && !examYearOk(d.date)) return App.toast('วันที่ควรอยู่ระหว่างปีที่แล้วถึงอีก 5 ปีนะ');
     let x = DB.tasks.find(x => x.id === f.dataset.id);
     if (!x) { x = { id: uid(), done: false }; DB.tasks.push(x); }
-    const isEv = d.type === 'event';
-    const rDays = isEv ? 1 : Math.max(0, Number(d.remindDays ?? x.remindDays ?? 1));
+    const rDays = Math.max(0, Number(d.remindDays ?? x.remindDays ?? 1));
     Object.assign(x, { title: title.slice(0, 200), type: d.type, date: d.date, time: d.time, subjectId: d.subjectId, remind: !!d.remind, remindDays: rDays, repeat: d.repeat || x.repeat || '' });
     if (d.remind) Notifier.ask();
     closeModal(); save();
@@ -3929,8 +3953,9 @@ const Forms = {
     if (d.time && d.endTime && d.endTime <= d.time) return App.toast('เวลาสิ้นสุดต้องหลังเวลาเริ่มนะ');
     let p = DB.plan.find(x => x.id === f.dataset.id);
     if (!p) { p = { id: uid(), done: false }; DB.plan.push(p); }
-    Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, time: d.time || '', endTime: d.endTime || '', remind: !!d.remind, kind: c ? 'read' : 'custom', auto: false });
-    if (d.remind && d.time) Notifier.ask();
+    const rDays = Math.max(0, Number(d.remindDays ?? p.remindDays ?? 1));
+    Object.assign(p, { subjectId: d.subjectId, chapterId: c ? c.id : null, title, date: d.date, time: d.time || '', endTime: d.endTime || '', remind: !!d.remind, remindDays: rDays, kind: c ? 'read' : 'custom', auto: false });
+    if (d.remind) Notifier.ask();
     closeModal(); save();
   },
   'class'(d, f) {
@@ -4111,10 +4136,7 @@ const Changes = {
   'toggle-remind-days': el => {
     const box = el.closest('.remind-box');
     const row = box?.querySelector('.remind-days-row');
-    if (!row) return;
-    const kindInp = el.closest('form')?.querySelector('#todoKindInput');
-    const isHw = !kindInp || kindInp.value === 'homework';
-    row.hidden = !(isHw && el.checked);
+    if (row) row.hidden = !el.checked;
   },
   'toggle-chapter-file': el => {
     const target = _chFilesTarget(); if (!target) return;

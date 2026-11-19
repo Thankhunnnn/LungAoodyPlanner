@@ -2252,3 +2252,12 @@ html[data-dark="1"] .ch-note-box {
 .remind-days-row select {
   width: auto; min-width: 170px; padding: 6px 10px; font-size: .84rem;
 }
+.toolbar h2.grow {
+  flex: 1 1 220px; min-width: min(220px, 100%);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.head-add-btn { gap: 5px; padding: 7px 12px; border-radius: 999px; white-space: nowrap; }
+@media (max-width: 720px) {
+  .head-add-btn { padding: 7px 10px; min-height: 36px; }
+  .head-add-lbl { display: none; }
+}

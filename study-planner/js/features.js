@@ -656,16 +656,29 @@ const SHORTCUT_LABELS = {
   tabStats: 'ไปหน้า สถิติ',
   tabAi: 'ไปหน้า AI',
 };
+const CODE_TO_KEY = {
+  Space: ' ', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']',
+  Backslash: '\\', Semicolon: ';', Quote: "'", Backquote: '`',
+  Comma: ',', Period: '.', Slash: '/',
+};
 const Keymap = {
   capturing: null,
   get() { return { ...DEFAULT_SHORTCUTS, ...(DB.prefs?.shortcuts || {}) }; },
   fmtKey(k) { return k === ' ' ? 'Space' : String(k || '').toUpperCase(); },
+  eventKey(e) {
+    const c = e.code || '';
+    if (/^Key[A-Z]$/.test(c)) return c.slice(3).toLowerCase();
+    if (/^Digit[0-9]$/.test(c)) return c.slice(5);
+    if (/^Numpad[0-9]$/.test(c)) return c.slice(6);
+    if (CODE_TO_KEY[c]) return CODE_TO_KEY[c];
+    return e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  },
   init() {
     document.addEventListener('keydown', e => {
       if (this.capturing) {
         e.preventDefault();
-        if (e.key === 'Escape') { this.capturing = null; App.render(); return; }
-        const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+        if (e.key === 'Escape' || e.code === 'Escape') { this.capturing = null; App.render(); return; }
+        const key = this.eventKey(e);
         DB.prefs.shortcuts = { ...this.get(), [this.capturing]: key };
         const name = SHORTCUT_LABELS[this.capturing] || this.capturing;
         this.capturing = null;
@@ -674,10 +687,13 @@ const Keymap = {
         return;
       }
       const map = this.get();
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === (map.search || 'k')) {
+      const ek = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const ck = this.eventKey(e);
+      const hit = target => ek === target || ck === target;
+      if ((e.ctrlKey || e.metaKey) && hit(map.search || 'k')) {
         e.preventDefault(); openCmdPalette(); return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === (map.undo || 'z')) {
+      if ((e.ctrlKey || e.metaKey) && hit(map.undo || 'z')) {
         const tag = (e.target.tagName || '').toLowerCase();
         if (tag !== 'input' && tag !== 'textarea' && !e.target.isContentEditable) {
           e.preventDefault(); UndoStack.undo(); return;
@@ -688,22 +704,21 @@ const Keymap = {
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) return;
       const modalOpen = !document.getElementById('modal')?.classList.contains('hidden');
       if (modalOpen) return;
-      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      if (k === map.search) { e.preventDefault(); openCmdPalette(); }
-      else if (k === map.newTodo) { e.preventDefault(); openModal('+ สิ่งที่ต้องทำ', todoForm({ date: todayStr() })); }
-      else if (k === map.focusMode) {
+      if (hit(map.search)) { e.preventDefault(); openCmdPalette(); }
+      else if (hit(map.newTodo)) { e.preventDefault(); openModal('+ สิ่งที่ต้องทำ', todoForm({ date: todayStr() })); }
+      else if (hit(map.focusMode)) {
         e.preventDefault();
         const ov = document.getElementById('focusOverlay');
         if (ov && !ov.hidden) ACT['focus-close'](); else ACT['focus-open']();
       }
-      else if (k === map.toggleTimer) { e.preventDefault(); Timer.running ? ACT['timer-pause']() : ACT['timer-start'](); }
-      else if (k === map.tabHome) App.go('home');
-      else if (k === map.tabPlan) App.go('plan');
-      else if (k === map.tabSubjects) App.go('subjects');
-      else if (k === map.tabCalendar) App.go('calendar');
-      else if (k === map.tabTimer) App.go('timer');
-      else if (k === map.tabStats) App.go('stats');
-      else if (k === map.tabAi) App.go('ai');
+      else if (hit(map.toggleTimer)) { e.preventDefault(); Timer.running ? ACT['timer-pause']() : ACT['timer-start'](); }
+      else if (hit(map.tabHome)) App.go('home');
+      else if (hit(map.tabPlan)) App.go('plan');
+      else if (hit(map.tabSubjects)) App.go('subjects');
+      else if (hit(map.tabCalendar)) App.go('calendar');
+      else if (hit(map.tabTimer)) App.go('timer');
+      else if (hit(map.tabStats)) App.go('stats');
+      else if (hit(map.tabAi)) App.go('ai');
     });
   },
 };

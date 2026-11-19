@@ -24,12 +24,22 @@ const Notifier = {
     DB.tasks.filter(x => {
       if (x.done || !x.date) return false;
       const dLeft = daysBetween(t, x.date);
-      const lead = x.type === 'event' ? 1 : Math.max(0, Number(x.remindDays ?? 1));
+      const lead = Math.max(0, Number(x.remindDays ?? 1));
       return dLeft >= 0 && dLeft <= lead;
     }).forEach(x => {
       const dLeft = daysBetween(t, x.date);
       const lbl = dLeft === 0 ? 'วันนี้' : dLeft === 1 ? 'พรุ่งนี้' : `อีก ${dLeft} วัน`;
       parts.push(`📝 ${x.title} (${x.type === 'event' ? lbl : `เดดไลน์${lbl}`}${x.time ? ' ' + x.time : ''})`);
+    });
+    DB.plan.filter(p => {
+      if (p.done || !p.date || p.date === t) return false;
+      const dLeft = daysBetween(t, p.date);
+      const lead = Math.max(0, Number(p.remindDays ?? 1));
+      return dLeft >= 1 && dLeft <= lead;
+    }).forEach(p => {
+      const dLeft = daysBetween(t, p.date);
+      const lbl = dLeft === 1 ? 'พรุ่งนี้' : `อีก ${dLeft} วัน`;
+      parts.push(`📖 ${subjectName(p.subjectId)}: ${p.title} (${lbl}${p.time ? ' ' + p.time : ''})`);
     });
     return parts.join('\n');
   },
@@ -40,7 +50,7 @@ const Notifier = {
       LOCAL.lastNotify.daily = t; saveLocal();
       this.show('วันนี้ต้องอ่านอะไรบ้าง 📖', this.dailyText());
     }
-    // แจ้งเตือนล่วงหน้า: สอบ (1 วัน) + งาน/กิจกรรม (ตามจำนวนวันก่อนเดดไลน์ที่ตั้งไว้)
+    // แจ้งเตือนล่วงหน้า: สอบ (1 วัน) + งาน/กิจกรรม/อ่านหนังสือ (ตามจำนวนวันก่อนหน้า)
     DB.subjects.filter(s => s.examDate === tm).forEach(s => {
       const k = 'eve_exam_' + s.id;
       if (LOCAL.lastNotify[k] === t) return;
@@ -49,7 +59,7 @@ const Notifier = {
     });
     DB.tasks.filter(x => !x.done && x.date && x.remind !== false).forEach(x => {
       const dLeft = daysBetween(t, x.date);
-      const lead = x.type === 'event' ? 1 : Math.max(0, Number(x.remindDays ?? 1));
+      const lead = Math.max(0, Number(x.remindDays ?? 1));
       if (lead <= 0 || dLeft < 1 || dLeft > lead) return;
       const k = `eve_task_${x.id}_${t}`;
       if (LOCAL.lastNotify[k] === t) return;
@@ -59,6 +69,19 @@ const Notifier = {
       this.show(
         isEv ? `⏰ ${whenTxt}มีกิจกรรม: ${x.title}` : `⏰ ${whenTxt}ถึงเดดไลน์: ${x.title}`,
         `${x.subjectId ? subjectName(x.subjectId) + ' · ' : ''}${isEv ? 'กิจกรรม' : 'เดดไลน์'} ${fmtDateLong(x.date)}${x.time ? ' ' + x.time : ''}`
+      );
+    });
+    DB.plan.filter(p => !p.done && p.date && p.remind !== false).forEach(p => {
+      const dLeft = daysBetween(t, p.date);
+      const lead = Math.max(0, Number(p.remindDays ?? 1));
+      if (lead <= 0 || dLeft < 1 || dLeft > lead) return;
+      const k = `eve_plan_${p.id}_${t}`;
+      if (LOCAL.lastNotify[k] === t) return;
+      LOCAL.lastNotify[k] = t; saveLocal();
+      const whenTxt = dLeft === 1 ? 'พรุ่งนี้' : `อีก ${dLeft} วัน`;
+      this.show(
+        `📖 ${whenTxt}มีแผนอ่าน: ${p.title}`,
+        `${subjectName(p.subjectId)} · ${fmtDateLong(p.date)}${p.time ? ' ' + p.time : ''}`
       );
     });
     // แจ้งเตือนตรงเวลาวันนี้: ตารางอ่าน + งาน/กิจกรรม
